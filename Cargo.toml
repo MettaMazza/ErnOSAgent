@@ -1,0 +1,75 @@
+[package]
+name = "ernosagent"
+version = "0.1.0"
+edition = "2021"
+description = "Local multi-modal agentic reasoning HUD"
+license = "MIT"
+
+[features]
+default = []
+audio = ["dep:cpal", "dep:whisper-rs"]
+discord = ["dep:serenity", "dep:poise", "dep:songbird"]
+telegram = ["dep:teloxide"]
+all-platforms = ["discord", "telegram"]
+
+[dependencies]
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+
+# HTTP + streaming
+reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest-eventsource = "0.6"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# IDs + time
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Storage
+neo4rs = "0.8"
+dirs = "6"
+
+# Search + display
+fuzzy-matcher = "0.3"
+
+# Media encoding
+base64 = "0.22"
+
+# Crypto (WhatsApp webhook signature)
+hmac = "0.12"
+sha2 = "0.10"
+
+# Web server (WhatsApp webhook)
+axum = "0.8"
+tower = "0.5"
+
+# Utilities
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-appender = "0.2"
+
+# Optional — heavy native deps
+cpal = { version = "0.15", optional = true }
+whisper-rs = { version = "0.12", optional = true }
+serenity = { version = "0.12", features = ["client", "gateway", "model", "cache"], optional = true }
+poise = { version = "0.6", optional = true }
+songbird = { version = "0.4", optional = true }
+teloxide = { version = "0.13", features = ["macros"], optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+mockall = "0.13"
