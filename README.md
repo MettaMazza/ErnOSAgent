@@ -1,10 +1,37 @@
-# ErnOS Agent
+<p align="center">
+  <img src="docs/images/banner.png" alt="ErnOS Agent" width="800"/>
+</p>
 
-**Local-first, privacy-first AI agent with recursive self-improvement — desktop to mobile.**
+<h1 align="center">ErnOS Agent</h1>
 
-Created by [@mettamazza](https://github.com/mettamazza)
+<p align="center">
+  <strong>Local-first, privacy-first AI agent with recursive self-improvement — desktop to mobile.</strong>
+</p>
 
-A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 24 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using LoRA on Metal/CUDA/CPU. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
+<p align="center">
+  <a href="https://github.com/MettaMazza/ErnOSAgent/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
+  <img src="https://img.shields.io/badge/tests-718+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/rust-1.75+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Metal%20GPU-Accelerated-8A2BE2?style=flat-square&logo=apple&logoColor=white" alt="Metal">
+  <img src="https://img.shields.io/badge/CUDA-Supported-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="CUDA">
+  <img src="https://img.shields.io/badge/24%20Tools-Integrated-00ADD8?style=flat-square" alt="Tools">
+  <img src="https://img.shields.io/badge/17%20Rule-Observer%20Audit-FF6B6B?style=flat-square" alt="Observer">
+  <img src="https://img.shields.io/badge/7%20Tier-Memory%20System-FFD93D?style=flat-square" alt="Memory">
+  <img src="https://img.shields.io/badge/LoRA-Self--Improving-E040FB?style=flat-square" alt="LoRA">
+</p>
+
+<p align="center">
+  <em>Created by <a href="https://github.com/mettamazza">@mettamazza</a> · My first ever project · Built solo with AI assistance</em>
+</p>
+
+---
+
+> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 24 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using LoRA on Metal/CUDA/CPU. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
 
 ```
 ┌─ ErnOSAgent ─────────────────────────────────────────────────┐
@@ -26,7 +53,7 @@ A pure-Rust AI agent that runs transformer models on your hardware via `llama-se
 
 ---
 
-## Why ErnOSAgent?
+## 💡 Why ErnOSAgent?
 
 | Problem | Solution |
 |---------|----------|
@@ -47,7 +74,7 @@ A pure-Rust AI agent that runs transformer models on your hardware via `llama-se
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -97,7 +124,7 @@ cargo run --release -- --web
 
 ---
 
-## Production Subsystems
+## ⚙️ Production Subsystems
 
 Every subsystem listed here is implemented, tested, and integrated. No stubs. No mocks.
 
@@ -167,7 +194,7 @@ These subsystems have complete infrastructure and run on real weights where appl
 
 ---
 
-## Observer Audit System
+## 🛡️ Observer Audit System
 
 Every response passes through a 17-rule quality gate before delivery:
 
@@ -195,7 +222,7 @@ Blocked responses become preference pairs: the rejected response + the corrected
 
 ---
 
-## Self-Improvement Pipeline
+## 🧬 Self-Improvement Pipeline
 
 ```
 Observer PASS           Observer FAIL → retry → PASS
@@ -228,7 +255,7 @@ The LoRA training engine is fully wired to real model weights:
 
 ---
 
-## Self-Modification Architecture
+## 🔧 Self-Modification Architecture
 
 ErnOSAgent can read, write, patch, and recompile its own source code — then build and hot-swap itself. This is not theoretical; it's a tested, safety-gated pipeline with 3 layers:
 
@@ -321,7 +348,7 @@ STAGE 8: Hot-Swap
 
 ---
 
-## Containment Cone
+## 🔒 Containment Cone
 
 The agent can edit any source file, create tools, and recompile itself — but it **cannot** touch the infrastructure that keeps it contained. This is enforced at the Rust level, not the prompt level, so it cannot be bypassed by prompt injection, tool forging, or any other agent-initiated action.
 
@@ -340,7 +367,7 @@ The containment cone is the only hard constraint on the agent's self-modificatio
 
 ---
 
-## Checkpoint System
+## 📸 Checkpoint System
 
 Before any destructive file operation (write, patch, delete), the system auto-snapshots the original file:
 
@@ -364,7 +391,7 @@ This means the agent can roll back any file edit, even after recompiling itself.
 
 ---
 
-## Synaptic Knowledge Graph (Hebbian Plasticity)
+## 🧠 Synaptic Knowledge Graph (Hebbian Plasticity)
 
 The Synaptic Graph is a neuroscience-inspired in-memory knowledge graph where connections **strengthen with use and decay with neglect** — like biological synapses:
 
@@ -382,7 +409,7 @@ The Synaptic Graph is a neuroscience-inspired in-memory knowledge graph where co
 
 ---
 
-## 3D Turing Grid
+## 🧊 3D Turing Grid
 
 A spatial computation device — a classic Turing Machine tape extended to three dimensions. The agent uses it as a scratchpad for complex multi-step computation, pipeline orchestration, and daemon deployment:
 
@@ -403,7 +430,7 @@ The grid persists to disk and supports 14 distinct operations. It's a fundamenta
 
 ---
 
-## Local Text-to-Speech
+## 🔊 Local Text-to-Speech
 
 Kokoro ONNX TTS generates audio locally — no cloud APIs, no data leaving your machine:
 
@@ -417,7 +444,7 @@ Kokoro ONNX TTS generates audio locally — no cloud APIs, no data leaving your 
 
 ---
 
-## Task Scheduler
+## ⏰ Task Scheduler
 
 Background job execution through the same ReAct + Observer pipeline:
 
@@ -430,7 +457,7 @@ Background job execution through the same ReAct + Observer pipeline:
 
 ---
 
-## Reasoning Traces
+## 💭 Reasoning Traces
 
 Every thought the agent has is captured as a persistent, searchable record:
 
@@ -445,7 +472,7 @@ This creates an audit trail of **why** the agent made every decision, not just w
 
 ---
 
-## Testing
+## 🧪 Testing
 
 ```bash
 # Full suite (718+ tests)
@@ -485,7 +512,7 @@ cargo test --test e2e_llama -- --nocapture --test-threads=1
 
 ---
 
-## Configuration
+## ⚡ Configuration
 
 ```bash
 # Environment variables
@@ -514,7 +541,7 @@ stream_responses = true
 
 ---
 
-## Feature Flags
+## 🏁 Feature Flags
 
 ```bash
 # Default (TUI + Web)
@@ -535,7 +562,7 @@ cargo build --release --features mobile-native
 
 ---
 
-## Performance
+## 📊 Performance
 
 Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 
@@ -552,7 +579,7 @@ Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 
 ---
 
-## Mobile Platform
+## 📱 Mobile Platform
 
 ErnOS runs on Android and iOS with full operational parity to the desktop:
 
@@ -586,7 +613,7 @@ ErnOS runs on Android and iOS with full operational parity to the desktop:
 
 ---
 
-## Operational Kernel
+## 🧩 Operational Kernel
 
 The system prompt is a 3-layer architecture:
 
@@ -598,7 +625,7 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ---
 
-## Codebase Statistics
+## 📈 Codebase Statistics
 
 | Metric | Value |
 |--------|-------|
@@ -614,7 +641,7 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
 ### v1.0 (Current Release)
 
@@ -639,17 +666,30 @@ All items below have existing code proofs, tested prototypes, or architectural f
 
 ---
 
-## Created By
+## 👤 Created By
 
 **[@mettamazza](https://github.com/mettamazza)**
 
-This is my first ever project. I have no formal education in computer science or programming. I orchestrated and directed AI using my ideas and their implementation skills. It took about a year of prototyping — from Echo → Solance → Lucid → Lumen → Ernos — and this is the result of the foundational v1.
+This is my first ever project. I have no formal education in computer science or programming. I built this entirely on my own, working with AI as a coding partner — I brought the ideas, the architecture, and the direction; AI helped me implement them in Rust.
 
-Every line of code in this repository carries my attribution header. If you find this code useful, please respect the open-source license and credit the original author.
+It took about a year of prototyping and iterating — from **Echo → Solance → Lucid → Lumen → Ernos** — each version teaching me something new about what an AI agent actually needs to work reliably. This repository is the result of that journey.
+
+I'm not a developer by trade. I'm just someone who wanted to build something real, and kept going until it worked. If this project proves anything, it's that you don't need a CS degree to build serious software — you need persistence, good ideas, and the honesty to audit your own work.
+
+Every line of code in this repository carries my attribution header. If you find this code useful, please respect the open-source licence and credit the original author.
+
+### 🏗️ Independent Code Reviews
+
+This codebase has been independently reviewed by two frontier AI models, both operating under read-only forensic audit constraints with zero source modifications:
+
+| Reviewer | Verdict | Report |
+|----------|---------|--------|
+| **Claude Opus 4.6** (Anthropic) | *"Production-grade foundation. Architecturally sound. Genuinely impressive for a single-author project."* | [Full Review](CLAUDE_OPUS_4.6_CODEBASE_REVIEW.md) |
+| **Gemini Pro 3.1** (Google) | *"Highly rigorous implementation of agentic AI with impressive parity to its designated constraints."* — 98% governance compliance | [Full Review](Gemini%20pro%203.1%20high%20review.md) |
 
 ---
 
-## License
+## 📄 License
 
 MIT — See [LICENSE](LICENSE) for full terms.
 
