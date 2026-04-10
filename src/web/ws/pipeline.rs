@@ -24,18 +24,21 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 /// Safe tools that non-admin platform users are allowed to use.
-/// These cannot damage the host machine.
+/// These CANNOT damage the host machine — no shell access, no network requests,
+/// no behaviour modification. Read/write to agent-internal data files only.
+///
+/// EXCLUDED (admin-only):
+/// - operate_turing_grid: ALU executes real shell processes (bash, python, etc.)
+/// - steering_tool: modifies agent behaviour vectors
+/// - web_tool: makes HTTP requests from the host (SSRF risk)
 const SAFE_TOOL_NAMES: &[&str] = &[
     "memory_tool",
     "scratchpad_tool",
     "lessons_tool",
     "timeline_tool",
     "reasoning_tool",
-    "web_tool",
-    "steering_tool",
     "interpretability_tool",
     "operate_synaptic_graph",
-    "operate_turing_grid",
 ];
 
 /// Context for a platform message being processed through the pipeline.

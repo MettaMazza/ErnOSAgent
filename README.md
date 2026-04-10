@@ -411,7 +411,7 @@ The Synaptic Graph is a neuroscience-inspired in-memory knowledge graph where co
 
 ## 🧊 3D Turing Grid
 
-A spatial computation device — a classic Turing Machine tape extended to three dimensions. The agent uses it as a scratchpad for complex multi-step computation, pipeline orchestration, and daemon deployment:
+The agent's 3D computational device — a classic Turing Machine tape extended into three dimensions. This is not a memory system; it is a programmable compute substrate where the agent can navigate a spatial grid, write executable content into cells, chain cells into pipelines, and deploy persistent background daemons. It is the agent's native computation engine:
 
 | Action | What it does |
 |--------|-------------|
@@ -426,7 +426,7 @@ A spatial computation device — a classic Turing Machine tape extended to three
 | `deploy_daemon` | Deploy a cell's content as a persistent background process |
 | `history` / `undo` | Version history per cell, rollback to any snapshot |
 
-The grid persists to disk and supports 14 distinct operations. It's a fundamentally different kind of working memory — spatial rather than sequential.
+The grid persists to disk and supports 14 distinct operations. It gives the agent a programmable, spatial compute surface — fundamentally different from sequential conversation or flat key-value storage.
 
 ---
 

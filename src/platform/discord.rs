@@ -24,7 +24,7 @@ mod live {
 
     struct Handler {
         tx: mpsc::Sender<PlatformMessage>,
-        admin_user_id: String,
+        admin_user_ids: Vec<String>,
         listen_channels: Vec<String>,
     }
 
@@ -34,15 +34,17 @@ mod live {
             // Ignore bot messages
             if msg.author.bot { return; }
 
-            // Filter: only listen to configured channels or DMs from admin
+            // Filter: channel scope + admin tool scoping
             let is_dm = msg.guild_id.is_none();
-            let is_admin = msg.author.id.to_string() == self.admin_user_id;
-            let in_listen_channel = self.listen_channels.contains(&msg.channel_id.to_string());
+            let author_id = msg.author.id.to_string();
+            let is_admin = self.admin_user_ids.iter().any(|id| id == &author_id);
+            let in_listen_channel = self.listen_channels.is_empty()
+                || self.listen_channels.contains(&msg.channel_id.to_string());
 
-            // Non-admin DMs are blocked — only admin can DM
+            // Non-admin DMs are blocked — only admins can DM
             if is_dm && !is_admin { return; }
-            // Public channels: must be in listen list or from admin
-            if !is_dm && !is_admin && !in_listen_channel { return; }
+            // Guild channels: must be in listen list (applies to everyone, including admins)
+            if !is_dm && !in_listen_channel { return; }
 
             // Trigger Discord typing indicator — shows "ErnOS is typing..."
             let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
@@ -114,7 +116,11 @@ mod live {
 
             let handler = Handler {
                 tx: self.tx.clone(),
-                admin_user_id: self.config.admin_user_id.clone(),
+                admin_user_ids: self.config.admin_user_id
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
                 listen_channels: self.config.listen_channels.clone(),
             };
 

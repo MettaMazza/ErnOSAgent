@@ -65,20 +65,27 @@ mod live {
                         let tx = tx.clone();
                         let admin_id = admin_user_id.clone();
                         async move {
-                            // Filter to admin user if configured
+                            // Filter to admin users if configured (comma-separated)
                             let user = match msg.from {
                                 Some(ref u) => u,
                                 None => return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()),
                             };
 
-                            if !admin_id.is_empty() && user.id.to_string() != admin_id {
+                            let admin_ids: Vec<String> = admin_id
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            let user_id_str = user.id.to_string();
+
+                            if !admin_ids.is_empty() && !admin_ids.iter().any(|id| id == &user_id_str) {
                                 return Ok(());
                             }
 
                             let content = msg.text().unwrap_or("").to_string();
                             if content.is_empty() { return Ok(()); }
 
-                            let is_admin = user.id.to_string() == admin_id;
+                            let is_admin = admin_ids.iter().any(|id| id == &user_id_str);
                             let platform_msg = PlatformMessage {
                                 platform: "telegram".to_string(),
                                 channel_id: msg.chat.id.to_string(),
