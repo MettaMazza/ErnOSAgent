@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: Check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check (no warnings)
+        run: cargo check 2>&1 | tee /dev/stderr | grep -v "^$" | (! grep "warning:")
+
+  test:
+    name: Test Suite
+    runs-on: macos-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests (serial for determinism)
+        run: cargo test --lib -- --test-threads=1
+      - name: E2E tool tests
+        run: cargo test --test e2e_tools -- --test-threads=1
+
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -- -D warnings
+
+  no-todos:
+    name: No TODOs in source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no TODO/FIXME/HACK in Rust source
+        run: |
+          if grep -rn "TODO\|FIXME\|HACK\|todo!\|unimplemented!" src/ --include="*.rs"; then
+            echo "::error::Found TODO/FIXME/HACK markers in source code"
+            exit 1
+          fi

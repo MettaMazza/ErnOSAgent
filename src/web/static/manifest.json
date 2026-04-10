@@ -1,0 +1,22 @@
+{
+    "name": "ErnOS Agent",
+    "short_name": "ErnOS",
+    "description": "Self-improving AI agent with recursive self-compilation",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#070707",
+    "theme_color": "#00ff88",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

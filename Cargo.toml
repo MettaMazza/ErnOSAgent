@@ -1,22 +1,21 @@
 [package]
 name = "ernosagent"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-description = "Local multi-modal agentic reasoning HUD"
+authors = ["mettamazza"]
+description = "Local-first, privacy-first AI agent with recursive self-improvement — desktop to mobile"
 license = "MIT"
+readme = "README.md"
 
 [features]
 default = []
-audio = ["dep:cpal", "dep:whisper-rs"]
 discord = ["dep:serenity", "dep:poise", "dep:songbird"]
 telegram = ["dep:teloxide"]
+interp = ["dep:memmap2"]
+mobile-native = []  # Enable llama.cpp C FFI static linking (requires native lib to be built)
 all-platforms = ["discord", "telegram"]
 
 [dependencies]
-# TUI
-ratatui = "0.29"
-crossterm = "0.28"
-
 # Async
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
@@ -30,6 +29,7 @@ reqwest-eventsource = "0.6"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 toml = "0.8"
 
 # IDs + time
@@ -39,20 +39,34 @@ chrono = { version = "0.4", features = ["serde"] }
 # Storage
 neo4rs = "0.8"
 dirs = "6"
+cron = "0.13"
 
 # Search + display
 fuzzy-matcher = "0.3"
+regex = "1"
+urlencoding = "2"
+futures-util = "0.3"
 
 # Media encoding
 base64 = "0.22"
 
-# Crypto (WhatsApp webhook signature)
+# Crypto (webhook signature)
 hmac = "0.12"
 sha2 = "0.10"
+hex = "0.4"
 
-# Web server (WhatsApp webhook)
-axum = "0.8"
+# Web server (Web UI + WhatsApp webhook)
+axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# ML — Candle Metal backend (always-on: real LoRA training on M3 Ultra)
+candle-core = { version = "0.8", features = ["metal"] }
+candle-nn = { version = "0.8" }
+candle-transformers = { version = "0.8" }
+safetensors = { version = "0.4" }
+memmap2 = { version = "0.9", optional = true }
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 
 # Utilities
 anyhow = "1"
@@ -60,10 +74,9 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tracing-appender = "0.2"
+hostname = "0.4"
 
-# Optional — heavy native deps
-cpal = { version = "0.15", optional = true }
-whisper-rs = { version = "0.12", optional = true }
+# Optional — platform adapters
 serenity = { version = "0.12", features = ["client", "gateway", "model", "cache"], optional = true }
 poise = { version = "0.6", optional = true }
 songbird = { version = "0.4", optional = true }
@@ -73,3 +86,5 @@ teloxide = { version = "0.13", features = ["macros"], optional = true }
 tokio-test = "0.4"
 tempfile = "3"
 mockall = "0.13"
+
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }

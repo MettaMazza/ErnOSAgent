@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>ErnOS</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <key>UILaunchScreen</key>
+    <dict/>
+
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- Camera usage (Meta Ray-Ban glasses + QR scanning) -->
+    <key>NSCameraUsageDescription</key>
+    <string>ErnOS uses the camera for Meta Ray-Ban visual queries and QR code scanning to pair with your desktop.</string>
+
+    <!-- Microphone usage (voice input) -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ErnOS uses the microphone for voice input and hands-free interaction with Meta Ray-Ban Smart Glasses.</string>
+
+    <!-- Bluetooth (Meta Ray-Ban pairing) -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>ErnOS uses Bluetooth to connect to Meta Ray-Ban Smart Glasses for camera and microphone access.</string>
+
+    <!-- Local network (mDNS desktop discovery) -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>ErnOS discovers your desktop computer on the local network for relay inference.</string>
+
+    <!-- Bonjour services for desktop discovery -->
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_ernos._tcp</string>
+    </array>
+
+    <!-- Deep link scheme for QR code pairing -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>ernos</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.ernos.app</string>
+        </dict>
+    </array>
+
+    <!-- Metal GPU access for llama.cpp inference -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+        <string>metal</string>
+    </array>
+</dict>
+</plist>

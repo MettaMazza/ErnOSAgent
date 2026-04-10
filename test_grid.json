@@ -1,0 +1,19 @@
+{
+  "cells": {
+    "0,0,0": {
+      "content": "hello grid",
+      "format": "text",
+      "status": "Idle",
+      "last_updated": "2026-04-10T18:42:40.663573+00:00",
+      "daemon_active": false,
+      "links": [],
+      "history": []
+    }
+  },
+  "cursor": [
+    0,
+    0,
+    0
+  ],
+  "labels": {}
+}

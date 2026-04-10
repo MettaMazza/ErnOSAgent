@@ -1,0 +1,175 @@
+// ErnOS Mobile — UniFFI Interface Definition (UDL)
+//
+// This file defines the public API surface exported to Kotlin (Android) and Swift (iOS).
+// UniFFI generates the foreign-language bindings from this definition.
+//
+// Architecture: The native shells (Compose/SwiftUI) call these functions.
+// ALL intelligence (inference, memory, learning, ReAct, Observer) stays in Rust.
+
+namespace ernosagent {
+    // No standalone functions — everything goes through ErnOSEngine
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Enums
+// ═══════════════════════════════════════════════════════════
+
+[Enum]
+interface InferenceMode {
+    Local();
+    Remote();
+    Hybrid();
+    ChainOfAgents();
+};
+
+[Enum]
+interface ModelStatus {
+    NotDownloaded();
+    Downloading();
+    Downloaded();
+    Loaded();
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Data types
+// ═══════════════════════════════════════════════════════════
+
+dictionary DesktopPeer {
+    string name;
+    string address;
+    u16 port;
+    string model_name;
+    string model_params;
+    boolean is_connected;
+};
+
+dictionary DownloadProgress {
+    u64 bytes_downloaded;
+    u64 bytes_total;
+    f32 percent;
+    f32 speed_mbps;
+    string model_name;
+};
+
+dictionary MobileModelSpec {
+    string name;
+    string description;
+    string download_size;
+    u64 ram_required_mb;
+    boolean is_multimodal;
+};
+
+dictionary EngineStatus {
+    string model_name;
+    string inference_mode;
+    boolean is_ready;
+    boolean is_desktop_connected;
+    string status_summary;
+};
+
+dictionary ChatToken {
+    string content;
+    boolean is_thinking;
+    boolean is_eos;
+};
+
+dictionary ChatResult {
+    string response;
+    u64 total_tokens;
+    f32 context_usage;
+    string? neural_snapshot_json;
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Callbacks (Rust → Native)
+// ═══════════════════════════════════════════════════════════
+
+callback interface StreamCallback {
+    void on_token(ChatToken token);
+    void on_tool_call(string name, string arguments);
+    void on_complete(ChatResult result);
+    void on_error(string message);
+};
+
+callback interface DownloadCallback {
+    void on_progress(DownloadProgress progress);
+    void on_complete(string model_name);
+    void on_error(string message);
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Main Engine
+// ═══════════════════════════════════════════════════════════
+
+interface ErnOSEngine {
+    // ── Constructor ──
+    [Throws=EngineError]
+    constructor(string data_dir);
+
+    // ── Engine State ──
+    boolean is_ready();
+    EngineStatus get_status();
+
+    // ── Inference Mode ──
+    void set_inference_mode(InferenceMode mode);
+    InferenceMode get_inference_mode();
+
+    // ── Model Management ──
+    sequence<MobileModelSpec> available_models();
+    MobileModelSpec recommended_model(u64 available_ram_mb);
+    ModelStatus model_status(string model_name);
+    string? download_size(string model_name);
+
+    [Throws=EngineError]
+    void load_model(string model_name);
+    string? loaded_model();
+
+    [Throws=EngineError]
+    void delete_model(string model_name);
+
+    // ── Download ──
+    [Throws=EngineError]
+    void download_model(string model_name, DownloadCallback callback);
+
+    // ── Chat / Inference ──
+    [Throws=EngineError]
+    void chat(string message, StreamCallback callback);
+
+    [Throws=EngineError]
+    void chat_with_images(string message, sequence<bytes> images, StreamCallback callback);
+
+    [Throws=EngineError]
+    void chat_with_audio(string message, bytes audio_data, StreamCallback callback);
+
+    // ── Desktop Relay ──
+    [Throws=EngineError]
+    DesktopPeer connect_desktop(string address);
+
+    [Throws=EngineError]
+    DesktopPeer connect_desktop_qr(string qr_payload);
+
+    [Throws=EngineError]
+    DesktopPeer connect_desktop_manual(string ip, u16? port);
+
+    void disconnect_desktop();
+    boolean is_desktop_connected();
+
+    // ── Memory & Learning ──
+    string memory_summary();
+    u64 total_lessons_learned();
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Errors
+// ═══════════════════════════════════════════════════════════
+
+[Error]
+enum EngineError {
+    "ModelNotFound",
+    "ModelNotLoaded",
+    "DownloadFailed",
+    "InferenceError",
+    "ConnectionFailed",
+    "InvalidInput",
+    "InternalError",
+};

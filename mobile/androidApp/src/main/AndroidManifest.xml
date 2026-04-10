@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network access for desktop relay + model download -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Camera access for Meta Ray-Ban glasses + QR scanning -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Audio for voice input via glasses/device mic -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Bluetooth for Meta Ray-Ban glasses pairing -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <!-- NSD for mDNS desktop discovery -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Foreground service for background inference -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Require ARM64 — llama.cpp needs NEON -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <application
+        android:name=".ErnOSApplication"
+        android:label="ErnOS"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.ErnOS"
+        android:supportsRtl="true"
+        android:extractNativeLibs="true"
+        android:allowBackup="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link for desktop pairing QR -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="ernos"
+                    android:host="*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Foreground service for on-device inference -->
+        <service
+            android:name=".service.InferenceService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
+
+        <!-- Meta Wearables SDK provider (Phase 5) -->
+        <!-- <provider android:name="com.meta.wearables...." /> -->
+
+    </application>
+
+</manifest>

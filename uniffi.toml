@@ -1,0 +1,8 @@
+[bindings.kotlin]
+package_name = "com.ernos.app.ffi"
+cdylib_name = "ernosagent"
+
+[bindings.swift]
+module_name = "ErnOSAgentFFI"
+cdylib_name = "ernosagent"
+ffi_module_name = "ernosagentFFI"

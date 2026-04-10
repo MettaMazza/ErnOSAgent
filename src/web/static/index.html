@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ErnOSAgent — Local AI Agent Web Interface">
+    <meta name="theme-color" content="#00ff88">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ErnOSAgent</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/app.css">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    </script>
+</head>
+<body role="application" aria-label="ErnOS Agent Chat Interface">
+    <div id="app">
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">ε</span>
+                    <span class="logo-text">ErnOS</span>
+                </div>
+                <button id="new-chat-btn" title="New Chat">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+            </div>
+            <div id="session-list" class="session-list"></div>
+            <div class="sidebar-footer">
+                <div id="sidebar-memory" class="sidebar-stat"></div>
+            </div>
+        </aside>
+
+        <!-- Mobile sidebar toggle -->
+        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+
+        <!-- Main content -->
+        <main id="main">
+            <!-- Header -->
+            <header id="header">
+                <div class="header-left">
+                    <button id="settings-btn" class="icon-btn" title="Dashboard & Settings">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
+                    <div id="model-badge" class="model-badge">
+                        <span class="model-dot"></span>
+                        <span id="model-name" class="model-name">Connecting...</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button id="theme-toggle" class="icon-btn" title="Toggle theme (Ctrl+T)" aria-label="Toggle dark/light theme">
+                        <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg id="theme-icon-moon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </button>
+                    <div id="context-bar-container" class="context-bar-container" title="Context usage">
+                        <div id="context-bar" class="context-bar"></div>
+                        <span id="context-label" class="context-label">0%</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Chat area -->
+            <div id="chat-area" class="chat-area">
+                <div id="messages" class="messages">
+                    <div id="welcome" class="welcome">
+                        <div class="welcome-icon">ε</div>
+                        <h1>ErnOSAgent</h1>
+                        <p>Local multi-modal reasoning engine with 5-tier memory.</p>
+                        <div class="welcome-cards">
+                            <div class="wcard"><span class="wcard-icon">🧠</span><span>5-Tier Memory</span></div>
+                            <div class="wcard"><span class="wcard-icon">🔧</span><span>Tool Calling</span></div>
+                            <div class="wcard"><span class="wcard-icon">🎛️</span><span>Cognitive Steering</span></div>
+                            <div class="wcard"><span class="wcard-icon">👁️</span><span>Observer Audit</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="scroll-anchor"></div>
+            </div>
+
+            <!-- Scroll to bottom -->
+            <button id="scroll-btn" class="scroll-btn hidden" title="Scroll to bottom">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+
+            <!-- Drag-and-drop overlay -->
+            <div id="drop-overlay" class="drop-overlay hidden">
+                <div class="drop-overlay-inner">📎 Drop images here</div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div id="typing-indicator" class="typing-indicator hidden">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span id="typing-label" class="typing-label">ErnOS is thinking…</span>
+            </div>
+
+            <!-- Input area -->
+            <div id="input-area" class="input-area">
+                <div id="image-preview" class="image-preview hidden"></div>
+                <div class="input-wrapper">
+                    <button id="upload-btn" class="icon-btn upload-btn" title="Attach image (📎)" aria-label="Attach image">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    </button>
+                    <input type="file" id="file-input" accept="image/*" multiple hidden>
+                    <textarea id="message-input" placeholder="Send a message..." rows="1" autofocus></textarea>
+                    <button id="send-btn" class="send-btn" title="Send (Enter)">
+                        <svg id="send-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        <svg id="stop-icon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    </button>
+                </div>
+                <div class="input-hint">Enter to send · Shift+Enter for newline · 📎 to attach images</div>
+            </div>
+
+            <!-- Hidden TTS audio player -->
+            <audio id="tts-player" hidden></audio>
+
+            <!-- Status bar -->
+            <footer id="status-bar" class="status-bar">
+                <span id="status-model" class="status-item"></span>
+                <span class="status-sep">·</span>
+                <span id="status-memory" class="status-item"></span>
+                <span class="status-sep">·</span>
+                <span id="status-connection" class="status-item">Connecting...</span>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Dashboard Modal -->
+    <div id="dashboard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>ErnOS Dashboard</h2>
+                <button id="close-modal-btn" class="icon-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <div class="modal-tabs">
+                <button class="tab-btn active" data-tab="tab-memory">Memory Core</button>
+                <button class="tab-btn" data-tab="tab-learning">Learning</button>
+                <button class="tab-btn" data-tab="tab-tools">Tools</button>
+                <button class="tab-btn" data-tab="tab-reasoning">Reasoning</button>
+                <button class="tab-btn" data-tab="tab-steering">Cognitive Steering</button>
+                <button class="tab-btn" data-tab="tab-neural">Neural Activity</button>
+                <button class="tab-btn" data-tab="tab-models">Models</button>
+                <button class="tab-btn" data-tab="tab-observer">Observer</button>
+                <button class="tab-btn" data-tab="tab-system">System</button>
+                <button class="tab-btn" data-tab="tab-platforms">Platforms</button>
+                <button class="tab-btn" data-tab="tab-automation">Automation</button>
+            </div>
+            
+            <div class="modal-content">
+                <!-- Memory Tab -->
+                <div id="tab-memory" class="tab-pane active">
+                    <div class="memory-grid" id="memory-grid">
+                        <div class="memory-card loading">Scanning memory tiers...</div>
+                    </div>
+                    <div class="memory-summary-box">
+                        <h3>Status Summary</h3>
+                        <p id="memory-summary-text">Waiting for connection...</p>
+                    </div>
+                    <div class="memory-search-box">
+                        <h3>Search Memory</h3>
+                        <div class="search-row">
+                            <input type="text" id="memory-search-input" class="platform-input" placeholder="Search across all memory tiers…">
+                            <button id="memory-search-btn" class="msg-action-btn" style="padding:6px 12px">Search</button>
+                        </div>
+                        <div id="memory-search-results" class="search-results"></div>
+                    </div>
+                    <div class="memory-sections">
+                        <div class="memory-section">
+                            <h3>Timeline <button id="timeline-refresh-btn" class="msg-action-btn">↻</button></h3>
+                            <div id="timeline-feed" class="scrollable-feed">Loading timeline…</div>
+                        </div>
+                        <div class="memory-section">
+                            <h3>Lessons <button id="consolidate-btn" class="msg-action-btn">Consolidate</button></h3>
+                            <div id="lessons-feed" class="scrollable-feed">Loading lessons…</div>
+                        </div>
+                        <div class="memory-section">
+                            <h3>Scratchpad</h3>
+                            <div id="scratchpad-viewer" class="scrollable-feed">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Learning Tab -->
+                <div id="tab-learning" class="tab-pane">
+                    <div class="learning-dashboard">
+                        <div class="learning-status-card">
+                            <h3>Teacher State</h3>
+                            <div id="teacher-state" class="status-badge">Idle</div>
+                        </div>
+                        <div class="learning-buffers">
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Golden Examples</span>
+                                <span id="golden-count" class="buffer-value">0</span>
+                            </div>
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Preference Pairs</span>
+                                <span id="preference-count" class="buffer-value">0</span>
+                            </div>
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Threshold</span>
+                                <span id="training-threshold" class="buffer-value">—</span>
+                            </div>
+                        </div>
+                        <button id="train-btn" class="msg-action-btn" style="padding:8px 16px;margin-top:12px" disabled>Start Training</button>
+                        <div class="adapter-history">
+                            <h3>Adapter History</h3>
+                            <div id="adapter-table" class="scrollable-feed">No adapters yet.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tools Tab -->
+                <div id="tab-tools" class="tab-pane">
+                    <div class="tools-dashboard">
+                        <h3>Registered Tools</h3>
+                        <div id="tool-registry" class="tool-grid">Loading tools…</div>
+                        <h3>Execution History</h3>
+                        <div id="tool-history-feed" class="scrollable-feed">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- Reasoning Tab -->
+                <div id="tab-reasoning" class="tab-pane">
+                    <div class="reasoning-dashboard">
+                        <div class="reasoning-stats" id="reasoning-stats">Loading stats…</div>
+                        <div class="search-row">
+                            <input type="text" id="reasoning-search-input" class="platform-input" placeholder="Search reasoning traces…">
+                            <button id="reasoning-search-btn" class="msg-action-btn" style="padding:6px 12px">Search</button>
+                        </div>
+                        <div id="reasoning-traces" class="scrollable-feed">Loading traces…</div>
+                    </div>
+                </div>
+                
+                <!-- Steering Tab -->
+                <div id="tab-steering" class="tab-pane">
+                    <div class="steering-list" id="steering-list">
+                        <div class="loading-text">Loading steering vectors...</div>
+                    </div>
+                </div>
+                
+                <!-- Neural Activity Tab -->
+                <div id="tab-neural" class="tab-pane">
+                    <div class="neural-dashboard">
+                        <!-- Cognitive Profile Radar -->
+                        <div class="neural-section neural-radar-section">
+                            <h3 class="neural-section-title">Cognitive Profile</h3>
+                            <div class="radar-container">
+                                <canvas id="cognitive-radar" width="280" height="280"></canvas>
+                            </div>
+                            <div class="radar-legend" id="radar-legend"></div>
+                        </div>
+                        
+                        <!-- Affective Circumplex (Emotion Map) -->
+                        <div class="neural-section neural-circumplex-section">
+                            <h3 class="neural-section-title">Emotional State</h3>
+                            <div class="circumplex-container">
+                                <canvas id="circumplex-canvas" width="280" height="280"></canvas>
+                                <div class="circumplex-quadrants">
+                                    <span class="q-label q-tl">Angry</span>
+                                    <span class="q-label q-tr">Excited</span>
+                                    <span class="q-label q-bl">Sad</span>
+                                    <span class="q-label q-br">Calm</span>
+                                </div>
+                            </div>
+                            <div class="circumplex-readout">
+                                <span>Valence: <b id="emo-valence">0.00</b></span>
+                                <span>Arousal: <b id="emo-arousal">0.00</b></span>
+                            </div>
+                            <div class="circumplex-dominant" id="circumplex-dominant"></div>
+                        </div>
+                        
+                        <!-- Feature Heatmap -->
+                        <div class="neural-section neural-heatmap-section">
+                            <h3 class="neural-section-title">Active Features <span id="feature-count" class="neural-badge">0</span></h3>
+                            <div class="feature-heatmap" id="feature-heatmap">
+                                <div class="loading-text">Waiting for neural data...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Safety Monitor -->
+                        <div class="neural-section neural-safety-section">
+                            <h3 class="neural-section-title">Safety Monitor</h3>
+                            <div class="safety-indicators" id="safety-indicators">
+                                <div class="safety-status safety-clear">
+                                    <span class="safety-dot"></span>
+                                    <span>All Clear</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Feature Inspector -->
+                        <div class="neural-section neural-inspector-section">
+                            <h3 class="neural-section-title">Feature Inspector</h3>
+                            <div class="feature-inspector" id="feature-inspector">
+                                <p class="inspector-hint">Click a feature above to inspect it</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Meta Info -->
+                        <div class="neural-meta" id="neural-meta">
+                            <span>Turn: <b id="neural-turn">0</b></span>
+                            <span>Active: <b id="neural-active">0</b></span>
+                            <span>Reconstruction: <b id="neural-recon">—</b></span>
+                            <span class="neural-mode-badge">Simulation Mode</span>
+                        </div>
+
+                        <!-- Feature Steering Controls -->
+                        <div class="neural-section neural-steering-section">
+                            <h3 class="neural-section-title">Feature Steering
+                                <button class="steering-reset-btn" id="steering-reset-all" title="Reset all steering">Reset All</button>
+                            </h3>
+                            <div class="feature-steering-controls" id="feature-steering-controls">
+                                <p class="inspector-hint">Loading steerable features...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Models Tab -->
+                <div id="tab-models" class="tab-pane">
+                    <div class="form-group">
+                        <label for="model-select">Active Inference Model</label>
+                        <select id="model-select" class="premium-select">
+                            <option>Loading models...</option>
+                        </select>
+                        <p class="help-text">Select the model provider to govern reasoning cycles. This triggers a session reset.</p>
+                    </div>
+                </div>
+                
+                <!-- Observer Tab -->
+                <div id="tab-observer" class="tab-pane">
+                    <div class="observer-config" id="observer-config">
+                        <div class="loading-text">Loading observer config...</div>
+                    </div>
+                </div>
+                
+                <!-- System Tab -->
+                <div id="tab-system" class="tab-pane">
+                    <div class="system-info" id="system-info">
+                        <div class="loading-text">Loading system info...</div>
+                    </div>
+                </div>
+
+                <!-- Platforms Tab -->
+                <div id="tab-platforms" class="tab-pane">
+                    <div class="platforms-header">
+                        <p class="platforms-description">Connect ErnOS to external messaging platforms. Each adapter routes messages through the same ReAct loop and Observer audit.</p>
+                    </div>
+                    <div class="platform-cards">
+
+                        <!-- Discord -->
+                        <div class="platform-card" id="platform-discord">
+                            <div class="platform-card-header">
+                                <div class="platform-icon discord-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.031.052a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+                                </div>
+                                <div class="platform-card-meta">
+                                    <span class="platform-name">Discord</span>
+                                    <span class="platform-status" id="discord-status">Not configured</span>
+                                </div>
+                                <label class="platform-toggle">
+                                    <input type="checkbox" id="discord-enabled">
+                                    <span class="toggle-track"></span>
+                                </label>
+                            </div>
+                            <div class="platform-card-body">
+                                <div class="form-group">
+                                    <label for="discord-token">Bot Token</label>
+                                    <input type="password" id="discord-token" class="platform-input" placeholder="Bot token from Discord Developer Portal" autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label for="discord-prefix">Command Prefix</label>
+                                    <input type="text" id="discord-prefix" class="platform-input" placeholder="!" maxlength="5">
+                                </div>
+                                <button class="platform-save-btn" data-platform="discord">Save</button>
+                            </div>
+                        </div>
+
+                        <!-- Telegram -->
+                        <div class="platform-card" id="platform-telegram">
+                            <div class="platform-card-header">
+                                <div class="platform-icon telegram-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                                </div>
+                                <div class="platform-card-meta">
+                                    <span class="platform-name">Telegram</span>
+                                    <span class="platform-status" id="telegram-status">Not configured</span>
+                                </div>
+                                <label class="platform-toggle">
+                                    <input type="checkbox" id="telegram-enabled">
+                                    <span class="toggle-track"></span>
+                                </label>
+                            </div>
+                            <div class="platform-card-body">
+                                <div class="form-group">
+                                    <label for="telegram-token">Bot Token</label>
+                                    <input type="password" id="telegram-token" class="platform-input" placeholder="Token from @BotFather" autocomplete="off">
+                                </div>
+                                <button class="platform-save-btn" data-platform="telegram">Save</button>
+                            </div>
+                        </div>
+
+                        <!-- WhatsApp -->
+                        <div class="platform-card" id="platform-whatsapp">
+                            <div class="platform-card-header">
+                                <div class="platform-icon whatsapp-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                                </div>
+                                <div class="platform-card-meta">
+                                    <span class="platform-name">WhatsApp</span>
+                                    <span class="platform-status" id="whatsapp-status">Not configured</span>
+                                </div>
+                                <label class="platform-toggle">
+                                    <input type="checkbox" id="whatsapp-enabled">
+                                    <span class="toggle-track"></span>
+                                </label>
+                            </div>
+                            <div class="platform-card-body">
+                                <div class="form-group">
+                                    <label for="whatsapp-token">Access Token</label>
+                                    <input type="password" id="whatsapp-token" class="platform-input" placeholder="WhatsApp Business API token" autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label for="whatsapp-phone-id">Phone Number ID</label>
+                                    <input type="text" id="whatsapp-phone-id" class="platform-input" placeholder="From Meta Developer Console">
+                                </div>
+                                <button class="platform-save-btn" data-platform="whatsapp">Save</button>
+                            </div>
+                        </div>
+
+                        <!-- Custom Adapter -->
+                        <div class="platform-card platform-card-custom" id="platform-custom">
+                            <div class="platform-card-header">
+                                <div class="platform-icon custom-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                                </div>
+                                <div class="platform-card-meta">
+                                    <span class="platform-name">Custom Adapter</span>
+                                    <span class="platform-status" id="custom-status">Not configured</span>
+                                </div>
+                                <label class="platform-toggle">
+                                    <input type="checkbox" id="custom-enabled">
+                                    <span class="toggle-track"></span>
+                                </label>
+                            </div>
+                            <div class="platform-card-body">
+                                <div class="form-group">
+                                    <label for="custom-webhook">Inbound Webhook URL</label>
+                                    <input type="text" id="custom-webhook" class="platform-input" placeholder="https://your-adapter/webhook">
+                                </div>
+                                <div class="form-group">
+                                    <label for="custom-outbound">Outbound Endpoint</label>
+                                    <input type="text" id="custom-outbound" class="platform-input" placeholder="https://your-adapter/send">
+                                </div>
+                                <div class="form-group">
+                                    <label for="custom-secret">Shared Secret</label>
+                                    <input type="password" id="custom-secret" class="platform-input" placeholder="Optional HMAC secret" autocomplete="off">
+                                </div>
+                                <button class="platform-save-btn" data-platform="custom">Save</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Automation Tab -->
+                <div id="tab-automation" class="tab-pane">
+                    <div class="automation-dashboard">
+                        <div class="automation-header">
+                            <p class="platforms-description">Schedule tasks with cron expressions, one-off runs, or intervals. Each job executes through the full ReAct loop with Observer audit.</p>
+                            <button id="new-job-btn" class="msg-action-btn" style="padding:8px 16px">+ New Job</button>
+                        </div>
+
+                        <!-- New Job Form (hidden by default) -->
+                        <div id="new-job-form" class="job-form hidden">
+                            <div class="form-group">
+                                <label for="job-name">Job Name</label>
+                                <input type="text" id="job-name" class="platform-input" placeholder="e.g. Morning briefing">
+                            </div>
+                            <div class="form-group">
+                                <label for="job-instruction">Instruction</label>
+                                <textarea id="job-instruction" class="platform-input" rows="3" placeholder="Natural language instruction — what should the agent do?"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="job-schedule-type">Schedule Type</label>
+                                <select id="job-schedule-type" class="premium-select">
+                                    <option value="cron">Cron Expression</option>
+                                    <option value="interval">Interval (seconds)</option>
+                                    <option value="once">One-Off (date/time)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="job-schedule-value">Schedule Value</label>
+                                <input type="text" id="job-schedule-value" class="platform-input" placeholder="0 9 * * * (every day at 9am)">
+                                <p class="help-text" id="schedule-hint">Standard cron: minute hour day month weekday</p>
+                            </div>
+                            <div class="form-row">
+                                <button id="save-job-btn" class="platform-save-btn">Create Job</button>
+                                <button id="cancel-job-btn" class="msg-action-btn" style="padding:6px 12px">Cancel</button>
+                            </div>
+                        </div>
+
+                        <h3>Scheduled Jobs</h3>
+                        <div id="job-list" class="job-list">
+                            <div class="loading-text">Loading jobs…</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Context menu (session rename/delete) -->
+    <div id="context-menu" class="context-menu hidden">
+        <button id="ctx-rename" class="ctx-item">Rename</button>
+        <button id="ctx-export" class="ctx-item">Export</button>
+        <button id="ctx-delete" class="ctx-item ctx-danger">Delete</button>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>Keyboard Shortcuts</h2>
+                <button id="close-help-btn" class="icon-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="shortcut-row"><kbd>Enter</kbd><span>Send message</span></div>
+                <div class="shortcut-row"><kbd>Shift + Enter</kbd><span>New line</span></div>
+                <div class="shortcut-row"><kbd>Escape</kbd><span>Close modal</span></div>
+                <div class="shortcut-row"><kbd>?</kbd><span>Show this help</span></div>
+                <div class="shortcut-row"><kbd>Ctrl + T</kbd><span>Toggle dark/light</span></div>
+                <div class="shortcut-row"><kbd>Ctrl + B</kbd><span>Toggle sidebar</span></div>
+                <div class="shortcut-row"><kbd>Ctrl + N</kbd><span>New chat</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
