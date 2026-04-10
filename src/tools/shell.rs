@@ -19,9 +19,6 @@ const DEFAULT_TIMEOUT_SECS: u64 = 120;
 /// Maximum command timeout.
 const MAX_TIMEOUT_SECS: u64 = 600;
 
-/// Maximum output size returned to the ReAct loop (8 KB).
-const MAX_OUTPUT_BYTES: usize = 8 * 1024;
-
 /// Execute a shell command and return the output.
 fn run_command(call: &ToolCall) -> ToolResult {
     let command = call.arguments.get("command")
@@ -85,17 +82,6 @@ fn run_command(call: &ToolCall) -> ToolResult {
                 }
                 combined.push_str("[stderr]\n");
                 combined.push_str(&stderr);
-            }
-
-            // Truncate if too large
-            if combined.len() > MAX_OUTPUT_BYTES {
-                let truncated_msg = format!(
-                    "\n\n[OUTPUT TRUNCATED — {} bytes total, showing first {}]",
-                    combined.len(),
-                    MAX_OUTPUT_BYTES
-                );
-                combined = combined[..MAX_OUTPUT_BYTES].to_string();
-                combined.push_str(&truncated_msg);
             }
 
             let status_line = if output.status.success() {

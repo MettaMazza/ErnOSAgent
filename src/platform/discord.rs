@@ -30,7 +30,7 @@ mod live {
 
     #[serenity::async_trait]
     impl EventHandler for Handler {
-        async fn message(&self, _ctx: Context, msg: Message) {
+        async fn message(&self, ctx: Context, msg: Message) {
             // Ignore bot messages
             if msg.author.bot { return; }
 
@@ -39,7 +39,13 @@ mod live {
             let is_admin = msg.author.id.to_string() == self.admin_user_id;
             let in_listen_channel = self.listen_channels.contains(&msg.channel_id.to_string());
 
+            // Non-admin DMs are blocked — only admin can DM
+            if is_dm && !is_admin { return; }
+            // Public channels: must be in listen list or from admin
             if !is_dm && !is_admin && !in_listen_channel { return; }
+
+            // Trigger Discord typing indicator — shows "ErnOS is typing..."
+            let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
 
             let platform_msg = PlatformMessage {
                 platform: "discord".to_string(),
@@ -48,6 +54,8 @@ mod live {
                 user_name: msg.author.name.clone(),
                 content: msg.content.clone(),
                 attachments: msg.attachments.iter().map(|a| a.url.clone()).collect(),
+                message_id: msg.id.to_string(),
+                is_admin,
             };
 
             if let Err(e) = self.tx.send(platform_msg).await {
@@ -142,6 +150,10 @@ mod live {
         }
 
         async fn send_message(&self, channel_id: &str, content: &str) -> Result<()> {
+            self.reply_to_message(channel_id, "", content).await
+        }
+
+        async fn reply_to_message(&self, channel_id: &str, message_id: &str, content: &str) -> Result<()> {
             let http = self.http.as_ref()
                 .ok_or_else(|| anyhow::anyhow!("Discord not connected"))?;
 
@@ -150,19 +162,34 @@ mod live {
                     .map_err(|_| anyhow::anyhow!("Invalid channel ID: {channel_id}"))?
             );
 
-            // Chunk at Discord's 2000 char limit
+            // Build the message — with native reply threading if message_id is provided
             let chunks = chunk_message(content, 2000);
-            for chunk in &chunks {
-                channel.send_message(http, CreateMessage::new().content(chunk)).await
+            for (i, chunk) in chunks.iter().enumerate() {
+                let mut msg = CreateMessage::new().content(chunk);
+
+                // Only the first chunk gets the reply reference
+                if i == 0 && !message_id.is_empty() {
+                    if let Ok(mid) = message_id.parse::<u64>() {
+                        let msg_ref = serenity::model::channel::MessageReference::from((
+                            channel,
+                            serenity::model::id::MessageId::new(mid),
+                        ));
+                        msg = msg.reference_message(msg_ref);
+                    }
+                }
+
+                channel.send_message(http, msg).await
                     .map_err(|e| anyhow::anyhow!("Discord send failed: {e}"))?;
             }
 
             tracing::debug!(
                 channel = %channel_id,
                 chunks = chunks.len(),
+                reply_to = %message_id,
                 "Discord message sent"
             );
-            Ok(())
+            Ok(()
+            )
         }
 
         fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>> {

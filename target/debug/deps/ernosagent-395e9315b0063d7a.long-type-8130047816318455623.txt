@@ -1,2 +1,0 @@
-Arc<SessionLogWriter>
-Arc<SessionLogWriter>: std::io::Write

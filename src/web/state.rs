@@ -14,6 +14,7 @@ use crate::learning::manifest::AdapterManifest;
 use crate::learning::teacher::Teacher;
 use crate::memory::MemoryManager;
 use crate::model::spec::ModelSpec;
+use crate::platform::registry::PlatformRegistry;
 use crate::provider::Provider;
 use crate::session::manager::SessionManager;
 use crate::steering::vectors::SteeringConfig;
@@ -48,4 +49,6 @@ pub struct WebAppState {
     pub teacher: Option<Arc<Teacher>>,
     /// Adapter version manifest (tracks trained model versions).
     pub adapter_manifest: Option<Arc<Mutex<AdapterManifest>>>,
+    /// Live platform adapter registry (Discord, Telegram, etc.)
+    pub platform_registry: PlatformRegistry,
 }

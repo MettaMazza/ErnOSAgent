@@ -242,10 +242,10 @@ async fn test_decay_preserves_permanent() {
     graph.strengthen_edge("P", "Q").await;
     graph.strengthen_edge("P", "Q").await;
 
-    let (decayed, _, permanent) = graph.decay_all(0.01).await;
+    let (_decayed, _, permanent) = graph.decay_all(0.01).await;
     assert_eq!(permanent, 1, "Should have 1 permanent edge");
     // The original relationship edge may decay, the strengthened one is permanent
-    assert!(decayed >= 0);
+    // The original relationship edge may decay, the strengthened one is permanent
 }
 
 #[tokio::test]

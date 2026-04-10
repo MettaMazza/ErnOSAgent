@@ -225,6 +225,64 @@ async fn init_web_state(
         }
     };
 
+    // Platform adapters (Discord, Telegram, etc.)
+    let mut platform_registry = ernosagent::platform::registry::PlatformRegistry::new();
+    {
+        // Read saved platform configs from platforms.json
+        let platforms_file = config.general.data_dir.join("platforms.json");
+        let saved_platforms: std::collections::HashMap<String, serde_json::Value> =
+            match std::fs::read_to_string(&platforms_file) {
+                Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
+                Err(_) => std::collections::HashMap::new(),
+            };
+
+        // Discord — merge saved config into the default config
+        let mut discord_cfg = config.platform.discord.clone();
+        if let Some(saved) = saved_platforms.get("discord") {
+            if let Some(token) = saved.get("token").and_then(|v| v.as_str()) {
+                if !token.is_empty() { discord_cfg.token = token.to_string(); }
+            }
+            if let Some(enabled) = saved.get("enabled").and_then(|v| v.as_bool()) {
+                discord_cfg.enabled = enabled;
+            }
+            if let Some(admin) = saved.get("admin_id").and_then(|v| v.as_str()) {
+                if !admin.is_empty() { discord_cfg.admin_user_id = admin.to_string(); }
+            }
+            if let Some(ch) = saved.get("listen_channel").and_then(|v| v.as_str()) {
+                if !ch.is_empty() {
+                    discord_cfg.listen_channels = ch.split(',').map(|s| s.trim().to_string()).collect();
+                }
+            }
+        }
+        platform_registry.register(Box::new(
+            ernosagent::platform::discord::DiscordAdapter::new(&discord_cfg),
+        ));
+
+        // Telegram — merge saved config into the default config
+        let mut telegram_cfg = config.platform.telegram.clone();
+        if let Some(saved) = saved_platforms.get("telegram") {
+            if let Some(token) = saved.get("token").and_then(|v| v.as_str()) {
+                if !token.is_empty() { telegram_cfg.token = token.to_string(); }
+            }
+            if let Some(enabled) = saved.get("enabled").and_then(|v| v.as_bool()) {
+                telegram_cfg.enabled = enabled;
+            }
+            if let Some(admin) = saved.get("admin_user_id").and_then(|v| v.as_str()) {
+                if !admin.is_empty() { telegram_cfg.admin_user_id = admin.to_string(); }
+            }
+        }
+        platform_registry.register(Box::new(
+            ernosagent::platform::telegram::TelegramAdapter::new(&telegram_cfg),
+        ));
+
+        // Auto-connect any enabled+configured adapters
+        platform_registry.connect_all().await;
+        tracing::info!(
+            status = %platform_registry.status_summary(),
+            "Platform adapters initialised"
+        );
+    }
+
     let state = Arc::new(RwLock::new(web::state::WebAppState {
         config,
         provider,
@@ -241,6 +299,7 @@ async fn init_web_state(
         scheduler: scheduler.clone(),
         teacher: Some(teacher),
         adapter_manifest,
+        platform_registry,
     }));
 
     // Start the scheduler background loop
@@ -254,6 +313,69 @@ async fn init_web_state(
                 cancel,
             ).await;
         });
+    }
+
+    // Start the platform message router — consumes incoming messages from all
+    // connected adapters and routes them through inference.
+    {
+        let state_for_router = state.clone();
+        // Take all message receivers from connected adapters
+        let mut receivers = Vec::new();
+        {
+            let mut st = state_for_router.write().await;
+            for adapter in st.platform_registry.adapters_mut() {
+                if let Some(rx) = adapter.take_message_receiver() {
+                    tracing::info!(platform = adapter.name(), "Took message receiver for router");
+                    receivers.push(rx);
+                }
+            }
+        }
+        if !receivers.is_empty() {
+            let (merged_tx, mut merged_rx) = tokio::sync::mpsc::channel::<ernosagent::platform::adapter::PlatformMessage>(256);
+            for mut rx in receivers {
+                let tx = merged_tx.clone();
+                tokio::spawn(async move {
+                    while let Some(msg) = rx.recv().await {
+                        if tx.send(msg).await.is_err() { break; }
+                    }
+                });
+            }
+            drop(merged_tx);
+
+            tokio::spawn(async move {
+                tracing::info!("Platform message router started");
+                while let Some(msg) = merged_rx.recv().await {
+                    let state = state_for_router.clone();
+                    tokio::spawn(async move {
+                        tracing::info!(
+                            platform = %msg.platform,
+                            user = %msg.user_name,
+                            channel = %msg.channel_id,
+                            content_len = msg.content.len(),
+                            "Platform message received — routing to inference"
+                        );
+                        match ernosagent::platform::router::process_message(&state, &msg).await {
+                            Ok(reply) => {
+                                // Send reply back through the adapter
+                                let st = state.read().await;
+                                for adapter in st.platform_registry.adapters_iter() {
+                                    if adapter.name().to_lowercase() == msg.platform {
+                                         if let Err(e) = adapter.reply_to_message(&msg.channel_id, &msg.message_id, &reply).await {
+                                            tracing::error!(platform = %msg.platform, error = %e, "Failed to send platform reply");
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!(platform = %msg.platform, error = %e, "Failed to process platform message");
+                            }
+                        }
+                    });
+                }
+                tracing::info!("Platform message router stopped");
+            });
+        }
     }
 
     Ok(state)

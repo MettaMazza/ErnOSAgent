@@ -90,8 +90,10 @@ pub async fn save_platform(
         return StatusCode::BAD_REQUEST;
     }
 
-    let st = state.read().await;
-    let platforms_file = st.config.general.data_dir.join("platforms.json");
+    let platforms_file = {
+        let st = state.read().await;
+        st.config.general.data_dir.join("platforms.json")
+    };
 
     let mut configs: HashMap<String, serde_json::Value> =
         match std::fs::read_to_string(&platforms_file) {
@@ -105,6 +107,8 @@ pub async fn save_platform(
         obj.insert("configured".to_string(), serde_json::Value::Bool(has_creds));
     }
 
+    let is_enabled = body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+
     configs.insert(platform.clone(), entry);
 
     match serde_json::to_string_pretty(&configs)
@@ -112,14 +116,129 @@ pub async fn save_platform(
         .and_then(|s| std::fs::write(&platforms_file, s).ok())
     {
         Some(_) => {
-            tracing::info!(platform = %platform, "Platform config saved");
-            StatusCode::OK
+            tracing::info!(platform = %platform, enabled = is_enabled, "Platform config saved");
         }
         None => {
             tracing::warn!(platform = %platform, "Failed to write platform config");
-            StatusCode::INTERNAL_SERVER_ERROR
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
     }
+
+    // Dynamically connect or disconnect the adapter at runtime
+    if is_enabled && has_creds {
+        let mut st = state.write().await;
+
+        // Build a fresh adapter with the new config from the save body
+        match platform.as_str() {
+            "discord" => {
+                let token = body.get("token").and_then(|v| v.as_str()).unwrap_or("");
+                let admin = body.get("admin_id").and_then(|v| v.as_str()).unwrap_or("");
+                let listen_ch = body.get("listen_channel").and_then(|v| v.as_str()).unwrap_or("");
+                let listen_channels = if listen_ch.is_empty() {
+                    Vec::new()
+                } else {
+                    listen_ch.split(',').map(|s| s.trim().to_string()).collect()
+                };
+                let cfg = crate::config::DiscordConfig {
+                    enabled: true,
+                    token: token.to_string(),
+                    admin_user_id: admin.to_string(),
+                    guild_id: String::new(),
+                    autonomy_channel_id: String::new(),
+                    listen_channels,
+                };
+                st.platform_registry.replace_adapter(Box::new(
+                    crate::platform::discord::DiscordAdapter::new(&cfg),
+                )).await;
+            }
+            "telegram" => {
+                let token = body.get("token").and_then(|v| v.as_str()).unwrap_or("");
+                let admin = body.get("admin_user_id").and_then(|v| v.as_str()).unwrap_or("");
+                let cfg = crate::config::TelegramConfig {
+                    enabled: true,
+                    token: token.to_string(),
+                    admin_user_id: admin.to_string(),
+                };
+                st.platform_registry.replace_adapter(Box::new(
+                    crate::platform::telegram::TelegramAdapter::new(&cfg),
+                )).await;
+            }
+            _ => {}
+        }
+
+        // Now connect the freshly configured adapter
+        match st.platform_registry.connect_by_name(&platform).await {
+            Ok(()) => {
+                tracing::info!(platform = %platform, "Platform adapter connected at runtime");
+
+                // Take the message receiver and spawn a live router task
+                let platform_name = platform.clone();
+                let mut rx_opt = None;
+                for adapter in st.platform_registry.adapters_mut() {
+                    if adapter.name().eq_ignore_ascii_case(&platform_name) {
+                        rx_opt = adapter.take_message_receiver();
+                        break;
+                    }
+                }
+
+                if let Some(mut rx) = rx_opt {
+                    let state_for_router = state.clone();
+                    tokio::spawn(async move {
+                        tracing::info!(platform = %platform_name, "Live platform router started");
+                        while let Some(msg) = rx.recv().await {
+                            let state = state_for_router.clone();
+                            tokio::spawn(async move {
+                                tracing::info!(
+                                    platform = %msg.platform,
+                                    user = %msg.user_name,
+                                    channel = %msg.channel_id,
+                                    "Platform message received — routing to inference"
+                                );
+                                match crate::platform::router::process_message(&state, &msg).await {
+                                    Ok(reply) => {
+                                        let st = state.read().await;
+                                        for adapter in st.platform_registry.adapters_iter() {
+                                            if adapter.name().to_lowercase() == msg.platform {
+                                                if let Err(e) = adapter.reply_to_message(&msg.channel_id, &msg.message_id, &reply).await {
+                                                    tracing::error!(
+                                                        platform = %msg.platform, error = %e,
+                                                        "Failed to send platform reply"
+                                                    );
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(
+                                            platform = %msg.platform, error = %e,
+                                            "Failed to process platform message"
+                                        );
+                                    }
+                                }
+                            });
+                        }
+                        tracing::info!(platform = %platform_name, "Live platform router stopped");
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::error!(platform = %platform, error = %e, "Failed to connect platform adapter");
+            }
+        }
+    } else if !is_enabled {
+        let mut st = state.write().await;
+        match st.platform_registry.disconnect_by_name(&platform).await {
+            Ok(()) => {
+                tracing::info!(platform = %platform, "Platform adapter disconnected at runtime");
+            }
+            Err(e) => {
+                tracing::warn!(platform = %platform, error = %e, "Failed to disconnect platform adapter");
+            }
+        }
+    }
+
+    StatusCode::OK
 }
 
 fn has_credentials(body: &serde_json::Value) -> bool {

@@ -318,9 +318,41 @@ impl Provider for LlamaCppProvider {
     ) -> Result<()> {
         let url = format!("{}/v1/chat/completions", self.base_url);
 
+        // Transform messages: if a message has images, convert to OpenAI multipart
+        // content format (array of {type: "text"} and {type: "image_url"} parts).
+        let api_messages: Vec<serde_json::Value> = messages.iter().map(|msg| {
+            if msg.images.is_empty() {
+                serde_json::json!({
+                    "role": msg.role,
+                    "content": msg.content,
+                })
+            } else {
+                let mut parts = vec![serde_json::json!({
+                    "type": "text",
+                    "text": msg.content,
+                })];
+                for img_b64 in &msg.images {
+                    // If it already has a data: prefix, use as-is; otherwise add one
+                    let url = if img_b64.starts_with("data:") {
+                        img_b64.clone()
+                    } else {
+                        format!("data:image/png;base64,{}", img_b64)
+                    };
+                    parts.push(serde_json::json!({
+                        "type": "image_url",
+                        "image_url": { "url": url }
+                    }));
+                }
+                serde_json::json!({
+                    "role": msg.role,
+                    "content": parts,
+                })
+            }
+        }).collect();
+
         let mut body = serde_json::json!({
             "model": model,
-            "messages": messages,
+            "messages": api_messages,
             "stream": true,
         });
 

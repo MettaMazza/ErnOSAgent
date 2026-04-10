@@ -176,6 +176,8 @@ async fn run_custom_server(
                 user_name: body.user,
                 content: body.message,
                 attachments: Vec::new(),
+                message_id: String::new(),
+                is_admin: false,
             };
 
             if let Err(e) = tx.send(msg).await {

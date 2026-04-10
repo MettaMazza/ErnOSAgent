@@ -68,7 +68,7 @@ mod live {
                             // Filter to admin user if configured
                             let user = match msg.from {
                                 Some(ref u) => u,
-                                None => return Ok(()),
+                                None => return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()),
                             };
 
                             if !admin_id.is_empty() && user.id.to_string() != admin_id {
@@ -78,6 +78,7 @@ mod live {
                             let content = msg.text().unwrap_or("").to_string();
                             if content.is_empty() { return Ok(()); }
 
+                            let is_admin = user.id.to_string() == admin_id;
                             let platform_msg = PlatformMessage {
                                 platform: "telegram".to_string(),
                                 channel_id: msg.chat.id.to_string(),
@@ -85,6 +86,8 @@ mod live {
                                 user_name: user.first_name.clone(),
                                 content,
                                 attachments: Vec::new(),
+                                message_id: msg.id.to_string(),
+                                is_admin,
                             };
 
                             if let Err(e) = tx.send(platform_msg).await {
@@ -95,7 +98,7 @@ mod live {
                     },
                 );
 
-                let mut dispatcher = Dispatcher::builder(_bot.clone(), handler)
+                let mut dispatcher = Dispatcher::builder(bot.clone(), handler)
                     .build();
 
                 tokio::select! {

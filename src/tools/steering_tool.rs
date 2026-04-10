@@ -19,6 +19,13 @@ use crate::tools::executor::ToolExecutor;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+/// Disclaimer prepended to all steering tool outputs when using simulated data.
+const SIMULATED_DISCLAIMER: &str = "\
+⚠️ SIMULATED DATA — This output uses placeholder feature definitions, not real \
+SAE (Sparse Autoencoder) activations. Real feature steering requires a trained \
+SAE model to be loaded. This feature is under active development and will drive \
+live model behavior once the SAE training pipeline is complete.\n\n";
+
 /// Global live feature steering state (instant, no restart needed).
 static FEATURE_STATE: std::sync::OnceLock<Mutex<FeatureSteeringState>> = std::sync::OnceLock::new();
 
@@ -85,7 +92,7 @@ fn feature_list(call: &ToolCall) -> ToolResult {
         features.iter().collect()
     };
 
-    let mut out = format!("STEERABLE FEATURES ({} total, showing {})\n", features.len(), filtered.len());
+    let mut out = format!("{}STEERABLE FEATURES ({} total, showing {})\n", SIMULATED_DISCLAIMER, features.len(), filtered.len());
     for f in &filtered {
         let safety_mark = if f.is_safety { " ⚠️SAFETY" } else { "" };
         out.push_str(&format!("  [{}] {} [{}]{}\n", f.index, f.name, f.category, safety_mark));
@@ -122,7 +129,7 @@ fn feature_steer(call: &ToolCall) -> ToolResult {
         let action = if scale == 0.0 { "cleared" } else if scale > 0.0 { "amplified" } else { "suppressed" };
         ToolResult {
             tool_call_id: call.id.clone(), name: call.name.clone(),
-            output: format!("✅ Feature '{}' (#{}) {} at scale {:.1}\nActive steering: {}", name, feature_id, action, scale, summary),
+            output: format!("{}✅ Feature '{}' (#{}) {} at scale {:.1}\nActive steering: {}", SIMULATED_DISCLAIMER, name, feature_id, action, scale, summary),
             success: true, error: None,
         }
     } else {
@@ -136,7 +143,7 @@ fn feature_clear(call: &ToolCall) -> ToolResult {
         s.clear();
         ToolResult {
             tool_call_id: call.id.clone(), name: call.name.clone(),
-            output: "✅ All feature steering cleared.".to_string(),
+            output: format!("{}✅ All feature steering cleared.", SIMULATED_DISCLAIMER),
             success: true, error: None,
         }
     } else {
@@ -149,9 +156,9 @@ fn feature_status(call: &ToolCall) -> ToolResult {
     if let Ok(s) = state.lock() {
         let active = &s.active_features;
         let output = if active.is_empty() {
-            "STEERING STATUS: No SAE feature steering active.".to_string()
+            format!("{}STEERING STATUS: No SAE feature steering active.", SIMULATED_DISCLAIMER)
         } else {
-            let mut out = format!("STEERING STATUS ({} active features)\n", active.len());
+            let mut out = format!("{}STEERING STATUS ({} active features)\n", SIMULATED_DISCLAIMER, active.len());
             for f in active {
                 let dir = if f.scale > 0.0 { "↑" } else { "↓" };
                 out.push_str(&format!("  {} {} [{}] scale={:.1}\n", dir, f.name, f.category, f.scale));
@@ -174,7 +181,7 @@ fn vector_scan(call: &ToolCall) -> ToolResult {
             let output = if vectors.is_empty() {
                 format!("No .gguf vectors found in {}", dir.display())
             } else {
-                let mut out = format!("AVAILABLE VECTORS ({} found in {})\n", vectors.len(), dir.display());
+                let mut out = format!("{}AVAILABLE VECTORS ({} found in {})\n", SIMULATED_DISCLAIMER, vectors.len(), dir.display());
                 for v in &vectors {
                     let size = std::fs::metadata(&v.path)
                         .map(|m| format!("{:.1}MB", m.len() as f64 / 1024.0 / 1024.0))
@@ -214,7 +221,7 @@ fn vector_activate(call: &ToolCall) -> ToolResult {
                 );
                 ToolResult {
                     tool_call_id: call.id.clone(), name: call.name.clone(),
-                    output: format!("✅ Vector '{}' activated at scale {:.1}.\nServer args updated: {:?}\nNote: Takes effect on next server cycle.", name, scale, args),
+                    output: format!("{}✅ Vector '{}' activated at scale {:.1}.\nServer args updated: {:?}\nNote: Takes effect on next server cycle.", SIMULATED_DISCLAIMER, name, scale, args),
                     success: true, error: None,
                 }
             }
@@ -234,7 +241,7 @@ fn vector_deactivate(call: &ToolCall) -> ToolResult {
         match c.remove_vector(name) {
             Ok(()) => ToolResult {
                 tool_call_id: call.id.clone(), name: call.name.clone(),
-                output: format!("✅ Vector '{}' deactivated.", name),
+                output: format!("{}✅ Vector '{}' deactivated.", SIMULATED_DISCLAIMER, name),
                 success: true, error: None,
             },
             Err(e) => error_result(call, &format!("Failed to deactivate: {}", e)),
@@ -248,7 +255,7 @@ fn vector_status(call: &ToolCall) -> ToolResult {
     let config = get_vector_config();
     if let Ok(c) = config.lock() {
         let summary = c.status_summary();
-        let output = format!("GGUF VECTOR STATUS\n  {}\n  Server args: {:?}", summary, c.to_server_args());
+        let output = format!("{}GGUF VECTOR STATUS\n  {}\n  Server args: {:?}", SIMULATED_DISCLAIMER, summary, c.to_server_args());
         ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
     } else {
         error_result(call, "Failed to acquire vector config lock")

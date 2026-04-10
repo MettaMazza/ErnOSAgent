@@ -297,10 +297,6 @@ fn format_execution_result(
                 combined.push_str("\n[stderr] ");
                 combined.push_str(&stderr);
             }
-            if combined.len() > MAX_FORGED_OUTPUT_BYTES {
-                combined = combined[..MAX_FORGED_OUTPUT_BYTES].to_string();
-                combined.push_str("\n[OUTPUT TRUNCATED]");
-            }
 
             ToolResult {
                 tool_call_id: call.id.clone(),

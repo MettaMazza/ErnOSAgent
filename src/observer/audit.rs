@@ -196,9 +196,28 @@ fn build_observer_messages(
         tool_context
     };
 
+    // Check if the user's original message had images attached
+    let user_images_count = live_context.iter()
+        .filter(|m| m.role == "user")
+        .last()
+        .map(|m| m.images.len())
+        .unwrap_or(0);
+
+    let image_notice = if user_images_count > 0 {
+        format!(
+            "\n## IMAGE ATTACHMENTS\n\
+             The user attached {} image(s) to their message. The candidate's description of \
+             visual content from these images is VALID and must NOT be flagged as confabulation. \
+             Vision/image analysis is a supported capability.\n",
+            user_images_count
+        )
+    } else {
+        String::new()
+    };
+
     let audit_instruction = format!(
         "{rules}\n\n\
-         ## USER'S ORIGINAL MESSAGE\n{user_message}\n\n\
+         ## USER'S ORIGINAL MESSAGE\n{user_message}\n{image_notice}\n\
          ## AVAILABLE CAPABILITIES\n{capabilities}\n\n\
          ## TOOL EXECUTION CONTEXT (THIS TURN ONLY)\n{tool_display}\n\n\
          ## CANDIDATE RESPONSE TO AUDIT\n{candidate_response}\n\n\

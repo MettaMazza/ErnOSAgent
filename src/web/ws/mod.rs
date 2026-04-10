@@ -9,7 +9,8 @@
 //! - `chat`: core inference path (handle_chat, build_context, stream events)
 //! - `sessions`: session switch/create handlers
 
-mod chat;
+pub(crate) mod chat;
+pub(crate) mod pipeline;
 mod sessions;
 
 use crate::web::state::SharedState;
@@ -34,7 +35,11 @@ pub async fn ws_handler(
 #[serde(tag = "type")]
 pub(crate) enum ClientMessage {
     #[serde(rename = "chat")]
-    Chat { message: String },
+    Chat {
+        message: String,
+        #[serde(default)]
+        images: Vec<String>,
+    },
     #[serde(rename = "cancel")]
     Cancel,
     #[serde(rename = "regenerate")]
@@ -106,7 +111,7 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
     // Check for post-recompile resume state
     if let Some(resume_prompt) = consume_resume_state() {
         tracing::info!("Post-recompile resume detected — triggering system notification");
-        chat::handle_chat(&mut socket, &state, &resume_prompt).await;
+        chat::handle_chat(&mut socket, &state, &resume_prompt, Vec::new()).await;
     }
 
     while let Some(msg) = socket.recv().await {
@@ -128,7 +133,7 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         };
 
         match client_msg {
-            ClientMessage::Chat { message } => chat::handle_chat(&mut socket, &state, &message).await,
+            ClientMessage::Chat { message, images } => chat::handle_chat(&mut socket, &state, &message, images).await,
             ClientMessage::Cancel => {
                 tracing::info!("Cancel requested — signalling abort");
                 let st = state.read().await;
@@ -170,7 +175,7 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
                 };
                 if let Some(user_msg) = last_user_msg {
                     tracing::info!(prompt_len = user_msg.len(), "Regenerate — re-running with regen hint");
-                    chat::handle_chat(&mut socket, &state, &user_msg).await;
+                    chat::handle_chat(&mut socket, &state, &user_msg, Vec::new()).await;
                 } else {
                     let _ = send_json(&mut socket, &ServerMessage::Error {
                         message: "No user message to regenerate from".to_string(),

@@ -71,6 +71,47 @@ impl PlatformRegistry {
     pub fn adapters_mut(&mut self) -> &mut Vec<Box<dyn PlatformAdapter>> {
         &mut self.adapters
     }
+
+    /// Immutable access to adapters (for sending replies).
+    pub fn adapters_iter(&self) -> &[Box<dyn PlatformAdapter>] {
+        &self.adapters
+    }
+
+    /// Connect a specific adapter by name (case-insensitive).
+    pub async fn connect_by_name(&mut self, name: &str) -> anyhow::Result<()> {
+        for adapter in &mut self.adapters {
+            if adapter.name().eq_ignore_ascii_case(name) {
+                return adapter.connect().await;
+            }
+        }
+        anyhow::bail!("No adapter registered with name '{}'", name)
+    }
+
+    /// Disconnect a specific adapter by name (case-insensitive).
+    pub async fn disconnect_by_name(&mut self, name: &str) -> anyhow::Result<()> {
+        for adapter in &mut self.adapters {
+            if adapter.name().eq_ignore_ascii_case(name) {
+                return adapter.disconnect().await;
+            }
+        }
+        anyhow::bail!("No adapter registered with name '{}'", name)
+    }
+
+    /// Replace an existing adapter by name with a new instance (e.g. after config change).
+    /// Disconnects the old adapter first if it was connected.
+    pub async fn replace_adapter(&mut self, new_adapter: Box<dyn PlatformAdapter>) {
+        let name = new_adapter.name().to_string();
+        // Find and disconnect the old adapter
+        for adapter in &mut self.adapters {
+            if adapter.name().eq_ignore_ascii_case(&name) {
+                let _ = adapter.disconnect().await;
+            }
+        }
+        // Remove old, push new
+        self.adapters.retain(|a| !a.name().eq_ignore_ascii_case(&name));
+        tracing::info!(platform = %name, "Platform adapter replaced with new config");
+        self.adapters.push(new_adapter);
+    }
 }
 
 #[cfg(test)]

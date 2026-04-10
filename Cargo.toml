@@ -8,8 +8,8 @@ license = "MIT"
 readme = "README.md"
 
 [features]
-default = []
-discord = ["dep:serenity", "dep:poise", "dep:songbird"]
+default = ["discord", "telegram"]
+discord = ["dep:serenity", "dep:poise"]
 telegram = ["dep:teloxide"]
 interp = ["dep:memmap2"]
 mobile-native = []  # Enable llama.cpp C FFI static linking (requires native lib to be built)

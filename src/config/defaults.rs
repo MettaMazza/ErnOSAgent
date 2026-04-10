@@ -57,14 +57,25 @@ fn default_ollama_config() -> OllamaConfig {
 }
 
 fn default_llamacpp_config() -> LlamaCppConfig {
+    let model_path = std::env::var("LLAMACPP_MODEL_PATH").unwrap_or_default();
+    let mmproj_path = std::env::var("LLAMACPP_MMPROJ_PATH")
+        .unwrap_or_default();
+
+    // Auto-detect mmproj if not explicitly set but model_path exists
+    let mmproj_path = if mmproj_path.is_empty() && !model_path.is_empty() {
+        auto_detect_mmproj(&model_path).unwrap_or_default()
+    } else {
+        mmproj_path
+    };
+
     LlamaCppConfig {
         server_binary: std::env::var("LLAMACPP_SERVER_BIN")
             .unwrap_or_else(|_| "llama-server".to_string()),
         port: std::env::var("LLAMACPP_PORT")
             .ok().and_then(|v| v.parse().ok())
             .unwrap_or(8080),
-        model_path: std::env::var("LLAMACPP_MODEL_PATH").unwrap_or_default(),
-        mmproj_path: std::env::var("LLAMACPP_MMPROJ_PATH").unwrap_or_default(),
+        model_path,
+        mmproj_path,
         n_gpu_layers: std::env::var("LLAMACPP_GPU_LAYERS")
             .ok().and_then(|v| v.parse().ok())
             .unwrap_or(-1),
@@ -73,6 +84,47 @@ fn default_llamacpp_config() -> LlamaCppConfig {
         embedding_port: std::env::var("LLAMACPP_EMBED_PORT")
             .ok().and_then(|v| v.parse().ok())
             .unwrap_or(8081),
+    }
+}
+
+/// Auto-detect a matching mmproj file in the same directory as the model.
+/// For a model like `gemma-4-26b-it-Q4_K_M.gguf`, looks for `mmproj-gemma-4-26B*` files.
+fn auto_detect_mmproj(model_path: &str) -> Option<String> {
+    let model = std::path::Path::new(model_path);
+    let dir = model.parent()?;
+    let model_stem = model.file_stem()?.to_str()?;
+
+    // Extract model family prefix (e.g. "gemma-4-26b" from "gemma-4-26b-it-Q4_K_M")
+    // Strategy: look for any mmproj file whose name contains a substring of the model name
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut candidates: Vec<String> = Vec::new();
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("mmproj-") || !name.ends_with(".gguf") {
+            continue;
+        }
+
+        // Check if the mmproj name shares key parts with the model name
+        // e.g. model "gemma-4-26b-it-Q4_K_M" → mmproj "mmproj-gemma-4-26B-A4B-it-f16"
+        let mmproj_lower = name.to_lowercase();
+        let model_lower = model_stem.to_lowercase();
+
+        // Extract the model family (first 3 dash-separated parts: "gemma-4-26b")
+        let model_parts: Vec<&str> = model_lower.split('-').collect();
+        if model_parts.len() >= 3 {
+            let family = format!("{}-{}-{}", model_parts[0], model_parts[1], model_parts[2]);
+            if mmproj_lower.contains(&family) {
+                candidates.push(entry.path().to_string_lossy().to_string());
+            }
+        }
+    }
+
+    if let Some(path) = candidates.first() {
+        tracing::info!(mmproj = %path, "Auto-detected mmproj for vision support");
+        Some(path.clone())
+    } else {
+        None
     }
 }
 

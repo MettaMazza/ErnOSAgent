@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, user_message: &str) {
+pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, user_message: &str, images: Vec<String>) {
     {
         let st = state.read().await;
         if st.is_generating {
@@ -36,7 +36,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
         st.session_mgr.active_mut().add_message(Message {
             role: "user".to_string(),
             content: user_message.to_string(),
-            images: Vec::new(),
+            images: images.clone(),
         });
         st.session_mgr.active_mut().auto_title();
         let _ = st.session_mgr.save_active();
@@ -73,7 +73,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     finalize_chat_turn(socket, state).await;
 }
 
-async fn build_chat_context(
+pub(crate) async fn build_chat_context(
     state: &SharedState,
     user_message: &str,
     memory_budget: usize,
@@ -102,7 +102,7 @@ async fn build_chat_context(
     (Arc::clone(&st.provider), st.config.general.active_model.clone(), msgs, tools, system_prompt, identity)
 }
 
-fn spawn_react_loop(
+pub(crate) fn spawn_react_loop(
     provider: Arc<dyn crate::provider::Provider>,
     model: String,
     messages: Vec<Message>,
@@ -244,7 +244,7 @@ async fn map_react_event(
     }
 }
 
-async fn persist_response(state: &SharedState, user_message: &str, text: &str) {
+pub(crate) async fn persist_response(state: &SharedState, user_message: &str, text: &str) {
     let mut st = state.write().await;
     st.session_mgr.active_mut().add_message(Message {
         role: "assistant".to_string(), content: text.to_string(), images: Vec::new(),

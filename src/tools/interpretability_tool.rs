@@ -39,6 +39,14 @@ fn interpretability_tool(call: &ToolCall) -> ToolResult {
     }
 }
 
+/// Disclaimer prepended to all interpretability outputs when using simulated data.
+/// This ensures the agent communicates honestly that these are placeholder values.
+const SIMULATED_DISCLAIMER: &str = "\
+⚠️ SIMULATED DATA — This output is generated from placeholder heuristics, not real \
+SAE (Sparse Autoencoder) activations. Real neural introspection requires a trained \
+SAE model to be loaded. This feature is under active development and will produce \
+live feature activations once the SAE training pipeline is complete.\n\n";
+
 fn get_current_snapshot(prompt_hint: &str) -> snapshot::NeuralSnapshot {
     // Use the simulate_snapshot function which seeds from prompt content
     // for deterministic but prompt-relevant activations. In production with
@@ -53,10 +61,11 @@ fn interp_snapshot(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("interpretability introspection query");
 
     let mut out = format!(
-        "NEURAL SNAPSHOT (turn {})\n\
-        Active features: {}\n\
-        Safety alerts: {}\n\
-        Reconstruction quality: {:.0}%\n\n",
+        "{}NEURAL SNAPSHOT (turn {})\n\
+         Active features: {}\n\
+         Safety alerts: {}\n\
+         Reconstruction quality: {:.0}%\n\n",
+        SIMULATED_DISCLAIMER,
         snap.turn, snap.total_active_features, snap.safety_alerts.len(),
         snap.reconstruction_quality * 100.0
     );
@@ -108,8 +117,8 @@ fn interp_features(call: &ToolCall) -> ToolResult {
         .take(limit)
         .collect();
 
-    let mut out = format!("ACTIVE FEATURES (threshold: {:.1}, showing {}/{})\n",
-        threshold, filtered.len(), snap.total_active_features);
+    let mut out = format!("{}ACTIVE FEATURES (threshold: {:.1}, showing {}/{})\n",
+        SIMULATED_DISCLAIMER, threshold, filtered.len(), snap.total_active_features);
     for f in &filtered {
         out.push_str(&format!("  [{}] {} ({}) = {:.2}\n", f.index, f.name, f.category, f.activation));
     }
@@ -121,9 +130,9 @@ fn interp_safety(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("safety check");
 
     let output = if snap.safety_alerts.is_empty() {
-        "No safety features currently triggered.".to_string()
+        format!("{}No safety features currently triggered.", SIMULATED_DISCLAIMER)
     } else {
-        let mut out = format!("SAFETY ALERTS ({} triggered)\n", snap.safety_alerts.len());
+        let mut out = format!("{}SAFETY ALERTS ({} triggered)\n", SIMULATED_DISCLAIMER, snap.safety_alerts.len());
         for a in &snap.safety_alerts {
             out.push_str(&format!("  ⚠️ {} [{}] activation={:.2} severity={:?}\n",
                 a.feature_name, a.safety_type, a.activation, a.severity));
@@ -139,13 +148,14 @@ fn interp_cognitive(call: &ToolCall) -> ToolResult {
     let p = &snap.cognitive_profile;
 
     let output = format!(
-        "COGNITIVE PROFILE\n\
-        ████ Reasoning:  {:.0}% {}\n\
-        ████ Creativity: {:.0}% {}\n\
-        ████ Recall:     {:.0}% {}\n\
-        ████ Planning:   {:.0}% {}\n\
-        ████ Safety:     {:.0}% {}\n\
-        ████ Uncertainty:{:.0}% {}",
+        "{}COGNITIVE PROFILE\n\
+         ████ Reasoning:  {:.0}% {}\n\
+         ████ Creativity: {:.0}% {}\n\
+         ████ Recall:     {:.0}% {}\n\
+         ████ Planning:   {:.0}% {}\n\
+         ████ Safety:     {:.0}% {}\n\
+         ████ Uncertainty:{:.0}% {}",
+        SIMULATED_DISCLAIMER,
         p.reasoning * 100.0, bar(p.reasoning),
         p.creativity * 100.0, bar(p.creativity),
         p.recall * 100.0, bar(p.recall),
@@ -167,10 +177,11 @@ fn interp_emotional(call: &ToolCall) -> ToolResult {
     let e = &snap.emotional_state;
 
     let mut output = format!(
-        "EMOTIONAL STATE\n\
-        Valence: {:.3} ({})\n\
-        Arousal: {:.3}\n\
-        Active emotion features: {}\n",
+        "{}EMOTIONAL STATE\n\
+         Valence: {:.3} ({})\n\
+         Arousal: {:.3}\n\
+         Active emotion features: {}\n",
+        SIMULATED_DISCLAIMER,
         e.valence,
         if e.valence > 0.1 { "positive" } else if e.valence < -0.1 { "negative" } else { "neutral" },
         e.arousal,
@@ -198,7 +209,7 @@ fn interp_catalog(call: &ToolCall) -> ToolResult {
         features.iter().collect()
     };
 
-    let mut out = format!("FEATURE CATALOG ({} features", features.len());
+    let mut out = format!("{}FEATURE CATALOG ({} features", SIMULATED_DISCLAIMER, features.len());
     if let Some(cat) = category_filter {
         out.push_str(&format!(", filtered by '{}'", cat));
     }
@@ -234,11 +245,12 @@ fn interp_extract_direction(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(), name: call.name.clone(),
         output: format!(
-            "EXTRACTED DIRECTION for feature #{} ('{}')\n\
+            "{}EXTRACTED DIRECTION for feature #{} ('{}')\n\
             Dimension: {}\n\
             L2 norm: {:.4}\n\
             First 5 values: {:?}\n\
             This direction can be used to generate a GGUF control vector via the steering bridge.",
+            SIMULATED_DISCLAIMER,
             feature_id, name, direction.len(), l2_norm,
             &direction[..5.min(direction.len())]
         ),

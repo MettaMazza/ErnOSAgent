@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 const DEFAULT_TOOL_TIMEOUT_SECS: u64 = 60;
-const MAX_FORGED_OUTPUT_BYTES: usize = 8 * 1024;
 
 // ── ForgedToolDef ──────────────────────────────────────────────────
 

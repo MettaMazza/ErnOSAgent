@@ -72,6 +72,12 @@ impl LlamaCppProvider {
             "--embeddings".to_string(),
             "--pooling".to_string(),
             "mean".to_string(),
+            // Nomic-embed-text supports up to 8192 tokens — match the physical
+            // batch size so longer inputs don't get rejected with a 500 error.
+            "--batch-size".to_string(),
+            "8192".to_string(),
+            "--ubatch-size".to_string(),
+            "8192".to_string(),
         ]
     }
 

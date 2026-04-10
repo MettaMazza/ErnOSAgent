@@ -181,6 +181,8 @@ async fn run_webhook_server(
                                         user_name: from.to_string(),
                                         content: text.to_string(),
                                         attachments: Vec::new(),
+                                        message_id: msg.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string(),
+                                        is_admin: false, // WhatsApp admin scoping TODO
                                     };
 
                                     if let Err(e) = tx.send(platform_msg).await {

@@ -18,6 +18,10 @@ pub struct PlatformMessage {
     pub user_name: String,
     pub content: String,
     pub attachments: Vec<String>,
+    /// Original message ID for native reply threading.
+    pub message_id: String,
+    /// Whether this user is the admin (full tool access) or a regular user (safe tools only).
+    pub is_admin: bool,
 }
 
 /// Status of a platform connection.
@@ -49,6 +53,12 @@ pub trait PlatformAdapter: Send + Sync {
     /// Send a message to a specific channel/chat.
     async fn send_message(&self, channel_id: &str, content: &str) -> Result<()>;
 
+    /// Reply to a specific message (native threading). Falls back to send_message.
+    async fn reply_to_message(&self, channel_id: &str, message_id: &str, content: &str) -> Result<()> {
+        let _ = message_id; // Default: ignore message_id, just send
+        self.send_message(channel_id, content).await
+    }
+
     /// Take the receiver end of the incoming message channel.
     /// Returns `None` if already taken or not connected.
     fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>>;
@@ -70,6 +80,8 @@ mod tests {
             user_name: "user".to_string(),
             content: "hello".to_string(),
             attachments: Vec::new(),
+            message_id: "789".to_string(),
+            is_admin: false,
         };
         assert_eq!(msg.platform, "discord");
     }
