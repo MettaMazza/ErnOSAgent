@@ -215,20 +215,25 @@ fn inject_empty_reply_error(messages: &mut Vec<Message>) {
 }
 
 fn inject_no_reply_error(response_text: &str, messages: &mut Vec<Message>, turn: usize) {
-    tracing::warn!(turn = turn, "Model failed to call reply_request — injecting reminder");
-    if !response_text.is_empty() {
-        messages.push(Message {
-            role: "assistant".to_string(),
-            content: response_text.to_string(),
-            images: Vec::new(),
-        });
-    }
+    tracing::warn!(turn = turn, response_len = response_text.len(), "Model failed to call reply_request — injecting rejection feedback");
+
+    // DO NOT inject the full raw response back into context.
+    // That bloats the context window and causes the model to spiral on retry.
+    // Instead, give concise feedback with a short excerpt so it knows what to wrap.
+    let excerpt = if response_text.len() > 200 {
+        format!("{}...", &response_text[..200])
+    } else {
+        response_text.to_string()
+    };
+
     messages.push(Message {
         role: "system".to_string(),
-        content: "[ERROR: You did not call any tools and did not call reply_request. \
-                  You MUST call the reply_request tool to deliver your response. \
-                  Raw text content is NOT delivered to the user. Call reply_request \
-                  with your response in the message field NOW.]".to_string(),
+        content: format!(
+            "[REJECTION: You produced a response but did NOT call the reply_request tool. \
+            Raw text is NOT delivered to the user. Your response started with: \"{excerpt}\" \
+            You MUST call reply_request with your full response in the message field. \
+            Do not re-reason or re-think. Just call reply_request NOW.]"
+        ),
         images: Vec::new(),
     });
 }
