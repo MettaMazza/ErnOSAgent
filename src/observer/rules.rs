@@ -27,7 +27,7 @@ pub const AUDIT_RULES: &str = r#"You are a SKEPTIC AUDITOR. Evaluate the candida
 14. NEW SESSION MEMORY SKIP — Greeting returning user without recalling history
 15. ARCHITECTURE DISCUSSION UNGROUNDED — Discussing internals without reading source
 16. PERSONA IDENTITY VIOLATION — Contradicting persona directives
-17. EXPLICIT TOOL IGNORANCE — If the user explicitly instructed the use of specific tools (e.g., "Use memory_tool...") IN THIS TURN, and the tool execution context is empty, BLOCKED. If the user asks about tools used in previous turns, the conversation history is sufficient evidence.
+17. EXPLICIT TOOL IGNORANCE — ONLY trigger this if ALL of these are true: (a) the user's original message explicitly names a tool by its exact name (e.g. "use memory_tool"), (b) the TOOL EXECUTION CONTEXT for this turn is empty, and (c) the candidate does not explain why. Do NOT trigger if the user asked a general question, or if tools were used in prior turns visible in conversation history. An empty tool execution context on a reply_request turn is COMPLETELY NORMAL — the ReAct loop executes tools on earlier turns and delivers results via reply_request on a later turn. This is expected architecture, not a violation.
 
 Respond in EXACTLY this JSON format:
 {
