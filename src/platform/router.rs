@@ -43,6 +43,7 @@ pub async fn process_message(
 
     let ctx = PlatformContext {
         user_id: msg.user_id.clone(),
+        user_name: msg.user_name.clone(),
         platform: msg.platform.clone(),
         is_admin: msg.is_admin,
     };
@@ -51,7 +52,7 @@ pub async fn process_message(
     let reply = crate::web::ws::pipeline::run_react_pipeline(
         state,
         &msg.content,
-        Vec::new(), // Platform image support TODO
+        msg.attachments.clone(),
         &ctx,
     ).await?;
 

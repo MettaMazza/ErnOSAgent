@@ -258,7 +258,6 @@ async fn handle_relay_chat(
             } else {
                 Some(st.config.observer.model.clone())
             },
-            max_audit_rejections: st.config.observer.max_rejections,
         }
     };
 

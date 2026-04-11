@@ -43,7 +43,7 @@ impl Default for ChainConfig {
     fn default() -> Self {
         Self {
             confidence_gate: 0.9,
-            draft_max_tokens: 512,
+            draft_max_tokens: 0, // 0 = model default, auto-derived
             always_audit: true,
         }
     }
@@ -228,7 +228,7 @@ mod tests {
     fn test_chain_config_defaults() {
         let config = ChainConfig::default();
         assert!((config.confidence_gate - 0.9).abs() < f64::EPSILON);
-        assert_eq!(config.draft_max_tokens, 512);
+        assert_eq!(config.draft_max_tokens, 0);
         assert!(config.always_audit);
     }
 

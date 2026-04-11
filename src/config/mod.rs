@@ -116,7 +116,6 @@ pub struct ObserverConfig {
     pub enabled: bool,
     pub model: String,
     pub think: bool,
-    pub max_rejections: usize,
 }
 
 // ── Prompts ──────────────────────────────────────────────────────────
@@ -162,6 +161,8 @@ pub struct WhatsAppConfig {
     pub phone_number_id: String,
     pub verify_token: String,
     pub webhook_port: u16,
+    #[serde(default)]
+    pub admin_user_id: String,
 }
 
 // ── Web UI ───────────────────────────────────────────────────────────

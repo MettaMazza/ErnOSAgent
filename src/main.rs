@@ -300,6 +300,7 @@ async fn init_web_state(
         teacher: Some(teacher),
         adapter_manifest,
         platform_registry,
+        user_contexts: std::collections::HashMap::new(),
     }));
 
     // Start the scheduler background loop

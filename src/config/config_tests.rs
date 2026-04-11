@@ -29,7 +29,6 @@ fn test_observer_defaults_enabled() {
     let config = AppConfig::default();
     assert!(config.observer.enabled);
     assert!(config.observer.model.is_empty()); // same as chat model
-    assert_eq!(config.observer.max_rejections, 3);
 }
 
 #[test]

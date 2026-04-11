@@ -49,12 +49,17 @@ impl PlatformAdapter for WhatsAppAdapter {
         let verify_token = self.config.verify_token.clone();
         let tx = self.tx.clone();
         let port = self.config.webhook_port;
+        let admin_user_ids: Vec<String> = self.config.admin_user_id
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         self.shutdown = Some(shutdown_tx);
 
         tokio::spawn(async move {
-            if let Err(e) = run_webhook_server(port, verify_token, tx, shutdown_rx).await {
+            if let Err(e) = run_webhook_server(port, verify_token, tx, shutdown_rx, admin_user_ids).await {
                 tracing::error!(error = %e, "WhatsApp webhook server error");
             }
         });
@@ -129,6 +134,7 @@ async fn run_webhook_server(
     verify_token: String,
     tx: mpsc::Sender<PlatformMessage>,
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+    admin_user_ids: Vec<String>,
 ) -> Result<()> {
     use axum::{extract::Query, routing::{get, post}, Json, Router};
     use serde::Deserialize;
@@ -154,6 +160,7 @@ async fn run_webhook_server(
 
     let msg_handler = move |Json(body): Json<serde_json::Value>| {
         let tx = tx.clone();
+        let admin_ids = admin_user_ids.clone();
         async move {
             // Parse WhatsApp webhook payload
             if let Some(entries) = body.get("entry").and_then(|e| e.as_array()) {
@@ -182,7 +189,7 @@ async fn run_webhook_server(
                                         content: text.to_string(),
                                         attachments: Vec::new(),
                                         message_id: msg.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string(),
-                                        is_admin: false, // WhatsApp admin scoping TODO
+                                        is_admin: admin_ids.iter().any(|id| id == from),
                                     };
 
                                     if let Err(e) = tx.send(platform_msg).await {

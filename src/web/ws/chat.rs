@@ -42,13 +42,12 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
         let _ = st.session_mgr.save_active();
     }
 
-    let (observer_enabled, observer_model, max_audit_rejections, memory_budget, data_dir) = {
+    let (observer_enabled, observer_model, memory_budget, data_dir) = {
         let st = state.read().await;
         let budget = (st.model_spec.context_length as usize * 15 / 100).max(2000);
         (
             st.config.observer.enabled,
             if st.config.observer.model.is_empty() { None } else { Some(st.config.observer.model.clone()) },
-            st.config.observer.max_rejections,
             budget,
             st.config.general.data_dir.clone(),
         )
@@ -65,7 +64,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     let (event_tx, event_rx) = mpsc::channel::<ReactEvent>(256);
     let react_handle = spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
-        event_tx, training_buffers, session_id, observer_enabled, observer_model, max_audit_rejections,
+        event_tx, training_buffers, session_id, observer_enabled, observer_model,
         data_dir,
     );
 
@@ -114,11 +113,10 @@ pub(crate) fn spawn_react_loop(
     session_id: String,
     observer_enabled: bool,
     observer_model: Option<String>,
-    max_audit_rejections: usize,
     data_dir: std::path::PathBuf,
 ) -> tokio::task::JoinHandle<anyhow::Result<react_loop::ReactResult>> {
     let executor = crate::tools::build_default_executor_with_state(&data_dir);
-    let react_config = ReactConfig { observer_enabled, observer_model, max_audit_rejections };
+    let react_config = ReactConfig { observer_enabled, observer_model };
 
     tokio::spawn(async move {
         react_loop::execute_react_loop(

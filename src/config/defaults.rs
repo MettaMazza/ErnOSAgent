@@ -153,7 +153,6 @@ fn default_observer_config() -> ObserverConfig {
             .unwrap_or(true),
         model: std::env::var("ERNOSAGENT_OBSERVER_MODEL").unwrap_or_default(),
         think: false,
-        max_rejections: 3,
     }
 }
 
@@ -191,6 +190,7 @@ fn default_platform_config() -> PlatformConfig {
             webhook_port: std::env::var("ERNOSAGENT_WHATSAPP_PORT")
                 .ok().and_then(|v| v.parse().ok())
                 .unwrap_or(3000),
+            admin_user_id: std::env::var("ERNOSAGENT_WHATSAPP_ADMIN").unwrap_or_default(),
         },
     }
 }

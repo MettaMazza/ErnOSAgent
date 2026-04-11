@@ -60,7 +60,6 @@ impl LlamaCppProvider {
 
         Self {
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(300))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_else(|_| Client::new()),

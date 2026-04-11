@@ -19,12 +19,21 @@ use crate::provider::Provider;
 use crate::session::manager::SessionManager;
 use crate::steering::vectors::SteeringConfig;
 use crate::tools::executor::ToolExecutor;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 /// Shared state accessible from all axum handlers and WebSocket connections.
 pub type SharedState = Arc<RwLock<WebAppState>>;
+
+/// Per-user isolated context for platform users (Discord, Telegram, etc.).
+/// Each user gets their own session manager and memory manager to prevent
+/// cross-user context pollution (the "Maria/Ted" bug).
+pub struct UserContext {
+    pub session_mgr: SessionManager,
+    pub memory_mgr: MemoryManager,
+}
 
 pub struct WebAppState {
     pub config: AppConfig,
@@ -51,4 +60,8 @@ pub struct WebAppState {
     pub adapter_manifest: Option<Arc<Mutex<AdapterManifest>>>,
     /// Live platform adapter registry (Discord, Telegram, etc.)
     pub platform_registry: PlatformRegistry,
+    /// Per-user isolated contexts for platform users.
+    /// Key: "platform:user_id" (e.g. "discord:123456789")
+    /// Each user gets their own session and memory, scoped by user_id.
+    pub user_contexts: HashMap<String, UserContext>,
 }

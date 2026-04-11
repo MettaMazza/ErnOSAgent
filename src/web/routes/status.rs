@@ -228,7 +228,6 @@ pub struct ObserverConfigResponse {
     enabled: bool,
     model: String,
     think: bool,
-    max_rejections: usize,
 }
 
 pub async fn get_observer(State(state): State<SharedState>) -> Json<ObserverConfigResponse> {
@@ -241,7 +240,6 @@ pub async fn get_observer(State(state): State<SharedState>) -> Json<ObserverConf
             st.config.observer.model.clone()
         },
         think: st.config.observer.think,
-        max_rejections: st.config.observer.max_rejections,
     })
 }
 

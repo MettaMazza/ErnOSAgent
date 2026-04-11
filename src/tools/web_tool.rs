@@ -8,8 +8,7 @@
 use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
 
-/// Maximum content returned from a page visit.
-const MAX_VISIT_CHARS: usize = 10_000;
+
 
 fn web_tool(call: &ToolCall) -> ToolResult {
     let action = call.arguments.get("action")
@@ -58,7 +57,7 @@ fn web_search(call: &ToolCall) -> ToolResult {
             let text = strip_html(&html);
             // Extract result snippets
             let cleaned: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-            let chunk: String = cleaned.chars().take(MAX_VISIT_CHARS).collect();
+            let chunk: String = cleaned;
 
             ToolResult {
                 tool_call_id: call.id.clone(), name: call.name.clone(),
@@ -107,7 +106,7 @@ fn web_visit(call: &ToolCall) -> ToolResult {
         Ok(html) => {
             let text = strip_html(&html);
             let cleaned: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-            let chunk: String = cleaned.chars().take(MAX_VISIT_CHARS).collect();
+            let chunk: String = cleaned;
 
             ToolResult {
                 tool_call_id: call.id.clone(), name: call.name.clone(),

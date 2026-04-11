@@ -63,7 +63,6 @@ pub async fn execute_job(
     let config = crate::react::r#loop::ReactConfig {
         observer_enabled: true,
         observer_model: None,
-        max_audit_rejections: 2,
     };
 
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(256);

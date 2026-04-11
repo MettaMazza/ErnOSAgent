@@ -29,10 +29,8 @@ fn test_react_config() {
     let config = ReactConfig {
         observer_enabled: true,
         observer_model: None,
-        max_audit_rejections: 3,
     };
     assert!(config.observer_enabled);
-    assert_eq!(config.max_audit_rejections, 3);
 }
 
 #[test]
@@ -66,10 +64,8 @@ fn test_react_config_observer_disabled() {
     let config = ReactConfig {
         observer_enabled: false,
         observer_model: Some("test".to_string()),
-        max_audit_rejections: 5,
     };
     assert!(!config.observer_enabled);
-    assert_eq!(config.max_audit_rejections, 5);
     assert_eq!(config.observer_model.as_deref(), Some("test"));
 }
 

@@ -59,7 +59,6 @@ pub struct ReactResult {
 pub struct ReactConfig {
     pub observer_enabled: bool,
     pub observer_model: Option<String>,
-    pub max_audit_rejections: usize,
 }
 
 /// Execute the ReAct loop.
@@ -97,7 +96,6 @@ pub async fn execute_react_loop(
     let mut audit_passes = 0_usize;
     let mut total_audit_rejections = 0_usize;
     let mut consecutive_audit_rejections = 0_usize;
-    let mut spiral_recoveries: u8 = 0;
 
     loop {
         turn += 1;
@@ -109,22 +107,9 @@ pub async fn execute_react_loop(
         ).await?;
 
         // Handle thought spiral — recovery re-prompting (ported from HIVE)
+        // No cap — the model is re-prompted until it completes. No bail-out.
         if let Some(ref summary) = output.thought_spiral {
-            spiral_recoveries += 1;
-            tracing::warn!(turn = turn, recovery = spiral_recoveries, "🌀 Thought spiral detected (recovery {}/2)", spiral_recoveries);
-            if spiral_recoveries > 2 {
-                tracing::error!(turn = turn, "🌀 Max spiral recoveries exceeded — delivering fallback");
-                let fallback = "I got stuck in a reasoning loop and couldn't complete this request. \
-                    Let me know if you'd like me to try again with a simpler approach.".to_string();
-                let _ = event_tx.send(ReactEvent::ResponseReady { text: fallback.clone() }).await;
-                return Ok(ReactResult {
-                    response: fallback,
-                    turns: turn,
-                    tool_results: all_tool_results,
-                    audit_passes,
-                    audit_rejections: total_audit_rejections,
-                });
-            }
+            tracing::warn!(turn = turn, "🌀 Thought spiral detected — re-prompting to complete");
             // Inject recovery instructions and continue the loop
             messages.push(Message {
                 role: "system".to_string(),
@@ -228,18 +213,9 @@ fn inject_empty_reply_error(messages: &mut Vec<Message>) {
 fn inject_no_reply_error(response_text: &str, messages: &mut Vec<Message>, turn: usize) {
     tracing::warn!(turn = turn, "Model failed to call reply_request — injecting reminder");
     if !response_text.is_empty() {
-        // Truncate excessive raw text (e.g. thinking traces) to prevent context bloat
-        let max_echo = 500;
-        let truncated = if response_text.chars().count() > max_echo {
-            format!("{}...[truncated {} chars]",
-                response_text.chars().take(max_echo).collect::<String>(),
-                response_text.len() - max_echo)
-        } else {
-            response_text.to_string()
-        };
         messages.push(Message {
             role: "assistant".to_string(),
-            content: truncated,
+            content: response_text.to_string(),
             images: Vec::new(),
         });
     }

@@ -259,6 +259,9 @@ pub async fn factory_reset(State(state): State<SharedState>) -> StatusCode {
         tracing::warn!(data_dir = %data_dir.display(), "Factory reset initiated");
         st.memory_mgr.clear(&data_dir);
         st.session_mgr.clear_all();
+        // Clear all per-user isolated contexts
+        st.user_contexts.clear();
+        tracing::info!("Cleared {} per-user contexts", st.user_contexts.len());
         data_dir
     };
 
@@ -276,7 +279,7 @@ pub async fn factory_reset(State(state): State<SharedState>) -> StatusCode {
 fn wipe_user_data(data_dir: &std::path::Path) -> usize {
     let mut errors = 0;
 
-    for dir in &["sessions", "learning", "logs", "training"] {
+    for dir in &["sessions", "learning", "logs", "training", "users"] {
         let path = data_dir.join(dir);
         if path.exists() {
             if let Err(e) = std::fs::remove_dir_all(&path) {
