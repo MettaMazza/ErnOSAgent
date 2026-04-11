@@ -80,7 +80,8 @@ impl ThinkingThread {
     async fn flush(&mut self, http: &Http) -> Result<()> {
         // Truncate for embed display (Discord embed description limit: 4096)
         let display = if self.buffer.len() > 3800 {
-            format!("...{}", &self.buffer[self.buffer.len() - 3800..])
+            let start = self.buffer.floor_char_boundary(self.buffer.len() - 3800);
+            format!("...{}", &self.buffer[start..])
         } else {
             self.buffer.clone()
         };
@@ -102,7 +103,8 @@ impl ThinkingThread {
     pub async fn complete(&mut self, http: std::sync::Arc<Http>) -> Result<()> {
         // Final flush of any remaining tokens
         let display = if self.buffer.len() > 3800 {
-            format!("...{}", &self.buffer[self.buffer.len() - 3800..])
+            let start = self.buffer.floor_char_boundary(self.buffer.len() - 3800);
+            format!("...{}", &self.buffer[start..])
         } else {
             self.buffer.clone()
         };
