@@ -16,6 +16,9 @@ These are the mandatory structural limits for all Rust source files in this proj
 | **~300–500 lines** | ⚠️ Acceptable | Only if the module has a clear single purpose |
 | **~500+ lines** | 🔴 Split required | Must be refactored into smaller modules |
 
+### Exception: Operational Kernel (`src/prompt/core.rs`)
+The operational kernel is a single `const` string literal containing the full-depth system prompt. It is exempt from the 300-line ideal because it is **prompt text, not code logic** — splitting it across files would fragment the kernel's coherence with no structural benefit. The file remains under 500 lines.
+
 ### How to split a file over 500 lines
 
 1. Identify distinct responsibilities within the file
