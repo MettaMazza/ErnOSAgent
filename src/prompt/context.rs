@@ -21,6 +21,22 @@ pub fn build_context_prompt(
 ) -> String {
     let mut sections = Vec::new();
 
+    // ── GROUND TRUTH: Current Date & Time ─────────────────────────
+    // This is regenerated from the host system clock on EVERY inference call.
+    // It is the authoritative temporal anchor for all reasoning.
+    let utc_now = chrono::Utc::now();
+    let local_now = chrono::Local::now();
+    sections.push(format!(
+        "## ⏱️ GROUND TRUTH — Current Date & Time\n\
+         THIS IS LIVE DATA FROM THE HOST SYSTEM CLOCK. It is the AUTHORITATIVE source \
+         for all temporal reasoning. Do NOT guess, estimate, or infer the date from any \
+         other source. If a user says 'today', THIS is today.\n\
+         - UTC:   {}\n\
+         - Local: {}",
+        utc_now.format("%A, %B %d, %Y at %H:%M:%S UTC"),
+        local_now.format("%A, %B %d, %Y at %H:%M:%S %Z"),
+    ));
+
     // Model spec
     sections.push(format!(
         "## Active Model\n\
