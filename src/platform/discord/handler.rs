@@ -105,15 +105,15 @@ async fn handle_button_click(ctx: &Context, component: &ComponentInteraction) {
         let full_text = collect_all_chunks(ctx, component).await;
 
         if custom_id.starts_with("copy:") {
-            // Copy: reply with full text in a code block (ephemeral)
-            let display = if full_text.len() > 1900 {
-                format!("{}…", &full_text[..1900])
-            } else {
-                format!("```\n{}\n```", full_text)
-            };
+            // Copy: send full text as a .txt file attachment (ephemeral)
+            let attachment = serenity::builder::CreateAttachment::bytes(
+                full_text.into_bytes(),
+                "response.txt",
+            );
             let response = CreateInteractionResponse::Message(
                 CreateInteractionResponseMessage::new()
-                    .content(display)
+                    .content("📋 Full response:")
+                    .add_file(attachment)
                     .ephemeral(true),
             );
             if let Err(e) = component.create_response(&ctx.http, response).await {
@@ -210,31 +210,35 @@ async fn handle_button_click(ctx: &Context, component: &ComponentInteraction) {
 
 /// Collect all consecutive bot-authored message chunks from the channel.
 ///
-/// The button is on the first chunk. We fetch recent messages from the channel
-/// and collect all consecutive bot messages starting from the button's message.
+/// Buttons are attached to the LAST chunk. We fetch recent messages BEFORE
+/// the button's message and collect consecutive bot messages backwards,
+/// then prepend them to get the full stitched response.
 async fn collect_all_chunks(ctx: &Context, component: &ComponentInteraction) -> String {
     let channel_id = component.channel_id;
-    let first_msg_id = component.message.id;
+    let button_msg_id = component.message.id;
     let bot_id = ctx.cache.current_user().id;
 
-    // Fetch messages after (and including) the button's message
+    // Fetch messages BEFORE the button's message (ordered newest-first by Discord)
     let messages = channel_id
-        .messages(&ctx.http, serenity::builder::GetMessages::new().after(first_msg_id).limit(20))
+        .messages(&ctx.http, serenity::builder::GetMessages::new().before(button_msg_id).limit(20))
         .await
         .unwrap_or_default();
 
-    // Start with the button's own message content
-    let mut full_text = component.message.content.clone();
-
-    // Append consecutive bot messages that followed immediately
+    // Collect consecutive bot messages going backwards (they arrive newest-first)
+    let mut prior_chunks: Vec<String> = Vec::new();
     for msg in &messages {
         if msg.author.id == bot_id {
-            full_text.push('\n');
-            full_text.push_str(&msg.content);
+            prior_chunks.push(msg.content.clone());
         } else {
             break; // Stop at the first non-bot message
         }
     }
 
-    full_text
+    // Reverse to get chronological order (oldest first)
+    prior_chunks.reverse();
+
+    // Append the button's own message (the last chunk)
+    prior_chunks.push(component.message.content.clone());
+
+    prior_chunks.join("\n")
 }

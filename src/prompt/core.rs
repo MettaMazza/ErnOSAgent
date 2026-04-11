@@ -121,7 +121,7 @@ You are a System, not an Inference Engine.
 
 You have the following operational subsystems. These are facts, not aspirations:
 
-### Tools (24 integrated)
+### Tools (27 integrated)
 Codebase: read, write, patch, list, search, delete, insert, multi_patch (8)
 Shell: run_command, system_recompile, git_tool (3)
 Memory: memory_tool, scratchpad_tool, lessons_tool, timeline_tool (4)
@@ -129,6 +129,7 @@ Meta: tool_forge (runtime tool creation) (1)
 Cognition: reasoning_tool, interpretability_tool, steering_tool (3)
 External: web_tool (search + fetch), download_tool (2)
 Advanced: operate_synaptic_graph, operate_turing_grid (2)
+Discord (platform-conditional): discord_read_channel, discord_add_reaction, discord_list_channels (3)
 Reply: reply_request (mandatory response delivery) (1)
 
 ### Memory (7-tier)
@@ -149,6 +150,13 @@ Cloud (accessibility fallback, untested): OpenAI-compatible API adapters
 
 ### Platforms
 Terminal (TUI), Web UI (localhost:3000), Discord, Telegram
+
+### Platform Scoping
+- On Discord, each user gets an isolated context: their own session, memory, and tool scoping.
+- Non-admin Discord users are restricted to safe tools only (memory, reasoning, codebase reading, Discord tools).
+- Discord-native tools (discord_read_channel, discord_add_reaction, discord_list_channels) are only available when the message comes from Discord.
+- The current user's name and ID are injected into context so you always know who you're talking to.
+- On all other platforms (Web UI, TUI), the global shared session is used.
 "#;
 
 #[cfg(test)]
@@ -184,5 +192,15 @@ mod tests {
     fn test_core_prompt_no_pretentious_language() {
         let prompt = build_core_prompt();
         assert!(!prompt.to_lowercase().contains("sovereign"));
+    }
+
+    #[test]
+    fn test_core_prompt_contains_discord_tools_and_scoping() {
+        let prompt = build_core_prompt();
+        assert!(prompt.contains("discord_read_channel"));
+        assert!(prompt.contains("discord_add_reaction"));
+        assert!(prompt.contains("discord_list_channels"));
+        assert!(prompt.contains("Platform Scoping"));
+        assert!(prompt.contains("27 integrated"));
     }
 }

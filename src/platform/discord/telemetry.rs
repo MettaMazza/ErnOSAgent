@@ -98,8 +98,8 @@ impl ThinkingThread {
         Ok(())
     }
 
-    /// Finalise: change embed to green with ✅ Complete label.
-    pub async fn complete(&mut self, http: &Http) -> Result<()> {
+    /// Finalise: change embed to green with ✅ Complete label, then auto-delete after 2 minutes.
+    pub async fn complete(&mut self, http: std::sync::Arc<Http>) -> Result<()> {
         // Final flush of any remaining tokens
         let display = if self.buffer.len() > 3800 {
             format!("...{}", &self.buffer[self.buffer.len() - 3800..])
@@ -114,13 +114,24 @@ impl ThinkingThread {
         );
 
         let edit = EditMessage::new().embed(embed);
-        let _ = self.thread_id.edit_message(http, self.embed_message_id, edit).await;
+        let _ = self.thread_id.edit_message(&*http, self.embed_message_id, edit).await;
 
         tracing::debug!(
             thread = %self.thread_id,
             tokens_len = self.buffer.len(),
-            "Thinking thread completed"
+            "Thinking thread completed — will auto-delete in 2 minutes"
         );
+
+        // Auto-delete the thread after 2 minutes
+        let thread_id = self.thread_id;
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(120)).await;
+            if let Err(e) = thread_id.delete(&*http).await {
+                tracing::warn!(error = %e, thread = %thread_id, "Failed to auto-delete thinking thread");
+            } else {
+                tracing::debug!(thread = %thread_id, "Thinking thread auto-deleted");
+            }
+        });
 
         Ok(())
     }

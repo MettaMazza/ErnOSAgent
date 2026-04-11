@@ -170,9 +170,11 @@ pub async fn run_react_pipeline(
         content: format!(
             "[PLATFORM CONTEXT] You are in a {} group chat. \
             The current message is from user '{}' (user ID: {}). \
+            Channel ID: {}. Message ID: {}. \
             Address them by their display name. \
-            Do NOT confuse them with other users from previous sessions.",
-            ctx.platform, ctx.user_name, ctx.user_id
+            Do NOT confuse them with other users from previous sessions. \
+            You can use these IDs with Discord tools (e.g. discord_add_reaction).",
+            ctx.platform, ctx.user_name, ctx.user_id, ctx.channel_id, ctx.message_id
         ),
         images: Vec::new(),
     });
@@ -324,7 +326,7 @@ pub async fn run_react_pipeline(
                 #[cfg(feature = "discord")]
                 if let Some(ref mut tt) = thinking_thread {
                     if let Some(ref http) = discord_http_for_thinking {
-                        let _ = tt.complete(http).await;
+                        let _ = tt.complete(http.clone()).await;
                     }
                 }
 
