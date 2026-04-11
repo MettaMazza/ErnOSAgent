@@ -111,15 +111,26 @@ impl LlamaCppProvider {
     }
 
     /// Start the llama-server process.
+    ///
+    /// Performs system-level cleanup first: kills ALL existing llama-server
+    /// processes (not just our own child handle) to prevent orphaned servers
+    /// from prior runs from holding the port and causing deadlocks.
     pub async fn start_server(&self, steering_args: &[String]) -> Result<()> {
         let mut proc_guard = self.process.lock().await;
 
-        // Kill existing process if running
+        // Kill our own child if running
         if let Some(ref mut child) = *proc_guard {
-            tracing::info!("Stopping existing llama-server process");
+            tracing::info!("Stopping existing llama-server child process");
             let _ = child.kill().await;
             let _ = child.wait().await;
+            *proc_guard = None;
         }
+
+        // System-level cleanup: kill ALL orphaned llama-server processes.
+        // A prior ernosagent crash or restart can leave stale llama-server
+        // processes bound to our port, causing the Observer to deadlock on
+        // chat_sync when the stale process holds the single inference slot.
+        Self::kill_orphaned_servers().await;
 
         let args = self.build_server_args(steering_args);
 
@@ -166,6 +177,56 @@ impl LlamaCppProvider {
     pub async fn restart_server(&self, steering_args: &[String]) -> Result<()> {
         self.stop_server().await?;
         self.start_server(steering_args).await
+    }
+
+    /// Kill ALL llama-server processes on the system, not just our child.
+    ///
+    /// This handles orphaned servers from prior ernosagent runs that crashed
+    /// or were killed without cleanup. A stale llama-server holding port 8080
+    /// with --parallel 1 will deadlock the Observer's chat_sync call if the
+    /// main inference is using the only slot.
+    async fn kill_orphaned_servers() {
+        // pkill sends SIGTERM to all matching processes
+        let output = tokio::process::Command::new("pkill")
+            .args(["-f", "llama-server"])
+            .output()
+            .await;
+
+        match output {
+            Ok(o) if o.status.success() => {
+                tracing::warn!("Killed orphaned llama-server processes");
+                // Wait for port release
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned llama-server processes found");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "pkill command failed — orphaned servers may persist");
+            }
+        }
+
+        // Also kill any stale ernosagent processes (not ourselves)
+        let our_pid = std::process::id();
+        let output = tokio::process::Command::new("pgrep")
+            .args(["-f", "ernosagent"])
+            .output()
+            .await;
+
+        if let Ok(o) = output {
+            let pids = String::from_utf8_lossy(&o.stdout);
+            for line in pids.lines() {
+                if let Ok(pid) = line.trim().parse::<u32>() {
+                    if pid != our_pid {
+                        tracing::warn!(stale_pid = pid, "Killing stale ernosagent process");
+                        let _ = tokio::process::Command::new("kill")
+                            .args(["-9", &pid.to_string()])
+                            .output()
+                            .await;
+                    }
+                }
+            }
+        }
     }
 
     /// Wait for the server's /health endpoint to return OK.
@@ -320,7 +381,19 @@ impl Provider for LlamaCppProvider {
         // Transform messages: if a message has images, convert to OpenAI multipart
         // content format (array of {type: "text"} and {type: "image_url"} parts).
         let api_messages: Vec<serde_json::Value> = messages.iter().map(|msg| {
-            if msg.images.is_empty() {
+            // Filter images: only keep valid base64 or data URIs.
+            // Raw HTTP URLs (from old Discord sessions) are invalid for llama-server
+            // and cause 400 errors. Skip them.
+            let valid_images: Vec<&String> = msg.images.iter().filter(|img| {
+                if img.starts_with("http://") || img.starts_with("https://") {
+                    tracing::warn!("Skipping raw URL in image field (not base64-encoded): {}...", &img[..img.len().min(80)]);
+                    false
+                } else {
+                    true
+                }
+            }).collect();
+
+            if valid_images.is_empty() {
                 serde_json::json!({
                     "role": msg.role,
                     "content": msg.content,
@@ -330,10 +403,10 @@ impl Provider for LlamaCppProvider {
                     "type": "text",
                     "text": msg.content,
                 })];
-                for img_b64 in &msg.images {
+                for img_b64 in &valid_images {
                     // If it already has a data: prefix, use as-is; otherwise add one
                     let url = if img_b64.starts_with("data:") {
-                        img_b64.clone()
+                        (*img_b64).clone()
                     } else {
                         format!("data:image/png;base64,{}", img_b64)
                     };

@@ -56,13 +56,53 @@ impl EventHandler for DiscordHandler {
         // Trigger Discord typing indicator
         let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
 
+        // Download image attachments and base64-encode them for the vision model.
+        // The provider expects data URIs (data:image/png;base64,...), not raw URLs.
+        let mut encoded_images = Vec::new();
+        for attachment in &msg.attachments {
+            // Only download image content types
+            let is_image = attachment.content_type
+                .as_ref()
+                .map(|ct| ct.starts_with("image/"))
+                .unwrap_or(false);
+            if !is_image { continue; }
+
+            let content_type = attachment.content_type
+                .as_deref()
+                .unwrap_or("image/png")
+                .to_string();
+
+            match reqwest::get(&attachment.url).await {
+                Ok(resp) => {
+                    match resp.bytes().await {
+                        Ok(bytes) => {
+                            use base64::Engine;
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                            encoded_images.push(format!("data:{};base64,{}", content_type, b64));
+                            tracing::info!(
+                                filename = %attachment.filename,
+                                size = bytes.len(),
+                                "Downloaded Discord image attachment"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord attachment bytes");
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, url = %attachment.url, "Failed to download Discord attachment");
+                }
+            }
+        }
+
         let platform_msg = PlatformMessage {
             platform: "discord".to_string(),
             channel_id: msg.channel_id.to_string(),
             user_id: msg.author.id.to_string(),
             user_name: msg.author.name.clone(),
             content: msg.content.clone(),
-            attachments: msg.attachments.iter().map(|a| a.url.clone()).collect(),
+            attachments: encoded_images,
             message_id: msg.id.to_string(),
             is_admin,
         };
