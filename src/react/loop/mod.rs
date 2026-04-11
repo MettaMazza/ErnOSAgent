@@ -74,6 +74,8 @@ pub async fn execute_react_loop(
     event_tx: mpsc::Sender<ReactEvent>,
     training_buffers: Option<Arc<TrainingBuffers>>,
     session_id: &str,
+    #[cfg(feature = "discord")]
+    discord_http: Option<std::sync::Arc<serenity::http::Http>>,
 ) -> Result<ReactResult> {
     let user_message = initial_messages
         .iter()
@@ -146,6 +148,8 @@ pub async fn execute_react_loop(
             execute_tool_calls(
                 &output.tool_calls, executor, &mut messages,
                 &mut all_tool_results, &event_tx,
+                #[cfg(feature = "discord")]
+                &discord_http,
             ).await;
         }
 

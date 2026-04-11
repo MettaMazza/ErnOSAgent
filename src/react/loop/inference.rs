@@ -101,12 +101,18 @@ pub(super) async fn collect_inference(
 }
 
 /// Execute non-reply tool calls and inject results into context.
+///
+/// When `discord_http` is `Some`, Discord-native tools (discord_read_channel, etc.)
+/// are dispatched through the async Discord tool executor. All other tools use the
+/// standard synchronous executor.
 pub(super) async fn execute_tool_calls(
     tool_calls: &[ToolCall],
     executor: &ToolExecutor,
     messages: &mut Vec<Message>,
     all_tool_results: &mut Vec<ToolResult>,
     event_tx: &mpsc::Sender<ReactEvent>,
+    #[cfg(feature = "discord")]
+    discord_http: &Option<std::sync::Arc<serenity::http::Http>>,
 ) {
     for call in tool_calls {
         if schema::is_reply_request(call) {
@@ -118,6 +124,31 @@ pub(super) async fn execute_tool_calls(
             id: call.id.clone(),
         }).await;
 
+        // Discord tool pre-dispatch — async tools that need the HTTP client
+        #[cfg(feature = "discord")]
+        let discord_result = if call.name.starts_with("discord_") {
+            if let Some(ref http) = discord_http {
+                let args = call.arguments.as_object().cloned().unwrap_or_default();
+                crate::tools::discord_tools::execute_discord_tool(
+                    &call.name, &args, http,
+                ).await
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        #[cfg(feature = "discord")]
+        let result = if let Some(mut r) = discord_result {
+            // Fill in the tool_call_id from the actual call
+            r.tool_call_id = call.id.clone();
+            r
+        } else {
+            executor.execute(call)
+        };
+
+        #[cfg(not(feature = "discord"))]
         let result = executor.execute(call);
 
         let _ = event_tx.send(ReactEvent::ToolCompleted {

@@ -16,6 +16,7 @@
 
 use anyhow::{Context, Result};
 use ernosagent::{config, logging, memory, prompt, provider, session, steering, tools, web};
+use ernosagent::platform::adapter::PlatformAdapter;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -227,6 +228,8 @@ async fn init_web_state(
 
     // Platform adapters (Discord, Telegram, etc.)
     let mut platform_registry = ernosagent::platform::registry::PlatformRegistry::new();
+    #[cfg(feature = "discord")]
+    let discord_http_handle: Option<std::sync::Arc<serenity::http::Http>>;
     {
         // Read saved platform configs from platforms.json
         let platforms_file = config.general.data_dir.join("platforms.json");
@@ -254,9 +257,22 @@ async fn init_web_state(
                 }
             }
         }
-        platform_registry.register(Box::new(
-            ernosagent::platform::discord::DiscordAdapter::new(&discord_cfg),
-        ));
+        // Discord — create separately so we can extract the HTTP handle after connect
+        let mut discord_adapter = ernosagent::platform::discord::DiscordAdapter::new(&discord_cfg);
+        #[cfg(feature = "discord")]
+        {
+            discord_http_handle = if discord_cfg.enabled && !discord_cfg.token.is_empty() {
+                if let Err(e) = discord_adapter.connect().await {
+                    tracing::warn!(error = %e, "Discord connect failed");
+                }
+                discord_adapter.http_client()
+            } else {
+                None
+            };
+        }
+        platform_registry.register(Box::new(discord_adapter));
+        #[cfg(not(feature = "discord"))]
+        let _discord_http_handle: Option<()> = None;
 
         // Telegram — merge saved config into the default config
         let mut telegram_cfg = config.platform.telegram.clone();
@@ -271,12 +287,14 @@ async fn init_web_state(
                 if !admin.is_empty() { telegram_cfg.admin_user_id = admin.to_string(); }
             }
         }
-        platform_registry.register(Box::new(
-            ernosagent::platform::telegram::TelegramAdapter::new(&telegram_cfg),
-        ));
+        let mut telegram_adapter = ernosagent::platform::telegram::TelegramAdapter::new(&telegram_cfg);
+        if telegram_cfg.enabled && !telegram_cfg.token.is_empty() {
+            if let Err(e) = telegram_adapter.connect().await {
+                tracing::warn!(error = %e, "Telegram connect failed");
+            }
+        }
+        platform_registry.register(Box::new(telegram_adapter));
 
-        // Auto-connect any enabled+configured adapters
-        platform_registry.connect_all().await;
         tracing::info!(
             status = %platform_registry.status_summary(),
             "Platform adapters initialised"
@@ -301,6 +319,8 @@ async fn init_web_state(
         adapter_manifest,
         platform_registry,
         user_contexts: std::collections::HashMap::new(),
+        #[cfg(feature = "discord")]
+        discord_http: discord_http_handle,
     }));
 
     // Start the scheduler background loop
@@ -355,8 +375,34 @@ async fn init_web_state(
                             content_len = msg.content.len(),
                             "Platform message received — routing to inference"
                         );
+                        // Spawn persistent typing indicator for Discord
+                        // (refreshes every 8s to keep "ErnOS is typing..." alive during inference)
+                        #[cfg(feature = "discord")]
+                        let typing_handle = if msg.platform == "discord" {
+                            let http = {
+                                let st = state.read().await;
+                                st.discord_http.clone()
+                            };
+                            if let Some(http) = http {
+                                let channel_id = serenity::model::id::ChannelId::new(
+                                    msg.channel_id.parse::<u64>().unwrap_or(0)
+                                );
+                                Some(ernosagent::platform::discord::telemetry::spawn_typing_indicator(http, channel_id))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
                         match ernosagent::platform::router::process_message(&state, &msg).await {
                             Ok(reply) => {
+                                // Stop typing indicator
+                                #[cfg(feature = "discord")]
+                                if let Some(handle) = typing_handle {
+                                    handle.abort();
+                                }
+
                                 // Send reply back through the adapter
                                 let st = state.read().await;
                                 for adapter in st.platform_registry.adapters_iter() {
@@ -369,6 +415,12 @@ async fn init_web_state(
                                 }
                             }
                             Err(e) => {
+                                // Stop typing indicator on error too
+                                #[cfg(feature = "discord")]
+                                if let Some(handle) = typing_handle {
+                                    handle.abort();
+                                }
+
                                 tracing::error!(platform = %msg.platform, error = %e, "Failed to process platform message");
                             }
                         }

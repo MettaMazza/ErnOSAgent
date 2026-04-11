@@ -66,6 +66,8 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
         data_dir,
+        #[cfg(feature = "discord")]
+        None,
     );
 
     stream_react_events(socket, state, user_message, event_rx, react_handle, cancel_token).await;
@@ -114,6 +116,8 @@ pub(crate) fn spawn_react_loop(
     observer_enabled: bool,
     observer_model: Option<String>,
     data_dir: std::path::PathBuf,
+    #[cfg(feature = "discord")]
+    discord_http: Option<std::sync::Arc<serenity::http::Http>>,
 ) -> tokio::task::JoinHandle<anyhow::Result<react_loop::ReactResult>> {
     let executor = crate::tools::build_default_executor_with_state(&data_dir);
     let react_config = ReactConfig { observer_enabled, observer_model };
@@ -123,6 +127,8 @@ pub(crate) fn spawn_react_loop(
             &provider, &model, messages, &tools, &executor,
             &react_config, &system_prompt, &identity_prompt, event_tx,
             training_buffers, &session_id,
+            #[cfg(feature = "discord")]
+            discord_http,
         ).await
     })
 }

@@ -64,4 +64,8 @@ pub struct WebAppState {
     /// Key: "platform:user_id" (e.g. "discord:123456789")
     /// Each user gets their own session and memory, scoped by user_id.
     pub user_contexts: HashMap<String, UserContext>,
+    /// Discord HTTP client handle — stored here so the router and tools can
+    /// access Discord API without downcasting through the adapter trait.
+    #[cfg(feature = "discord")]
+    pub discord_http: Option<Arc<serenity::http::Http>>,
 }

@@ -29,6 +29,7 @@ pub mod web_tool;
 pub mod download_tool;
 pub mod synaptic_tool;
 pub mod turing_tool;
+pub mod discord_tools;
 
 pub use schema::{ToolCall, ToolResult};
 

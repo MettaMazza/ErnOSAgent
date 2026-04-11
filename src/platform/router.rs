@@ -46,6 +46,8 @@ pub async fn process_message(
         user_name: msg.user_name.clone(),
         platform: msg.platform.clone(),
         is_admin: msg.is_admin,
+        channel_id: msg.channel_id.clone(),
+        message_id: msg.message_id.clone(),
     };
 
     // Run the FULL ReAct pipeline — 1-to-1 with WebSocket chat

@@ -277,6 +277,8 @@ async fn handle_relay_chat(
             event_tx,
             training_buffers,
             "mobile-relay",
+            #[cfg(feature = "discord")]
+            None,
         )
         .await
     });

@@ -85,6 +85,8 @@ pub async fn execute_job(
             event_tx,
             None, // No training buffers for scheduled jobs
             &job_id,
+            #[cfg(feature = "discord")]
+            None,
         )
         .await
     });

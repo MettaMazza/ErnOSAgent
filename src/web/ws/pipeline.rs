@@ -51,6 +51,10 @@ pub struct PlatformContext {
     pub platform: String,
     /// Whether this user has admin privileges (full tool access).
     pub is_admin: bool,
+    /// Platform channel ID (used for thinking threads, delivery).
+    pub channel_id: String,
+    /// Original message ID (used for thinking threads, reply references).
+    pub message_id: String,
 }
 
 /// Run the full ReAct pipeline non-streaming, returning the final response text.
@@ -173,12 +177,24 @@ pub async fn run_react_pipeline(
         images: Vec::new(),
     });
 
-    // ── 5. Tool scoping — non-admin gets safe tools only ─────────────
+    // ── 5. Platform-conditional tool injection ─────────────────────────
+    // Discord-specific tools only appear when the message comes from Discord.
+
+    if ctx.platform == "discord" {
+        tools.extend(crate::tools::discord_tools::discord_tool_definitions());
+        tracing::debug!(
+            platform = %ctx.platform,
+            "Injected Discord-native tools (read_channel, add_reaction, list_channels)"
+        );
+    }
+
+    // ── 6. Tool scoping — non-admin gets safe tools only ─────────────
 
     if !ctx.is_admin {
         tools.retain(|t| {
             SAFE_TOOL_NAMES.contains(&t.function.name.as_str())
                 || t.function.name == "reply_request" // Always needed
+                || t.function.name.starts_with("discord_") // Discord tools are read-only = safe
         });
         tracing::info!(
             user = %ctx.user_id,
@@ -195,21 +211,95 @@ pub async fn run_react_pipeline(
 
     // ── 6. Spawn the FULL ReAct loop ─────────────────────────────────
 
+    // Get Discord HTTP handle for Discord tool execution
+    #[cfg(feature = "discord")]
+    let discord_http_for_tools = if ctx.platform == "discord" {
+        let st = state.read().await;
+        st.discord_http.clone()
+    } else {
+        None
+    };
+
     let (event_tx, mut event_rx) = mpsc::channel::<ReactEvent>(256);
     let react_handle = super::chat::spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
         data_dir,
+        #[cfg(feature = "discord")]
+        discord_http_for_tools,
     );
 
-    // ── 7. Collect events (non-streaming — wait for ResponseReady) ───
+    // ── 7. Collect events — forward thinking tokens to Discord thread ──
 
     let mut final_response = String::new();
+
+    // For Discord: create a thinking thread on the first turn and update it with tokens.
+    #[cfg(feature = "discord")]
+    let mut thinking_thread: Option<crate::platform::discord::telemetry::ThinkingThread> = None;
+    #[cfg(feature = "discord")]
+    let discord_http_for_thinking = if ctx.platform == "discord" {
+        let st = state.read().await;
+        let http = st.discord_http.clone();
+        if http.is_none() {
+            tracing::warn!("ThinkingThread: discord_http is None in SharedState — thread will NOT be created");
+        }
+        http
+    } else {
+        None
+    };
 
     while let Some(event) = event_rx.recv().await {
         match event {
             ReactEvent::TurnStarted { turn } => {
                 tracing::info!(turn = turn, platform = %ctx.platform, user = %ctx.user_name, "Platform ReAct turn starting");
+
+                // Create thinking thread on the first turn (Discord only)
+                #[cfg(feature = "discord")]
+                if turn == 1 && ctx.platform == "discord" {
+                    match &discord_http_for_thinking {
+                        None => {
+                            tracing::warn!("ThinkingThread: skipped — no discord_http handle available");
+                        }
+                        Some(http) => {
+                            match (ctx.channel_id.parse::<u64>(), ctx.message_id.parse::<u64>()) {
+                                (Ok(ch), Ok(mid)) => {
+                                    match crate::platform::discord::telemetry::ThinkingThread::create(
+                                        http,
+                                        serenity::model::id::ChannelId::new(ch),
+                                        serenity::model::id::MessageId::new(mid),
+                                        &ctx.user_name,
+                                    ).await {
+                                        Ok(tt) => {
+                                            thinking_thread = Some(tt);
+                                            tracing::info!("ThinkingThread created for Discord user {}", ctx.user_name);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(error = %e, "ThinkingThread creation FAILED");
+                                        }
+                                    }
+                                }
+                                (ch_res, mid_res) => {
+                                    tracing::error!(
+                                        channel_id = %ctx.channel_id,
+                                        message_id = %ctx.message_id,
+                                        ch_parse_ok = ch_res.is_ok(),
+                                        mid_parse_ok = mid_res.is_ok(),
+                                        "ThinkingThread: failed to parse channel_id/message_id"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ReactEvent::Thinking(token) => {
+                // Forward thinking tokens to the Discord thread
+                #[cfg(feature = "discord")]
+                if let Some(ref mut tt) = thinking_thread {
+                    if let Some(ref http) = discord_http_for_thinking {
+                        let _ = tt.update(http, &token).await;
+                    }
+                }
             }
             ReactEvent::ToolExecuting { name, id: _ } => {
                 tracing::info!(tool = %name, platform = %ctx.platform, "Platform: tool executing");
@@ -230,6 +320,14 @@ pub async fn run_react_pipeline(
                 );
             }
             ReactEvent::ResponseReady { text } => {
+                // Finalise thinking thread
+                #[cfg(feature = "discord")]
+                if let Some(ref mut tt) = thinking_thread {
+                    if let Some(ref http) = discord_http_for_thinking {
+                        let _ = tt.complete(http).await;
+                    }
+                }
+
                 // Persist response to per-user session + memory (NOT to global state)
                 persist_user_response(state, &session_key, user_message, &text).await;
                 final_response = text;
@@ -240,7 +338,7 @@ pub async fn run_react_pipeline(
                     final_response = format!("⚠️ Error: {}", msg);
                 }
             }
-            // Token, Thinking, NeuralSnapshot — not needed for non-streaming
+            // Token, NeuralSnapshot — logged but not forwarded
             _ => {}
         }
     }
