@@ -331,7 +331,12 @@ fn inject_no_reply_error(response_text: &str, messages: &mut Vec<Message>, turn:
     // That bloats the context window and causes the model to spiral on retry.
     // Instead, give concise feedback with a short excerpt so it knows what to wrap.
     let excerpt = if response_text.len() > 200 {
-        format!("{}...", &response_text[..200])
+        let end = response_text.char_indices()
+            .take_while(|(i, _)| *i <= 200)
+            .last()
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        format!("{}...", &response_text[..end])
     } else {
         response_text.to_string()
     };

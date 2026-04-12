@@ -119,7 +119,12 @@ fn log_sentinel_action(user_id: &str, user_name: &str, action: &str, reason: &st
         "action": action,
         "reason": reason,
         "message_excerpt": if message_content.len() > 200 {
-            format!("{}...", &message_content[..200])
+            let end = message_content.char_indices()
+                .take_while(|(i, _)| *i <= 200)
+                .last()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            format!("{}...", &message_content[..end])
         } else {
             message_content.to_string()
         },
