@@ -338,6 +338,19 @@ async fn init_web_state(
         let data_dir = st.config.general.data_dir.clone();
         tools::autonomy_tool::register_tools(&mut st.executor, data_dir);
         tracing::info!("Registered autonomy_history tool");
+
+        // Register performance_review + distill_knowledge (require buffers + provider)
+        if let Some(ref buffers) = st.training_buffers {
+            let buf_for_review = Arc::clone(buffers);
+            let buf_for_distill = Arc::clone(buffers);
+            let provider_for_distill = Arc::clone(&st.provider);
+            tools::performance_review::register_tools(&mut st.executor, buf_for_review);
+            tracing::info!("Registered performance_review tool");
+            tools::distillation::register_tools(&mut st.executor, provider_for_distill, buf_for_distill);
+            tracing::info!("Registered distill_knowledge tool");
+        } else {
+            tracing::warn!("Training buffers not available — performance_review and distill_knowledge tools disabled");
+        }
     }
 
     // Start the scheduler background loop
