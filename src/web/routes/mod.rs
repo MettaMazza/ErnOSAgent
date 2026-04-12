@@ -20,6 +20,7 @@ pub mod memory;
 pub mod reasoning;
 pub mod checkpoints;
 pub mod scheduler;
+pub mod mesh;
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse, Response};

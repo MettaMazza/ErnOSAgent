@@ -2417,3 +2417,230 @@ kbd {
 .job-delete-btn:hover {
     background: rgba(248, 113, 113, 0.1) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Mesh Network Dashboard
+   ═══════════════════════════════════════════════════════════════════ */
+
+.mesh-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ── Status Header ──────────────────────────────────────── */
+.mesh-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.06) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 12px;
+}
+
+.mesh-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mesh-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.3s, box-shadow 0.3s;
+}
+.mesh-dot-on {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    animation: mesh-pulse 2s ease-in-out infinite;
+}
+.mesh-dot-off {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes mesh-pulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); }
+}
+
+.mesh-peer-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+/* ── Section Titles ─────────────────────────────────────── */
+.mesh-section {
+    padding-top: 4px;
+}
+
+.mesh-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px;
+}
+
+.mesh-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Cards Grid ─────────────────────────────────────────── */
+.mesh-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.mesh-card {
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    transition: border-color 0.2s, transform 0.15s;
+}
+.mesh-card:hover {
+    border-color: rgba(139, 92, 246, 0.25);
+    transform: translateY(-1px);
+}
+
+.mesh-card-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.mesh-card-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.1;
+}
+
+.mesh-card-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+/* Color variants */
+.mesh-accent { color: #a78bfa; }
+.mesh-success { color: #10b981; }
+.mesh-error { color: #f87171; }
+
+/* ── Trust Matrix ───────────────────────────────────────── */
+.mesh-trust-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.mesh-trust-level {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: border-color 0.2s, background 0.2s;
+}
+.mesh-trust-level:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.trust-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.trust-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 500;
+}
+
+.trust-count {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+}
+
+/* Trust level visual accents */
+.trust-unattested { border-color: rgba(255, 255, 255, 0.08); }
+.trust-attested { border-color: rgba(245, 158, 11, 0.15); }
+.trust-attested:hover { border-color: rgba(245, 158, 11, 0.3); }
+.trust-full { border-color: rgba(16, 185, 129, 0.15); }
+.trust-full:hover { border-color: rgba(16, 185, 129, 0.3); }
+.trust-quarantined { border-color: rgba(239, 68, 68, 0.15); }
+.trust-quarantined:hover { border-color: rgba(239, 68, 68, 0.3); }
+
+/* ── Security Pipeline ──────────────────────────────────── */
+.mesh-security-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.mesh-security-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+
+.security-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.security-value {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .mesh-trust-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .mesh-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .mesh-security-grid {
+        grid-template-columns: 1fr;
+    }
+}

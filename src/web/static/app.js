@@ -1085,6 +1085,7 @@
             if (activeTab === 'tab-system')    Dashboard.loadSystem();
             if (activeTab === 'tab-platforms') Platforms.load();
             if (activeTab === 'tab-automation') Scheduler.loadJobs();
+            if (activeTab === 'tab-mesh')      MeshDashboard.load();
         },
 
         showLoading(el) {
@@ -2243,6 +2244,73 @@
             const d = document.createElement('div');
             d.textContent = str || '';
             return d.innerHTML;
+        },
+    };
+
+    // ── Mesh Network Dashboard ────────────────────────────────────
+    const MeshDashboard = {
+        _timer: null,
+
+        async load() {
+            try {
+                const res = await fetch('/api/mesh/status');
+                if (!res.ok) throw new Error('Not available');
+                const d = await res.json();
+                this.render(d);
+            } catch (e) {
+                this.renderOffline();
+            }
+        },
+
+        render(d) {
+            // Status header
+            const dot = document.getElementById('mesh-dot');
+            const label = document.getElementById('mesh-enabled-label');
+            const peerIdEl = document.getElementById('mesh-peer-id');
+            if (dot) dot.className = 'mesh-dot ' + (d.enabled ? 'mesh-dot-on' : 'mesh-dot-off');
+            if (label) label.textContent = d.enabled ? 'Online' : 'Disabled';
+            if (peerIdEl) peerIdEl.textContent = d.peer_id ? d.peer_id.substring(0, 16) + '…' : '—';
+
+            // Topology
+            this._set('mesh-connected', d.connected_peers);
+            this._set('mesh-known', d.known_peers);
+            this._set('mesh-phase', d.governance_phase || '—');
+            this._set('mesh-relays', d.relay_count);
+            this._set('mesh-peer-count', d.connected_peers + d.known_peers);
+
+            // Trust
+            this._set('trust-unattested', d.trust_unattested);
+            this._set('trust-attested', d.trust_attested);
+            this._set('trust-full', d.trust_full);
+            this._set('trust-quarantined', d.quarantined);
+
+            // Compute
+            this._set('mesh-jobs-queued', d.jobs_queued);
+            this._set('mesh-jobs-progress', d.jobs_in_progress);
+            this._set('mesh-jobs-done', d.jobs_completed);
+            this._set('mesh-jobs-failed', d.jobs_failed);
+
+            // Security
+            this._set('mesh-scanned', d.content_scanned);
+            this._set('mesh-blocked', d.content_blocked);
+            this._set('mesh-dht', d.dht_entries);
+            const intEl = document.getElementById('mesh-integrity');
+            if (intEl) {
+                intEl.textContent = d.integrity_valid ? '✓ Valid' : '✗ Tampered';
+                intEl.className = 'security-value ' + (d.integrity_valid ? 'mesh-success' : 'mesh-error');
+            }
+        },
+
+        renderOffline() {
+            const label = document.getElementById('mesh-enabled-label');
+            if (label) label.textContent = 'Not compiled (build with --features mesh)';
+            const dot = document.getElementById('mesh-dot');
+            if (dot) dot.className = 'mesh-dot mesh-dot-off';
+        },
+
+        _set(id, val) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val !== undefined ? val : '—';
         },
     };
 

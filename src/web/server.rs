@@ -129,6 +129,8 @@ fn build_router(state: SharedState) -> Router {
         .route("/api/scheduler/jobs/{id}/toggle", post(routes::scheduler::toggle_job))
         .route("/api/scheduler/jobs/{id}/run", post(routes::scheduler::run_job_now))
         .route("/api/scheduler/jobs/{id}/logs", get(routes::scheduler::job_logs))
+        // Mesh network
+        .route("/api/mesh/status", get(routes::mesh::mesh_status))
         .with_state(state)
 }
 

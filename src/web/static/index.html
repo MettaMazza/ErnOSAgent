@@ -166,6 +166,7 @@
                 <button class="tab-btn" data-tab="tab-system">System</button>
                 <button class="tab-btn" data-tab="tab-platforms">Platforms</button>
                 <button class="tab-btn" data-tab="tab-automation">Automation</button>
+                <button class="tab-btn" data-tab="tab-mesh">Mesh Network</button>
             </div>
             
             <div class="modal-content">
@@ -529,6 +530,126 @@
                         <h3>Scheduled Jobs</h3>
                         <div id="job-list" class="job-list">
                             <div class="loading-text">Loading jobs…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mesh Network Tab -->
+                <div id="tab-mesh" class="tab-pane">
+                    <div class="mesh-dashboard">
+                        <!-- Mesh Status Header -->
+                        <div class="mesh-status-header" id="mesh-status-header">
+                            <div class="mesh-status-indicator">
+                                <span class="mesh-dot" id="mesh-dot"></span>
+                                <span id="mesh-enabled-label">Disabled</span>
+                            </div>
+                            <div class="mesh-peer-id" id="mesh-peer-id">—</div>
+                        </div>
+
+                        <!-- Peer Topology -->
+                        <div class="mesh-section">
+                            <h3 class="mesh-section-title">Peer Topology <span class="mesh-badge" id="mesh-peer-count">0</span></h3>
+                            <div class="mesh-topology" id="mesh-topology">
+                                <div class="mesh-cards-grid">
+                                    <div class="mesh-card">
+                                        <div class="mesh-card-title">Connected</div>
+                                        <div class="mesh-card-value" id="mesh-connected">0</div>
+                                        <div class="mesh-card-sub">active QUIC</div>
+                                    </div>
+                                    <div class="mesh-card">
+                                        <div class="mesh-card-title">Known</div>
+                                        <div class="mesh-card-value" id="mesh-known">0</div>
+                                        <div class="mesh-card-sub">discovered</div>
+                                    </div>
+                                    <div class="mesh-card">
+                                        <div class="mesh-card-title">Governance</div>
+                                        <div class="mesh-card-value" id="mesh-phase">—</div>
+                                        <div class="mesh-card-sub" id="mesh-phase-sub">phase</div>
+                                    </div>
+                                    <div class="mesh-card">
+                                        <div class="mesh-card-title">Web Relays</div>
+                                        <div class="mesh-card-value" id="mesh-relays">0</div>
+                                        <div class="mesh-card-sub">available</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trust Matrix -->
+                        <div class="mesh-section">
+                            <h3 class="mesh-section-title">Trust Matrix</h3>
+                            <div class="mesh-trust-grid">
+                                <div class="mesh-trust-level trust-unattested">
+                                    <div class="trust-icon">⚪</div>
+                                    <div class="trust-label">Unattested</div>
+                                    <div class="trust-count" id="trust-unattested">0</div>
+                                </div>
+                                <div class="mesh-trust-level trust-attested">
+                                    <div class="trust-icon">🟡</div>
+                                    <div class="trust-label">Attested</div>
+                                    <div class="trust-count" id="trust-attested">0</div>
+                                </div>
+                                <div class="mesh-trust-level trust-full">
+                                    <div class="trust-icon">🟢</div>
+                                    <div class="trust-label">Full Trust</div>
+                                    <div class="trust-count" id="trust-full">0</div>
+                                </div>
+                                <div class="mesh-trust-level trust-quarantined">
+                                    <div class="trust-icon">🔴</div>
+                                    <div class="trust-label">Quarantined</div>
+                                    <div class="trust-count" id="trust-quarantined">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Compute Pool -->
+                        <div class="mesh-section">
+                            <h3 class="mesh-section-title">Compute Pool</h3>
+                            <div class="mesh-cards-grid">
+                                <div class="mesh-card">
+                                    <div class="mesh-card-title">Queued</div>
+                                    <div class="mesh-card-value" id="mesh-jobs-queued">0</div>
+                                    <div class="mesh-card-sub">waiting</div>
+                                </div>
+                                <div class="mesh-card">
+                                    <div class="mesh-card-title">In Progress</div>
+                                    <div class="mesh-card-value mesh-accent" id="mesh-jobs-progress">0</div>
+                                    <div class="mesh-card-sub">running</div>
+                                </div>
+                                <div class="mesh-card">
+                                    <div class="mesh-card-title">Completed</div>
+                                    <div class="mesh-card-value mesh-success" id="mesh-jobs-done">0</div>
+                                    <div class="mesh-card-sub">finished</div>
+                                </div>
+                                <div class="mesh-card">
+                                    <div class="mesh-card-title">Failed</div>
+                                    <div class="mesh-card-value mesh-error" id="mesh-jobs-failed">0</div>
+                                    <div class="mesh-card-sub">errors</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security -->
+                        <div class="mesh-section">
+                            <h3 class="mesh-section-title">Security Pipeline</h3>
+                            <div class="mesh-security-grid">
+                                <div class="mesh-security-item">
+                                    <span class="security-label">Content Scanned</span>
+                                    <span class="security-value" id="mesh-scanned">0</span>
+                                </div>
+                                <div class="mesh-security-item">
+                                    <span class="security-label">Content Blocked</span>
+                                    <span class="security-value mesh-error" id="mesh-blocked">0</span>
+                                </div>
+                                <div class="mesh-security-item">
+                                    <span class="security-label">DHT Entries</span>
+                                    <span class="security-value" id="mesh-dht">0</span>
+                                </div>
+                                <div class="mesh-security-item">
+                                    <span class="security-label">Integrity</span>
+                                    <span class="security-value" id="mesh-integrity">—</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

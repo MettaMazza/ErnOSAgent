@@ -28,3 +28,6 @@ pub mod learning;
 pub mod mobile;
 pub mod voice;
 pub mod scheduler;
+
+#[cfg(feature = "mesh")]
+pub mod network;

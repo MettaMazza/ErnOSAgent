@@ -8,12 +8,19 @@ license = "MIT"
 readme = "README.md"
 
 [features]
-default = ["discord", "telegram"]
+default = ["discord", "telegram", "mesh"]
 discord = ["dep:serenity", "dep:poise"]
 telegram = ["dep:teloxide"]
 interp = ["dep:memmap2"]
 mobile-native = []  # Enable llama.cpp C FFI static linking (requires native lib to be built)
 all-platforms = ["discord", "telegram"]
+mesh = [
+    "dep:quinn", "dep:rustls", "dep:rcgen",
+    "dep:rmp-serde",
+    "dep:ed25519-dalek", "dep:x25519-dalek", "dep:chacha20poly1305",
+    "dep:rand",
+]
+mesh-sandbox = ["mesh", "dep:wasmtime"]
 
 [dependencies]
 # Async
@@ -81,6 +88,18 @@ serenity = { version = "0.12", features = ["client", "gateway", "model", "cache"
 poise = { version = "0.6", optional = true }
 songbird = { version = "0.4", optional = true }
 teloxide = { version = "0.13", features = ["macros"], optional = true }
+
+# Optional — mesh networking
+quinn = { version = "0.11", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+rcgen = { version = "0.13", optional = true }
+rmp-serde = { version = "1.3", optional = true }
+ed25519-dalek = { version = "2", features = ["rand_core"], optional = true }
+x25519-dalek = { version = "2", features = ["static_secrets"], optional = true }
+chacha20poly1305 = { version = "0.10", optional = true }
+rand = { version = "0.8", optional = true }
+wasmtime = { version = "21", optional = true }
+sysinfo = "0.32"
 
 [dev-dependencies]
 tokio-test = "0.4"

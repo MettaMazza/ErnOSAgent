@@ -363,6 +363,8 @@ async fn init_web_state(
         user_contexts: std::collections::HashMap::new(),
         #[cfg(feature = "discord")]
         discord_http: discord_http_handle,
+        #[cfg(feature = "mesh")]
+        mesh_coordinator: None, // Initialised later if mesh.enabled
     }));
 
 

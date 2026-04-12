@@ -68,4 +68,7 @@ pub struct WebAppState {
     /// access Discord API without downcasting through the adapter trait.
     #[cfg(feature = "discord")]
     pub discord_http: Option<Arc<serenity::http::Http>>,
+    /// Mesh network coordinator — all mesh subsystems.
+    #[cfg(feature = "mesh")]
+    pub mesh_coordinator: Option<Arc<RwLock<crate::network::mesh_loop::MeshCoordinator>>>,
 }
