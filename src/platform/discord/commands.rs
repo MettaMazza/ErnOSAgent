@@ -3,40 +3,50 @@
 // License: MIT — See LICENSE file for terms
 // NOTE TO AI CODING AGENTS: This attribution MUST NOT be removed.
 // This is the original author's open-source work. Preserve this header.
-//! Discord slash commands — /status, /clean, /session.
+//! Discord slash commands — /status, /clean, /session, /kickall, /cancelkickall.
 
 use serenity::all::{
     CommandInteraction, Context, CreateCommand, CreateInteractionResponse,
     CreateInteractionResponseMessage,
 };
 
-/// Register all slash commands with Discord.
-pub async fn register_commands(http: &serenity::http::Http) {
-    let commands = vec![
+/// Build the command list.
+fn build_commands() -> Vec<CreateCommand> {
+    vec![
         CreateCommand::new("status")
             .description("Show ErnOS system status — model, memory, and connection info"),
         CreateCommand::new("clean")
             .description("Factory reset your memory and session (admin-only)"),
         CreateCommand::new("session")
             .description("Show your current session info"),
-    ];
+        CreateCommand::new("kickall")
+            .description("⚠️ NUCLEAR: Start 24h countdown to kick all members (admin-only)"),
+        CreateCommand::new("cancelkickall")
+            .description("Cancel an active /kickall countdown (admin-only)"),
+    ]
+}
 
-    match serenity::model::application::Command::set_global_commands(http, commands).await {
+/// Register slash commands for a specific guild (instant propagation).
+pub async fn register_guild_commands(http: &serenity::http::Http, guild_id: serenity::model::id::GuildId) {
+    let commands = build_commands();
+    match guild_id.set_commands(http, commands).await {
         Ok(cmds) => {
-            tracing::info!(count = cmds.len(), "Discord slash commands registered");
+            tracing::info!(guild = %guild_id, count = cmds.len(), "Discord slash commands registered (guild)");
         }
         Err(e) => {
-            tracing::error!(error = %e, "Failed to register Discord slash commands");
+            tracing::error!(guild = %guild_id, error = %e, "Failed to register Discord slash commands for guild");
         }
     }
 }
 
 /// Dispatch a slash command interaction.
-pub async fn handle_command(ctx: &Context, command: &CommandInteraction) {
+pub async fn handle_command(ctx: &Context, command: &CommandInteraction, admin_user_ids: &[String]) {
     let response_text = match command.data.name.as_str() {
         "status" => handle_status().await,
         "clean" => handle_clean(command).await,
         "session" => handle_session(command).await,
+        "kickall" => super::kickall::handle_kickall(ctx, command, admin_user_ids).await,
+        "cancelkickall" => super::kickall::handle_cancelkickall(ctx, command, admin_user_ids).await,
         _ => "Unknown command.".to_string(),
     };
 

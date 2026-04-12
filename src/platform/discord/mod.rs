@@ -20,6 +20,8 @@ mod components;
 pub mod telemetry;
 #[cfg(feature = "discord")]
 mod commands;
+#[cfg(feature = "discord")]
+mod kickall;
 
 use crate::platform::adapter::{PlatformAdapter, PlatformMessage, PlatformStatus};
 use anyhow::Result;
@@ -79,7 +81,8 @@ impl PlatformAdapter for DiscordAdapter {
 
         let intents = serenity::all::GatewayIntents::GUILD_MESSAGES
             | serenity::all::GatewayIntents::DIRECT_MESSAGES
-            | serenity::all::GatewayIntents::MESSAGE_CONTENT;
+            | serenity::all::GatewayIntents::MESSAGE_CONTENT
+            | serenity::all::GatewayIntents::GUILD_MEMBERS;
 
         let event_handler = handler::DiscordHandler::new(
             self.tx.clone(),

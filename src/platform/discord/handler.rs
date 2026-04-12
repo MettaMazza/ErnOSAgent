@@ -118,7 +118,7 @@ impl EventHandler for DiscordHandler {
                 handle_button_click(&ctx, &component).await;
             }
             Interaction::Command(command) => {
-                super::commands::handle_command(&ctx, &command).await;
+                super::commands::handle_command(&ctx, &command, &self.admin_user_ids).await;
             }
             _ => {}
         }
@@ -131,8 +131,10 @@ impl EventHandler for DiscordHandler {
             "Discord bot connected"
         );
 
-        // Register slash commands globally
-        super::commands::register_commands(&ctx.http).await;
+        // Register slash commands per-guild (instant, no 1hr global propagation delay)
+        for guild in &ready.guilds {
+            super::commands::register_guild_commands(&ctx.http, guild.id).await;
+        }
     }
 }
 
