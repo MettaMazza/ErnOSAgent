@@ -51,3 +51,21 @@ pub(super) fn capture_preference(
         tracing::warn!(error = %e, "Failed to capture preference pair — non-fatal");
     }
 }
+
+/// Capture an individual Observer rejection for KTO training.
+pub(super) fn capture_rejection(
+    buffers: &TrainingBuffers,
+    system_prompt: &str,
+    user_message: &str,
+    rejected_response: &str,
+    failure_category: &str,
+    session_id: &str,
+    model_id: &str,
+) {
+    if let Err(e) = buffers.rejection.record(
+        system_prompt, user_message, rejected_response,
+        failure_category, session_id, model_id,
+    ) {
+        tracing::warn!(error = %e, "Failed to capture rejection — non-fatal");
+    }
+}

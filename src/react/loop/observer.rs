@@ -46,10 +46,37 @@ pub(super) async fn handle_reply(
         return deliver_response(reply_text, turn, all_tool_results, 0, 0, event_tx).await;
     }
 
-    let audit_result = run_observer_audit(
+    let audit_output = run_observer_audit(
         provider, model, messages, config, executor, all_tool_results, reply_text, event_tx,
         &learning_ctx.user_message,
     ).await;
+
+    let audit_result = &audit_output.result;
+
+    // Capture Observer audit pair for Observer SFT training
+    if let Some(ref buffers) = learning_ctx.buffers {
+        if !audit_output.audit_instruction.is_empty() && !audit_output.raw_response.is_empty() {
+            let example = crate::learning::observer_buffer::ObserverAuditExample {
+                audit_instruction: audit_output.audit_instruction.clone(),
+                raw_response: audit_output.raw_response.clone(),
+                parsed_verdict: format!("{}", audit_result.verdict),
+                confidence: audit_result.confidence,
+                failure_category: audit_result.failure_category.clone(),
+                candidate_response: reply_text.to_string(),
+                was_correct: if audit_result.verdict.is_allowed() {
+                    Some(true) // ALLOWED verdicts are correct by default
+                } else {
+                    None // BLOCKED verdicts: correctness determined retroactively
+                },
+                model_id: model.to_string(),
+                session_id: learning_ctx.session_id.clone(),
+                timestamp: chrono::Utc::now(),
+            };
+            if let Err(e) = buffers.observer.record(&example) {
+                tracing::warn!(error = %e, "Failed to capture observer audit example — non-fatal");
+            }
+        }
+    }
 
     if audit_result.verdict.is_allowed() {
         *audit_passes += 1;
@@ -58,12 +85,20 @@ pub(super) async fn handle_reply(
         if let Some(ref buffers) = learning_ctx.buffers {
             if *consecutive_audit_rejections == 0 {
                 learning::capture_golden(buffers, system_prompt, &learning_ctx.user_message, reply_text, &learning_ctx.session_id, model);
-            } else if let Some(ref rejected) = learning_ctx.last_rejected {
-                let category = learning_ctx.last_failure_category.as_deref().unwrap_or("unknown");
-                learning::capture_preference(
-                    buffers, system_prompt, &learning_ctx.user_message,
-                    rejected, reply_text, category, &learning_ctx.session_id, model,
-                );
+            } else {
+                // Retroactive labeling: Observer's prior BLOCKED verdicts for this
+                // session were correct — the model had to correct itself to pass.
+                if let Err(e) = buffers.observer.mark_session_correct(&learning_ctx.session_id) {
+                    tracing::warn!(error = %e, "Failed to retroactively label observer entries — non-fatal");
+                }
+
+                if let Some(ref rejected) = learning_ctx.last_rejected {
+                    let category = learning_ctx.last_failure_category.as_deref().unwrap_or("unknown");
+                    learning::capture_preference(
+                        buffers, system_prompt, &learning_ctx.user_message,
+                        rejected, reply_text, category, &learning_ctx.session_id, model,
+                    );
+                }
             }
         }
         learning_ctx.last_rejected = None;
@@ -78,8 +113,9 @@ pub(super) async fn handle_reply(
     learning_ctx.last_failure_category = Some(audit_result.failure_category.clone());
 
     handle_audit_rejection(
-        &audit_result, reply_text, messages, config, all_tool_results, turn,
+        audit_result, reply_text, messages, config, all_tool_results, turn,
         audit_passes, total_audit_rejections, consecutive_audit_rejections, event_tx,
+        learning_ctx, system_prompt, model,
     ).await
 }
 
@@ -111,27 +147,27 @@ async fn run_observer_audit(
     reply_text: &str,
     event_tx: &mpsc::Sender<ReactEvent>,
     user_message: &str,
-) -> audit::AuditResult {
+) -> audit::AuditOutput {
     let _ = event_tx.send(ReactEvent::AuditRunning).await;
     let audit_model = config.observer_model.as_deref().unwrap_or(model);
     let tool_context = ToolExecutor::format_tool_context(all_tool_results);
     let capabilities = executor.available_tools().join(", ");
 
-    let result = audit::audit_response(
+    let output = audit::audit_response(
         provider, audit_model, messages, reply_text, &tool_context, &capabilities, user_message,
     ).await;
 
     let _ = event_tx.send(ReactEvent::AuditCompleted {
-        verdict: result.verdict.clone(),
-        reason: result.failure_category.clone(),
+        verdict: output.result.verdict.clone(),
+        reason: output.result.failure_category.clone(),
     }).await;
 
-    result
+    output
 }
 
 async fn handle_audit_rejection(
     audit_result: &audit::AuditResult,
-    _reply_text: &str,
+    reply_text: &str,
     messages: &mut Vec<Message>,
     _config: &ReactConfig,
     _all_tool_results: &[ToolResult],
@@ -140,6 +176,9 @@ async fn handle_audit_rejection(
     total_audit_rejections: &mut usize,
     consecutive_audit_rejections: &mut usize,
     _event_tx: &mpsc::Sender<ReactEvent>,
+    learning_ctx: &LearningContext,
+    system_prompt: &str,
+    model: &str,
 ) -> ReplyOutcome {
     *total_audit_rejections += 1;
     *consecutive_audit_rejections += 1;
@@ -149,6 +188,15 @@ async fn handle_audit_rejection(
         category = %audit_result.failure_category,
         "Observer BLOCKED — retrying (no bail-out, unlimited retries)"
     );
+
+    // Persist every rejection into the RejectionBuffer for KTO training
+    if let Some(ref buffers) = learning_ctx.buffers {
+        learning::capture_rejection(
+            buffers, system_prompt, &learning_ctx.user_message,
+            reply_text, &audit_result.failure_category,
+            &learning_ctx.session_id, model,
+        );
+    }
 
     // Escalating recovery prompts based on rejection count
     let feedback = if *consecutive_audit_rejections >= 10 {

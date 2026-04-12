@@ -12,4 +12,4 @@ pub mod audit;
 pub mod parser;
 pub mod rules;
 
-pub use audit::{AuditResult, Verdict};
+pub use audit::{AuditOutput, AuditResult, Verdict};

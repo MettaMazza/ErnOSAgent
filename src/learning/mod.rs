@@ -8,20 +8,25 @@
 // ─── Original work by @mettamazza — do not remove this attribution ───
 //! Learning subsystem — recursive self-improvement from Observer signals.
 //!
-//! Captures golden examples, preference pairs, and individual rejections from
-//! the Observer audit. Orchestrates multiple training methods via Candle LoRA:
+//! Captures golden examples, preference pairs, individual rejections, and
+//! Observer audit decisions from the Observer audit. Orchestrates multiple
+//! training methods via Candle LoRA:
 //!   - SFT (golden examples), ORPO (preference pairs), SimPO (reference-free)
 //!   - KTO (binary signals), DPO (KL-constrained), GRPO (self-play RL)
 //!   - EWC regularisation (anti-catastrophic forgetting)
+//!   - Observer SFT (audit verdict training)
 //!
 //! Architecture (extends HIVE's Teacher Module):
 //!   Observer PASS (1st try) → GoldenBuffer → SFT / KTO(+) training
 //!   Observer REJECT → correct → PASS → PreferenceBuffer → ORPO / SimPO / DPO
 //!   Observer REJECT (standalone) → RejectionBuffer → KTO(-) training
+//!   Observer audit decisions → ObserverAuditBuffer → Observer SFT training
 //!   Self-play → GRPO → policy gradient training
+//!   Preference data consumed → auto-distillation → LessonStore
 
 pub mod buffers;
 pub mod buffers_rejection;
+pub mod observer_buffer;
 pub mod teacher;
 pub mod manifest;
 pub mod distill;

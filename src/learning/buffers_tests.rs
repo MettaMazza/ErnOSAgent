@@ -100,11 +100,14 @@ fn test_combined_buffers() {
 
     buffers.golden.record("sys", "msg", "resp", "s", "m").unwrap();
     buffers.preference.record("sys", "msg", "bad", "good", "cat", "s", "m").unwrap();
+    buffers.rejection.record("sys", "msg", "bad", "ghost_tooling", "s", "m").unwrap();
 
     assert_eq!(buffers.golden.count(), 1);
     assert_eq!(buffers.preference.count(), 1);
+    assert_eq!(buffers.rejection.count(), 1);
     assert!(buffers.status().contains("Golden: 1"));
     assert!(buffers.status().contains("Preference: 1"));
+    assert!(buffers.status().contains("Rejections: 1"));
 }
 
 #[test]

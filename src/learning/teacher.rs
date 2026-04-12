@@ -134,6 +134,8 @@ pub enum TrainingKind {
     Dpo,
     /// Group Relative Policy Optimization (self-play RL).
     Grpo,
+    /// Observer SFT — train the Observer to make better audit decisions.
+    ObserverSft,
 }
 
 impl std::fmt::Display for TrainingKind {
@@ -146,6 +148,7 @@ impl std::fmt::Display for TrainingKind {
             Self::Kto => write!(f, "KTO"),
             Self::Dpo => write!(f, "DPO"),
             Self::Grpo => write!(f, "GRPO"),
+            Self::ObserverSft => write!(f, "Observer-SFT"),
         }
     }
 }
@@ -188,9 +191,16 @@ impl Teacher {
 
         let golden = buffers.golden.count();
         let pref = buffers.preference.count();
+        let observer = buffers.observer.count();
 
         let has_golden = golden >= self.config.golden_threshold;
         let has_pref = pref >= self.config.preference_threshold;
+        let has_observer = observer >= self.config.golden_threshold; // same threshold as golden
+
+        // Observer SFT is prioritised when available (improves audit quality)
+        if has_observer {
+            return Some(TrainingKind::ObserverSft);
+        }
 
         match (has_golden, has_pref) {
             (true, true) => Some(TrainingKind::Combined),
@@ -475,6 +485,49 @@ impl Teacher {
                 ).context("GRPO cycle SFT failed")?;
                 report.loss
             }
+            TrainingKind::ObserverSft => {
+                // Observer SFT: train the model to produce better audit verdicts.
+                // Drain the observer buffer, filter for confirmed-correct audits,
+                // and convert them to GoldenExample format for SFT.
+                let observer_data = buffers.observer.drain()
+                    .context("Failed to drain observer buffer")?;
+
+                let correct_audits: Vec<crate::learning::buffers::GoldenExample> = observer_data
+                    .iter()
+                    .filter(|ex| ex.was_correct == Some(true))
+                    .map(|ex| crate::learning::buffers::GoldenExample {
+                        system_prompt: "You are a strict quality auditor. Respond ONLY with the requested JSON.".to_string(),
+                        user_message: ex.audit_instruction.clone(),
+                        assistant_response: ex.raw_response.clone(),
+                        session_id: ex.session_id.clone(),
+                        model_id: ex.model_id.clone(),
+                        timestamp: ex.timestamp,
+                    })
+                    .collect();
+
+                tracing::info!(
+                    total_observer = observer_data.len(),
+                    correct_audits = correct_audits.len(),
+                    "Observer SFT: filtered correct audit examples"
+                );
+
+                if correct_audits.is_empty() {
+                    tracing::warn!("No confirmed-correct observer audits — skipping Observer SFT");
+                    0.0
+                } else {
+                    let report = crate::learning::lora::train_sft(
+                        &correct_audits, &lora_config,
+                        resume_from.as_deref(),
+                    ).context("Observer SFT training failed")?;
+                    tracing::info!(
+                        loss = format!("{:.4}", report.loss),
+                        samples = report.samples_processed,
+                        elapsed = format!("{:.1}s", report.elapsed.as_secs_f64()),
+                        "Observer SFT training completed"
+                    );
+                    report.loss
+                }
+            }
         };
 
         // ── Phase 3: Convert ──
@@ -505,6 +558,31 @@ impl Teacher {
             pref_data.len(),
             training_loss,
         )?;
+
+        // ── Phase 5: Auto-Distillation ──
+        // If we consumed preference pairs, distill recurring failure patterns
+        // into persistent lessons for future prompt injection.
+        if !pref_data.is_empty() {
+            let lessons_path = self.config.training_dir.join("distilled_lessons.json");
+            match crate::memory::lessons::LessonStore::open(&lessons_path) {
+                Ok(mut lesson_store) => {
+                    let distill_config = crate::learning::distill::DistillConfig::default();
+                    let generated = crate::learning::distill::distill_from_failures(
+                        &pref_data, &mut lesson_store, &distill_config,
+                    );
+                    if generated > 0 {
+                        tracing::info!(
+                            lessons = generated,
+                            "Auto-distillation: generated {} new lessons from failure patterns",
+                            generated
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Auto-distillation: failed to open lesson store — non-fatal");
+                }
+            }
+        }
 
         tracing::info!(
             version = %version_id,

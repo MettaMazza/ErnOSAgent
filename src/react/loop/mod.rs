@@ -272,3 +272,7 @@ fn inject_no_reply_error(response_text: &str, messages: &mut Vec<Message>, turn:
 #[cfg(test)]
 #[path = "loop_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "observer_training_tests.rs"]
+mod observer_training_tests;

@@ -350,26 +350,36 @@ impl PreferenceBuffer {
     }
 }
 
-/// Combined handle to both buffers for passing through the system.
+/// Combined handle to all training buffers for passing through the system.
 pub struct TrainingBuffers {
     pub golden: GoldenBuffer,
     pub preference: PreferenceBuffer,
+    pub rejection: crate::learning::buffers_rejection::RejectionBuffer,
+    pub observer: crate::learning::observer_buffer::ObserverAuditBuffer,
 }
 
 impl TrainingBuffers {
-    /// Open both buffers in the given training directory.
+    /// Open all buffers in the given training directory.
     pub fn open(training_dir: &Path) -> Result<Self> {
         let golden = GoldenBuffer::open(&training_dir.join("golden_buffer.jsonl"))?;
         let preference = PreferenceBuffer::open(&training_dir.join("preference_buffer.jsonl"))?;
-        Ok(Self { golden, preference })
+        let rejection = crate::learning::buffers_rejection::RejectionBuffer::open(
+            &training_dir.join("rejections.jsonl"),
+        )?;
+        let observer = crate::learning::observer_buffer::ObserverAuditBuffer::open(
+            &training_dir.join("observer_audit.jsonl"),
+        )?;
+        Ok(Self { golden, preference, rejection, observer })
     }
 
     /// Summary for status display.
     pub fn status(&self) -> String {
         format!(
-            "Golden: {} | Preference: {}",
+            "Golden: {} | Preference: {} | Rejections: {} | Observer: {}",
             self.golden.count(),
-            self.preference.count()
+            self.preference.count(),
+            self.rejection.count(),
+            self.observer.count()
         )
     }
 }

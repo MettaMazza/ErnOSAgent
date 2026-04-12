@@ -94,6 +94,15 @@ impl AuditResult {
         }
     }
 }
+/// The full output of an observer audit, including data needed for training.
+pub struct AuditOutput {
+    /// The parsed audit result (verdict, confidence, etc.).
+    pub result: AuditResult,
+    /// The Observer's raw text response (for SFT training).
+    pub raw_response: String,
+    /// The audit instruction sent to the Observer (for SFT training).
+    pub audit_instruction: String,
+}
 
 /// Run the observer audit on a candidate response.
 ///
@@ -101,6 +110,8 @@ impl AuditResult {
 /// message, same conversation history. Only the final user turn is replaced with
 /// the audit instruction. This gives 1-to-1 context parity and maximum KV cache
 /// reuse (the entire prefix up to the last user message is already in cache).
+///
+/// Returns `AuditOutput` containing the parsed result plus raw data for training.
 ///
 /// Error handling:
 /// - Infrastructure error (provider down) → fail-OPEN (pass through)
@@ -113,7 +124,7 @@ pub async fn audit_response(
     tool_context: &str,
     capabilities: &str,
     user_message: &str,
-) -> AuditResult {
+) -> AuditOutput {
     let start = Instant::now();
 
     tracing::info!(
@@ -129,6 +140,13 @@ pub async fn audit_response(
     // This preserves the system message and all prior turns exactly.
     let audit_messages = build_observer_messages(live_context, candidate_response, tool_context, capabilities, user_message);
 
+    // Extract the audit instruction (last user message) for training capture
+    let audit_instruction = audit_messages
+        .last()
+        .filter(|m| m.role == "user")
+        .map(|m| m.content.clone())
+        .unwrap_or_default();
+
     let response = match provider.chat_sync(model, &audit_messages, Some(0.1)).await {
         Ok(resp) => resp,
         Err(e) => {
@@ -137,7 +155,11 @@ pub async fn audit_response(
                 duration_ms = start.elapsed().as_millis(),
                 "Observer infrastructure error (fail-open)"
             );
-            return AuditResult::infrastructure_error(&e.to_string());
+            return AuditOutput {
+                result: AuditResult::infrastructure_error(&e.to_string()),
+                raw_response: String::new(),
+                audit_instruction: String::new(),
+            };
         }
     };
 
@@ -150,7 +172,11 @@ pub async fn audit_response(
                 duration_ms = start.elapsed().as_millis(),
                 "Observer parse error (fail-open)"
             );
-            return AuditResult::parse_error(&e.to_string());
+            return AuditOutput {
+                result: AuditResult::parse_error(&e.to_string()),
+                raw_response: response,
+                audit_instruction,
+            };
         }
     };
 
@@ -163,7 +189,11 @@ pub async fn audit_response(
         "Observer audit complete"
     );
 
-    result
+    AuditOutput {
+        result,
+        raw_response: response,
+        audit_instruction,
+    }
 }
 
 /// Build the observer message list from the live context.
