@@ -1,6 +1,6 @@
 # ErnOSAgent — Architecture Reference
 
-Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files | ~35,000 lines | 718+ tests
+Created by [@mettamazza](https://github.com/mettamazza) | 227 Rust source files | ~58,000 lines | 950+ tests
 
 ---
 
@@ -67,6 +67,18 @@ Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files 
 │  │ SFT (golden) + ORPO (preference) training modes           │   │
 │  │ PEFT-compatible safetensors adapter output                 │   │
 │  └──────────────────────────────────────────────────────────┘   │
+│  └──────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│                     Mesh Network (enabled by default)           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
+│  │ QUIC     │  │ Crypto   │  │ Trust    │  │ Compute Pool │   │
+│  │ Transport│  │ ed25519  │  │ Pipeline │  │ + Equality   │   │
+│  │ (quinn)  │  │ x25519   │  │          │  │              │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘   │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
+│  │ Knowledge│  │ Weight   │  │ DHT +    │  │ Governance   │   │
+│  │ Sync     │  │ Exchange │  │ MeshFS   │  │ + Web Proxy  │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -201,6 +213,34 @@ Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files 
 | computer::alu | `src/computer/alu.rs` | Arithmetic logic unit | — |
 | computer::turing_grid | `src/computer/turing_grid/` | Turing grid computation engine | 10+ |
 
+### Mesh Network (default feature)
+
+| Module | Path | Description | Tests |
+|--------|------|-------------|:-----:|
+| network::peer_id | `src/network/peer_id.rs` | Binary-hash peer identity | 7 |
+| network::wire | `src/network/wire.rs` | MessagePack wire protocol (40+ message types) | 10 |
+| network::crypto | `src/network/crypto.rs` | ed25519/x25519/ChaCha20-Poly1305 | 9 |
+| network::transport | `src/network/transport.rs` | QUIC transport with `quinn` | 5 |
+| network::trust | `src/network/trust.rs` | Binary attestation TrustGate | 8 |
+| network::sanctions | `src/network/sanctions.rs` | Violation tracking SanctionEngine | 8 |
+| network::neutralise | `src/network/neutralise.rs` | IntegrityWatchdog + self-destruct | 6 |
+| network::content_filter | `src/network/content_filter.rs` | 4-layer security filter | 11 |
+| network::discovery | `src/network/discovery.rs` | mDNS/Bootstrap/Gossip discovery | 8 |
+| network::identity | `src/network/identity.rs` | Peer identity profiles | 4 |
+| network::capabilities | `src/network/capabilities.rs` | Hardware/model capability registry | 8 |
+| network::compute | `src/network/compute.rs` | Distributed compute pool + equality | 11 |
+| network::knowledge_sync | `src/network/knowledge_sync.rs` | Knowledge exchange + PII stripping | 11 |
+| network::weight_exchange | `src/network/weight_exchange.rs` | LoRA adapter sharing | 5 |
+| network::code_propagation | `src/network/code_propagation.rs` | Code patch distribution | 8 |
+| network::dht | `src/network/dht.rs` | Kademlia DHT | 6 |
+| network::mesh_fs | `src/network/mesh_fs.rs` | Distributed chunked file system | 6 |
+| network::sandbox | `src/network/sandbox.rs` | WASM sandbox execution | 3 |
+| network::governance | `src/network/governance.rs` | Ban voting, alerts, OSINT | 7 |
+| network::web_proxy | `src/network/web_proxy.rs` | Censorship-resistant proxy | 6 |
+| network::human_mesh | `src/network/human_mesh.rs` | Human P2P PlatformAdapter | 6 |
+| network::mesh_loop | `src/network/mesh_loop.rs` | Central event loop + MeshCoordinator | 5 |
+| web::routes::mesh | `src/web/routes/mesh.rs` | Mesh API endpoints | — |
+
 ---
 
 ## Data Flow
@@ -276,10 +316,16 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 | Feature Dictionary | **Reference** | 40+ labeled features; labels predefined from Anthropic's taxonomy |
 | Divergence Detection | **Production** | Valence-based divergence with safety-refusal exemption |
 | Snapshot Pipeline | **Infrastructure** | Full pipeline works; activations are hash-based until SAE is trained |
-| Web UI | **Production** | Dashboard with 7 tabs, WebSocket chat, REST API |
+| Web UI | **Production** | Dashboard with 12 tabs (incl. Mesh Network), WebSocket chat, REST API |
 | TUI | **Production** | Full interactive terminal UI with ratatui |
 | Tool Implementations | **Production** | All 24 tools implemented and E2E tested |
 | Mobile Engine | **Production** | Full 4-mode engine with 90 tests, needs cross-compilation for device deployment |
+| Mesh Transport | **Production** | QUIC via quinn, binary attestation, ed25519/x25519 crypto. 176 tests |
+| Mesh Security | **Production** | TrustGate, SanctionEngine, IntegrityWatchdog, 4-layer content filter |
+| Mesh Compute | **Production** | Distributed job pool with equality enforcement, FIFO scheduling |
+| Mesh Knowledge | **Production** | Lesson sync with PII stripping, weight exchange, code propagation |
+| Mesh Storage | **Production** | Kademlia DHT, chunked MeshFS, WASM sandbox |
+| Mesh Governance | **Production** | Phase-dependent ban voting, emergency alerts, web proxy |
 
 ---
 
@@ -287,13 +333,16 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 645 | ~1.3s | Nothing |
+| Unit tests (all modules) | 775 | ~1.3s | Nothing |
+| Mesh unit tests | 157 | ~8s | Nothing (default) |
+| Mesh integration tests | 7 | ~1.2s | Nothing (default) |
+| Mesh E2E tests | 12 | ~1.3s | Nothing (default) |
 | E2E Tools | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **718+** | — | — |
+| **Total** | **950+** | — | — |
 
 ---
 
@@ -311,6 +360,19 @@ ErnOSAgent/
 │   ├── memory/               # 7-tier memory + synaptic graph
 │   ├── mobile/               # Mobile engine, FFI, providers, UniFFI
 │   ├── model/                # Model spec, registry, routing
+│   ├── network/              # Mesh network (default feature)
+│   │   ├── peer_id.rs        #   Peer identity (binary hash)
+│   │   ├── wire.rs           #   MessagePack wire protocol
+│   │   ├── crypto.rs         #   ed25519/x25519/ChaCha20
+│   │   ├── transport.rs      #   QUIC transport (quinn)
+│   │   ├── trust.rs          #   Binary attestation trust gate
+│   │   ├── compute.rs        #   Distributed compute pool
+│   │   ├── knowledge_sync.rs #   Knowledge exchange + PII stripping
+│   │   ├── dht.rs            #   Kademlia distributed hash table
+│   │   ├── mesh_fs.rs        #   Chunked distributed file system
+│   │   ├── governance.rs     #   Ban voting, alerts, resource ads
+│   │   ├── web_proxy.rs      #   Censorship-resistant proxy
+│   │   └── mesh_loop.rs      #   Central coordinator event loop
 │   ├── observer/             # 17-rule quality audit
 │   ├── platform/             # Platform adapters (Discord, Telegram, WhatsApp, Custom)
 │   ├── prompt/               # System prompt assembly (core + context + identity)
@@ -327,7 +389,9 @@ ErnOSAgent/
 │   ├── e2e_learning.rs       # E2E: buffers → teacher → LoRA → manifest (requires model weights)
 │   ├── e2e_lora.rs           # E2E: config, VarMap, ORPO formula, Metal device
 │   ├── e2e_tools.rs          # E2E: all 24 tools
-│   └── e2e_interpretability.rs  # E2E: SAE, features, divergence, steering
+│   ├── e2e_interpretability.rs  # E2E: SAE, features, divergence, steering
+│   ├── mesh_integration.rs   # Integration: mesh security, compute, knowledge, governance
+│   └── mesh_e2e.rs           # E2E: 12 multi-instance mesh tests
 ├── static/                   # Web UI HTML/CSS/JS assets
 ├── models/                   # Model weights (gitignored)
 ├── adapters/                 # Trained LoRA adapters (gitignored)

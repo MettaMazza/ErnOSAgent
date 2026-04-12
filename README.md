@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/MettaMazza/ErnOSAgent/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
-  <img src="https://img.shields.io/badge/tests-750+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-950+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/rust-1.75+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
@@ -23,6 +23,7 @@
   <img src="https://img.shields.io/badge/17%20Rule-Observer%20Audit-FF6B6B?style=flat-square" alt="Observer">
   <img src="https://img.shields.io/badge/7%20Tier-Memory%20System-FFD93D?style=flat-square" alt="Memory">
   <img src="https://img.shields.io/badge/LoRA-Self--Improving-E040FB?style=flat-square" alt="LoRA">
+  <img src="https://img.shields.io/badge/Mesh%20Network-Peer--to--Peer-8A2BE2?style=flat-square" alt="Mesh">
 </p>
 
 <p align="center">
@@ -31,7 +32,7 @@
 
 ---
 
-> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 28 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation) on Metal/CUDA/CPU. Includes a task scheduler with idle-triggered autonomy mode. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
+> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 28 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation) on Metal/CUDA/CPU. The Observer itself trains on its own audit decisions via a dedicated SFT pipeline with retroactive correctness labeling. Includes a task scheduler with idle-triggered autonomy mode. Opt-in QUIC-based mesh network for peer-to-peer compute sharing, knowledge exchange, and censorship-resistant web relay. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
 
 ```
 ┌─ ErnOSAgent ─────────────────────────────────────────────────┐
@@ -64,7 +65,7 @@
 | One-size-fits-all personality | **Steering vectors** — adjust model behaviour (honesty, creativity, formality) at inference time |
 | Vendor lock-in | **Multi-provider** — llama.cpp (primary), Ollama, LM Studio, HuggingFace, plus OpenAI-compatible cloud fallbacks |
 | Desktop-only | **Mobile + glasses** — on-device edge models, desktop relay, Meta Ray-Ban Smart Glasses (planned) |
-| No learning from mistakes | **Self-improvement** — Observer rejections become preference pairs and standalone rejection signals, training LoRA adapters with 8 methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC) on Metal GPU |
+| No learning from mistakes | **Self-improvement** — Observer rejections become preference pairs and standalone rejection signals, training LoRA adapters with 8 methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC) on Metal GPU. The Observer itself trains on its own audit decisions via Observer SFT with retroactive correctness labeling |
 | Other agent harnesses can't self-correct | **Built-in quality audit** — every response passes a 17-rule gate before the user sees it. Other frameworks deliver raw LLM output with no verification. ErnOS catches hallucination, sycophancy, and confabulation before delivery |
 | Other agent harnesses can't learn | **Real weight-level training** — not just prompt optimisation or conversation critique. ErnOS trains actual LoRA adapters from its own mistakes using 8 methods: SFT (golden), ORPO (pairwise), SimPO (reference-free), KTO (binary signals), DPO (KL-constrained), GRPO (self-play RL), with EWC regularisation to prevent catastrophic forgetting. The agent genuinely improves over time |
 | Other agent harnesses need Python + Node + Docker | **Single compiled binary** — pure Rust, zero runtime dependencies. No Python environment, no `npm install`, no Docker containers. `cargo build --release` and run |
@@ -137,12 +138,12 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | **28 Tools** | Full toolset: codebase (8), shell, git, compiler, forge, memory (4), steering, interpretability, reasoning, web, download, synaptic graph, turing grid, scheduler, autonomy history, distillation, performance review | 47 E2E |
 | **Prompt Assembly** | 3-layer: operational kernel (protocols) + dynamic context (model/session/tools) + identity (persona) | 8 |
 | **Session Management** | Persistence, multi-session, conversation history | 4 |
-| **Web UI** | Axum server at localhost:3000 with WebSocket chat, 7-tab dashboard, REST API | 7 |
+| **Web UI** | Axum server at localhost:3000 with WebSocket chat, 12-tab dashboard (incl. Mesh Network), REST API | 7 |
 | **Mobile Engine** | UniFFI-exported Rust core → Android (Compose) + iOS (SwiftUI) shells, 4 inference modes, desktop relay | 90 |
 | **TUI** | Full ratatui interactive terminal with chat, sidebar, model picker, steering panel | 7 |
 | **LoRA Training Engine** | Architecture-agnostic Candle engine — auto-detects model dimensions from safetensors headers, per-layer LoRA weight initialization, Metal GPU accelerated | 12 E2E |
-| **Training Buffers** | JSONL crash-safe data capture — golden examples, preference pairs, and rejection records from Observer signals | 12 |
-| **Teacher Orchestrator** | State machine: Idle→Drain→Train→Convert→Promote with 8 training method dispatch | 6 |
+| **Training Buffers** | JSONL crash-safe data capture — golden examples, preference pairs, rejection records, and observer audit decisions from Observer signals | 31 |
+| **Teacher Orchestrator** | State machine: Idle→Drain→Train→Convert→Promote→AutoDistill with 9 training kind dispatch (8 methods + Observer SFT) | 6 |
 | **SimPO Loss** | Reference-free preference optimization with length-normalised average log-probability reward | 5 |
 | **KTO Loss** | Binary signal training using prospect theory — loss aversion weighting, every Observer signal is training data | 6 |
 | **DPO Loss** | Direct preference optimization with explicit KL-divergence constraint against reference policy | 3 |
@@ -156,6 +157,7 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | **Scheduler** | Cron/interval/one-off/idle job execution through full ReAct loop, persistent store, autonomy mode | 8 |
 | **Scheduler Tool** | Agent-driven job management — create, list, delete, toggle scheduled tasks via tool calls | 8 |
 | **Autonomy History** | Agent introspection of past autonomous sessions — list, detail, search, stats | 10 |
+| **Mesh Network** | QUIC transport, ed25519/x25519 crypto, binary attestation, 4-layer content filter, distributed compute pool, knowledge sync, LoRA weight exchange, DHT, MeshFS, WASM sandbox, governance engine, censorship-resistant web proxy. Enabled by default, toggled off at runtime via config | 157 (unit) + 19 (integration/E2E) |
 
 ### Tool Inventory (28 tools)
 
@@ -229,7 +231,7 @@ Every response passes through a 17-rule quality gate before delivery:
 | 16 | Persona Violation | Breaking character from active persona |
 | 17 | Explicit Tool Ignorance | Refusing to use available tools when they would help |
 
-Blocked responses become preference pairs: the rejected response + the corrected response form a training signal for ORPO/SimPO/DPO. Standalone rejections feed into KTO as undesirable examples.
+Blocked responses become preference pairs: the rejected response + the corrected response form a training signal for ORPO/SimPO/DPO. Standalone rejections feed into KTO as undesirable examples. Every Observer audit decision (the audit prompt, raw response, and parsed verdict) is captured in the Observer Audit Buffer for Observer SFT training — and when a sequence of rejections leads to an eventual ALLOWED, the prior BLOCKED verdicts are retroactively labeled as correct, ensuring the Observer learns from its own high-quality rejections.
 
 ---
 
@@ -246,6 +248,11 @@ Observer PASS              Observer FAIL → retry → PASS       Observer FAIL 
      ├── KTO(+) (desirable)         ├── SimPO (reference-free)       │
      │                              ├── DPO (KL-constrained)         │
      │                              │                                │
+     │                    ┌─ Auto-Distillation ─┐                    │
+     │                    │ failure patterns →   │                    │
+     │                    │ LessonStore rules    │                    │
+     │                    └─────────────────────┘                    │
+     │                                                               │
      └──────────────────── Teacher (8 methods) ──────────────────────┘
                                     │
                            ┌────────┴────────┐
@@ -259,6 +266,18 @@ Observer PASS              Observer FAIL → retry → PASS       Observer FAIL 
                            Manifest Promote
                                   │
                             Model Hot-Swap
+
+   Every audit call (PASS or FAIL):
+     │
+     ▼
+   Observer Audit Buffer
+   (audit prompt, raw response, parsed verdict)
+     │
+     ├── ALLOWED → was_correct: true
+     ├── BLOCKED → was_correct: None (pending)
+     │     └── if later ALLOWED in same session → retroactively mark true
+     │
+     └── Observer SFT (train the Observer to make better audit decisions)
 ```
 
 ### 8 Training Methods
@@ -504,11 +523,16 @@ This creates an audit trail of **why** the agent made every decision, not just w
 ## 🧪 Testing
 
 ```bash
-# Full suite (750+ tests)
+# Full suite (950+ tests)
 cargo test -- --test-threads=1
 
-# Unit tests only (~1.3s, 750 tests)
+# Unit tests only (~1.3s)
 cargo test --lib
+
+# Mesh network tests (157 unit + 7 integration + 12 E2E)
+cargo test --lib -- network
+cargo test --test mesh_integration
+cargo test --test mesh_e2e
 
 # E2E tool tests (47 tests)
 cargo test --test e2e_tools
@@ -528,13 +552,16 @@ cargo test --test e2e_llama -- --nocapture --test-threads=1
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 750 | ~1.3s | Nothing |
+| Unit tests (all modules) | 775 | ~1.3s | Nothing |
+| Mesh unit tests | 157 | ~8s | Nothing (default feature) |
+| Mesh integration tests | 7 | ~1.2s | Nothing (default feature) |
+| Mesh E2E tests | 12 | ~1.3s | Nothing (default feature) |
 | E2E Tools (all 24 tools) | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights in `models/` |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **750+** | — | — |
+| **Total** | **950+** | — | — |
 
 > **Note:** Some tests that use process-global `set_current_dir` may fail intermittently
 > when run in parallel. Use `--test-threads=1` for deterministic results.
@@ -589,15 +616,14 @@ stream_responses = true
 
 ## 🏁 Feature Flags
 
+All major features are **enabled by default** — `cargo build --release` gives you the full system.
+
 ```bash
-# Default (TUI + Web)
+# Default (TUI + Web + Discord + Telegram + Mesh Network)
 cargo build --release
 
-# With Discord bot
-cargo build --release --features discord
-
-# With all platform adapters
-cargo build --release --features all-platforms
+# Minimal build (no platform adapters, no mesh)
+cargo build --release --no-default-features
 
 # With interpretability (SAE + safetensors export)
 cargo build --release --features interp
@@ -619,7 +645,7 @@ Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 | Model load time | ~2 minutes (Gemma 4 26B Q4_K_M) |
 | VRAM usage | 17.6 GB (of 475 GB available) |
 | LoRA forward pass (27B, 30 layers) | ~46s on Metal GPU |
-| Full test suite | 750+ tests, unit tests in ~1.3s |
+| Full test suite | 950+ tests, unit tests in ~1.3s |
 
 > These are reference benchmarks from the primary development machine. ErnOSAgent runs on any platform that supports llama.cpp — performance scales with your hardware.
 
@@ -675,14 +701,15 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 | Metric | Value |
 |--------|-------|
-| Source files | 173 `.rs` files |
-| Lines of code | ~37,000 |
-| Test count | 750+ (750 unit + E2E) |
-| Modules | 20 top-level subsystems |
+| Source files | 227 `.rs` files |
+| Lines of code | ~51,600 (+ ~6,500 mesh network) |
+| Test count | 950+ (775 core + 176 mesh) |
+| Modules | 35 core + 18 mesh subsystems |
 | Tools | 28 integrated |
 | Memory tiers | 7 |
 | Observer rules | 17 |
-| Platform adapters | 4 (TUI, Web, Discord, Telegram) |
+| Mesh network modules | 18 (transport, crypto, trust, compute, knowledge, DHT, governance, proxy, etc.) |
+| Platform adapters | 5 (TUI, Web, Discord, Telegram, Mesh/Human) |
 | Providers | 4 local + cloud fallbacks |
 
 ---
@@ -691,22 +718,40 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ### v1.0 (Current Release)
 
-Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure. All 28 tools are wired and tested. 750+ tests pass.
+Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure and trains itself via Observer SFT with retroactive correctness labeling. Auto-distillation converts recurring failure patterns into persistent lessons. All 28 tools are wired and tested. 950+ tests pass.
 
-### Coming Soon (v1.1+)
+### v1.1 — Mesh Network (Current)
+
+The ErnOS Mesh Network is a ground-up, production-grade peer-to-peer system — built as a native Rust subsystem, not a port. **Enabled by default** in the build; toggled on/off at runtime via config. Default runtime state: **OFF** (set `ERNOS_MESH_ENABLED=true` to activate).
+
+| Feature | Description |
+|---------|-------------|
+| **QUIC Transport** | Encrypted peer-to-peer communication via `quinn` with binary attestation (not PKI) |
+| **ed25519/x25519 Crypto** | Deterministic peer identity, X25519 key exchange, ChaCha20-Poly1305 symmetric encryption |
+| **Trust Pipeline** | Binary attestation → TrustGate → SanctionEngine → IntegrityWatchdog (self-destruct on tampering) |
+| **4-Layer Content Filter** | Size → encoding → pattern (XSS/SQLi/path traversal) → keyword scanning. All inbound mesh data is scanned |
+| **Distributed Compute Pool** | Job submission with mesh equality enforcement — you must share compute to consume compute |
+| **Knowledge Sync** | Lesson exchange with automatic PII stripping, confidence capping, and deduplication |
+| **LoRA Weight Exchange** | Share LoRA adapter versions across the mesh with trust-gated transfer |
+| **DHT** | Kademlia-style content-addressed storage with TTL expiry |
+| **MeshFS** | Distributed chunked file system — files split into 256KB chunks, content-addressed, reassembled on demand |
+| **WASM Sandbox** | Execute untrusted mesh code in a fuel-limited wasmtime sandbox |
+| **Governance Engine** | Phase-dependent ban voting (Seed/Growing/Mature), emergency alerts, resource advertising |
+| **Censorship-Resistant Web Proxy** | Route HTTP through mesh peers when direct internet is unavailable |
+| **Dashboard UI** | Full Mesh Network tab in the web dashboard — topology, trust matrix, compute pool, security pipeline |
+| **Testing** | 157 unit tests + 7 integration tests + 12 multi-instance E2E tests = **176 mesh tests** |
+
+### Coming Soon (v1.2+)
 
 All items below have existing code proofs, tested prototypes, or architectural foundations in the ErnOS/HIVE lineage. They require clean rebuilds and final integration.
 
 | Feature | Description |
 |---------|-------------|
 | **SAE Interpretability** | Real sparse autoencoder training on model activations — decode what the model is actually thinking, not hashed approximations. Infrastructure complete, requires GPU compute time |
-| **Autonomy** | Background training monitor, auto-distillation from Observer patterns, scheduled self-improvement cycles without user intervention |
+| **Autonomy** | Background training monitor with auto-distillation now integrated. Scheduled self-improvement cycles without user intervention |
 | **ErnOS Code IDE** | AI-native development environment — the agent writes, tests, and deploys code with full codebase awareness |
 | **Mobile Local Device** | On-device inference via edge models (2–4B params). Engine complete, requires llama.cpp cross-compilation for NDK/Xcode |
 | **Smart Glasses** | Meta Ray-Ban SDK integration for camera/mic streaming — hands-free visual queries and ambient awareness |
-| **Neuralease Network** | Ernos-to-Ernos peer network for lesson and weight sharing. Opt-in, 100% privacy-safe. Your agent learns from the collective without exposing your data |
-| **Decentralised Compute** | HIVENET-style mesh where users pool actual hardware — not just inference, but full compute sharing. Use each other's machines for training, processing, and storage |
-| **Shared Data Pools** | Federated data and network sharing across ErnOS instances. Users opt in to pool anonymised training signals while retaining full ownership |
 | **Image Generation** | Local Stable Diffusion integration for on-device image creation |
 | **Extended Tooling** | Additional tool categories: browser automation, database queries, API integrations |
 

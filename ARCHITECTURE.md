@@ -1,6 +1,6 @@
 # ErnOSAgent — Architecture Reference
 
-Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files | ~35,000 lines | 718+ tests
+Created by [@mettamazza](https://github.com/mettamazza) | 227 Rust source files | ~51,600 lines | 775+ tests
 
 ---
 
@@ -34,6 +34,8 @@ Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files 
 │  │                                                          │   │
 │  │  Golden Buffer ← (PASS, 0 rejections)                    │   │
 │  │  Preference Buffer ← (PASS after rejections)             │   │
+│  │  Rejection Buffer ← (FAIL, standalone KTO signal)        │   │
+│  │  Observer Audit Buffer ← (every audit, retroactive label) │   │
 │  └──────────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────┤
 │                     Interpretability                             │
@@ -64,7 +66,9 @@ Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files 
 │  │ Architecture auto-detection from safetensors headers      │   │
 │  │ Per-layer LoRA dims (handles GQA, MoE, alternating attn)  │   │
 │  │ Metal GPU (Apple) / CUDA / CPU training                   │   │
-│  │ SFT (golden) + ORPO (preference) training modes           │   │
+│  │ 8 methods: SFT + ORPO + SimPO + KTO + DPO + GRPO + EWC   │   │
+│  │ + Observer SFT (audit verdict training)                    │   │
+│  │ Auto-distillation: failure patterns → LessonStore rules    │   │
 │  │ PEFT-compatible safetensors adapter output                 │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
@@ -125,7 +129,9 @@ Created by [@mettamazza](https://github.com/mettamazza) | 173 Rust source files 
 | Module | Path | Description | Tests |
 |--------|------|-------------|:-----:|
 | learning::buffers | `src/learning/buffers.rs` | JSONL golden + preference data capture | 8 |
-| learning::teacher | `src/learning/teacher.rs` | Training lifecycle orchestrator (state machine) | 6 |
+| learning::buffers_rejection | `src/learning/buffers_rejection.rs` | Rejection buffer for standalone KTO signals | 4 |
+| learning::observer_buffer | `src/learning/observer_buffer.rs` | Observer audit buffer with retroactive labeling | 5 |
+| learning::teacher | `src/learning/teacher.rs` | Training lifecycle orchestrator (9 training kinds) | 6 |
 | learning::lora::mod | `src/learning/lora/mod.rs` | LoRA config, tokenization, estimation utilities | — |
 | learning::lora::forward | `src/learning/lora/forward.rs` | Architecture-agnostic forward pass with GQA, per-layer dim probing | 15+ |
 | learning::lora::weights | `src/learning/lora/weights.rs` | Per-layer LoRA VarMap from safetensors headers | — |
@@ -234,9 +240,26 @@ LLM Inference (llama-server SSE)
                 │
         Teacher checks thresholds
                 │
-        LoRA Training (SFT/ORPO on Metal GPU)
+        LoRA Training (SFT/ORPO/SimPO/KTO/DPO on Metal GPU)
                 │
         Adapter Manifest → Hot-Swap
+
+
+   Every audit call (PASS or FAIL):
+        │
+        ▼
+   Observer Audit Buffer
+   (prompt, raw response, verdict)
+        │
+        ├── ALLOWED → was_correct: true
+        ├── BLOCKED → was_correct: None
+        │     └── on eventual PASS → retroactively label true
+        └── Observer SFT (train Observer to audit better)
+
+   Every individual FAIL (standalone):
+        │
+        ▼
+   Rejection Buffer → KTO(-) training signal
 ```
 
 ### Memory Tiers
@@ -266,8 +289,8 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 | Prompt Assembly | **Production** | Dynamic 3-layer prompt: kernel + context + identity |
 | Session Management | **Production** | Persistence, history, multi-session |
 | Steering Vectors | **Infrastructure** | Vector loading/management works; vectors themselves are placeholder GGUFs until contrast-pair training |
-| Learning Buffers | **Production** | JSONL crash-safe, lock-free counters, drain/read_all |
-| Teacher Orchestrator | **Production** | State machine, training lock, real LoRA calls |
+| Learning Buffers | **Production** | JSONL crash-safe: golden, preference, rejection, and observer audit buffers. Lock-free counters, drain/read_all |
+| Teacher Orchestrator | **Production** | State machine, training lock, 9 training kinds (8 methods + Observer SFT), auto-distillation |
 | LoRA Training | **Production** | Architecture-agnostic, real weights, Metal GPU, per-layer dims, PEFT export. E2E verified on Gemma 4 27B |
 | ORPO Loss | **Production** | Mathematically correct log-sigmoid formulation |
 | Adapter Manifest | **Production** | Version tracking, promote/rollback, pruning, health checks |
@@ -287,13 +310,13 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 645 | ~1.3s | Nothing |
+| Unit tests (all modules) | 775 | ~1.3s | Nothing |
 | E2E Tools | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **718+** | — | — |
+| **Total** | **775+** | — | — |
 
 ---
 
