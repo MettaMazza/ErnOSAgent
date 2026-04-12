@@ -42,7 +42,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
         let _ = st.session_mgr.save_active();
     }
 
-    let (observer_enabled, observer_model, memory_budget, executor) = {
+    let (observer_enabled, observer_model, memory_budget, executor, context_length) = {
         let st = state.read().await;
         let budget = (st.model_spec.context_length as usize * 15 / 100).max(2000);
         (
@@ -50,6 +50,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
             if st.config.observer.model.is_empty() { None } else { Some(st.config.observer.model.clone()) },
             budget,
             Arc::clone(&st.executor),
+            st.model_spec.context_length,
         )
     };
 
@@ -65,7 +66,7 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     let react_handle = spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        executor,
+        context_length, executor,
         #[cfg(feature = "discord")]
         None,
     );
@@ -115,11 +116,12 @@ pub(crate) fn spawn_react_loop(
     session_id: String,
     observer_enabled: bool,
     observer_model: Option<String>,
+    context_length: u64,
     executor: Arc<crate::tools::executor::ToolExecutor>,
     #[cfg(feature = "discord")]
     discord_http: Option<std::sync::Arc<serenity::http::Http>>,
 ) -> tokio::task::JoinHandle<anyhow::Result<react_loop::ReactResult>> {
-    let react_config = ReactConfig { observer_enabled, observer_model };
+    let react_config = ReactConfig { observer_enabled, observer_model, context_length };
 
     tokio::spawn(async move {
         react_loop::execute_react_loop(

@@ -97,7 +97,7 @@ pub async fn run_react_pipeline(
     // ── 3. Build context from per-user state ─────────────────────────
 
     let (provider, model, mut messages, mut tools, system_prompt, identity_prompt,
-         observer_enabled, observer_model) = {
+         observer_enabled, observer_model, context_length) = {
         let st = state.read().await;
         let user_ctx = st.user_contexts.get(&session_key)
             .expect("user context was just created");
@@ -156,6 +156,7 @@ pub async fn run_react_pipeline(
             identity,
             observer_enabled,
             observer_model,
+            st.model_spec.context_length,
         )
     };
 
@@ -227,7 +228,7 @@ pub async fn run_react_pipeline(
     let react_handle = super::chat::spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        executor,
+        context_length, executor,
         #[cfg(feature = "discord")]
         discord_http_for_tools,
     );

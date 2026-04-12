@@ -59,6 +59,8 @@ pub struct ReactResult {
 pub struct ReactConfig {
     pub observer_enabled: bool,
     pub observer_model: Option<String>,
+    /// The model's context_length — used for per-turn context consolidation.
+    pub context_length: u64,
 }
 
 /// Execute the ReAct loop.
@@ -103,6 +105,35 @@ pub async fn execute_react_loop(
         turn += 1;
         let _ = event_tx.send(ReactEvent::TurnStarted { turn }).await;
         tracing::info!(turn = turn, messages = messages.len(), "ReAct turn starting");
+
+        // Context consolidation — trim oldest non-system messages when
+        // context pressure exceeds the model's actual context_length.
+        // Preserves system prompt (index 0) and latest messages.
+        if config.context_length > 0 {
+            let usage = crate::inference::context::context_usage(&messages, config.context_length);
+            if usage > 0.85 {
+                let before = messages.len();
+                let budget = config.context_length as usize;
+                let estimate = |m: &Message| -> usize { m.content.len() / 4 + 1 };
+
+                let mut total: usize = messages.iter().map(|m| estimate(m)).sum();
+                // Trim from index 1 (after system prompt) toward the end,
+                // keeping the most recent messages intact.
+                while total > budget && messages.len() > 2 {
+                    total -= estimate(&messages[1]);
+                    messages.remove(1);
+                }
+                if messages.len() < before {
+                    tracing::info!(
+                        turn = turn,
+                        before = before,
+                        after = messages.len(),
+                        usage_pct = format!("{:.1}%", usage * 100.0),
+                        "Context consolidated — trimmed oldest messages to fit context_length"
+                    );
+                }
+            }
+        }
 
         let output = collect_inference(
             provider, model, &messages, tools, turn, &event_tx,

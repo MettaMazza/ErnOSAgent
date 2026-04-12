@@ -258,6 +258,7 @@ async fn handle_relay_chat(
             } else {
                 Some(st.config.observer.model.clone())
             },
+            context_length: st.model_spec.context_length,
         }
     };
 

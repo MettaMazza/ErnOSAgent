@@ -29,6 +29,7 @@ fn test_react_config() {
     let config = ReactConfig {
         observer_enabled: true,
         observer_model: None,
+        context_length: 262144,
     };
     assert!(config.observer_enabled);
 }
@@ -64,6 +65,7 @@ fn test_react_config_observer_disabled() {
     let config = ReactConfig {
         observer_enabled: false,
         observer_model: Some("test".to_string()),
+        context_length: 131072,
     };
     assert!(!config.observer_enabled);
     assert_eq!(config.observer_model.as_deref(), Some("test"));

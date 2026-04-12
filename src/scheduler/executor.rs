@@ -32,7 +32,7 @@ pub async fn execute_job(
     );
 
     // Extract everything we need from state
-    let (provider, model, system_prompt, identity_prompt, tools, data_dir) = {
+    let (provider, model, system_prompt, identity_prompt, tools, data_dir, context_length) = {
         let st = state.read().await;
         (
             Arc::clone(&st.provider),
@@ -41,6 +41,7 @@ pub async fn execute_job(
             st.identity_prompt.clone(),
             tool_schemas::all_tool_definitions(),
             st.config.general.data_dir.clone(),
+            st.model_spec.context_length,
         )
     };
 
@@ -85,6 +86,7 @@ pub async fn execute_job(
     let config = crate::react::r#loop::ReactConfig {
         observer_enabled: true,
         observer_model: None,
+        context_length,
     };
 
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(256);
