@@ -233,6 +233,18 @@ pub async fn execute_react_loop(
                 #[cfg(feature = "discord")]
                 &discord_http,
             ).await;
+
+            // Pre-inference reminder: if tools ran but no reply_request was included,
+            // nudge the model before the next inference to avoid wasting a turn.
+            if !has_reply {
+                messages.push(Message {
+                    role: "system".to_string(),
+                    content: "[REMINDER: Tool results are above. When you are ready to respond to the user, \
+                    you MUST call the reply_request tool with your full message. Raw text is NOT delivered. \
+                    reply_request is the ONLY way to end this turn.]".to_string(),
+                    images: Vec::new(),
+                });
+            }
         }
 
         if has_reply {
