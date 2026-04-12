@@ -170,7 +170,7 @@ async fn init_web_state(
     let memory_summary = memory_mgr.status_summary().await;
     tracing::info!(status = %memory_summary, "Memory manager initialised");
 
-    let executor = tools::build_default_executor();
+    let mut executor = tools::build_default_executor();
 
     // Training data capture buffers (golden + preference)
     let training_dir = config.general.data_dir.join("training");
@@ -203,6 +203,44 @@ async fn init_web_state(
             None
         }
     };
+
+    // Register stateful tools that need runtime data (synaptic graph, turing grid)
+    {
+        let graph = Arc::new(crate::memory::synaptic::SynapticGraph::new(
+            Some(config.general.data_dir.clone()),
+        ));
+        tools::synaptic_tool::register_tools(&mut executor, graph);
+
+        let turing_state = tools::turing_tool::TuringState::new(&config.general.data_dir).await;
+        tools::turing_tool::register_tools(&mut executor, turing_state);
+    }
+
+    // Register scheduler_tool + autonomy_history
+    if let Some(ref sched) = scheduler {
+        tools::scheduler_tool::register_tools(&mut executor, Arc::clone(sched));
+        tracing::info!("Registered scheduler_tool");
+    }
+    {
+        let data_dir = config.general.data_dir.clone();
+        tools::autonomy_tool::register_tools(&mut executor, data_dir);
+        tracing::info!("Registered autonomy_history tool");
+    }
+
+    // Register performance_review + distill_knowledge
+    if let Some(ref buffers) = training_buffers {
+        let buf_for_review = Arc::clone(buffers);
+        let buf_for_distill = Arc::clone(buffers);
+        let provider_for_distill = Arc::clone(&provider);
+        tools::performance_review::register_tools(&mut executor, buf_for_review);
+        tracing::info!("Registered performance_review tool");
+        tools::distillation::register_tools(&mut executor, provider_for_distill, buf_for_distill);
+        tracing::info!("Registered distill_knowledge tool");
+    } else {
+        tracing::warn!("Training buffers not available — performance_review and distill_knowledge tools disabled");
+    }
+
+    // Wrap in Arc — all tools are now registered and the executor is immutable
+    let executor = Arc::new(executor);
 
     // Idle timer — shared with scheduler runner and platform adapters
     let last_user_input: Arc<tokio::sync::Mutex<std::time::Instant>> =
@@ -327,31 +365,6 @@ async fn init_web_state(
         discord_http: discord_http_handle,
     }));
 
-    // Register scheduler_tool + autonomy_tool (require runtime state)
-    {
-        let mut st = state.write().await;
-        if let Some(ref sched) = st.scheduler {
-            let sched_clone = Arc::clone(sched);
-            tools::scheduler_tool::register_tools(&mut st.executor, sched_clone);
-            tracing::info!("Registered scheduler_tool");
-        }
-        let data_dir = st.config.general.data_dir.clone();
-        tools::autonomy_tool::register_tools(&mut st.executor, data_dir);
-        tracing::info!("Registered autonomy_history tool");
-
-        // Register performance_review + distill_knowledge (require buffers + provider)
-        if let Some(ref buffers) = st.training_buffers {
-            let buf_for_review = Arc::clone(buffers);
-            let buf_for_distill = Arc::clone(buffers);
-            let provider_for_distill = Arc::clone(&st.provider);
-            tools::performance_review::register_tools(&mut st.executor, buf_for_review);
-            tracing::info!("Registered performance_review tool");
-            tools::distillation::register_tools(&mut st.executor, provider_for_distill, buf_for_distill);
-            tracing::info!("Registered distill_knowledge tool");
-        } else {
-            tracing::warn!("Training buffers not available — performance_review and distill_knowledge tools disabled");
-        }
-    }
 
     // Start the scheduler background loop
     if let Some(scheduler_handle) = scheduler {

@@ -97,7 +97,7 @@ pub async fn run_react_pipeline(
     // ── 3. Build context from per-user state ─────────────────────────
 
     let (provider, model, mut messages, mut tools, system_prompt, identity_prompt,
-         observer_enabled, observer_model, data_dir) = {
+         observer_enabled, observer_model) = {
         let st = state.read().await;
         let user_ctx = st.user_contexts.get(&session_key)
             .expect("user context was just created");
@@ -147,8 +147,6 @@ pub async fn run_react_pipeline(
         } else {
             Some(st.config.observer.model.clone())
         };
-        let data_dir = st.config.general.data_dir.clone();
-
         (
             std::sync::Arc::clone(&st.provider),
             st.config.general.active_model.clone(),
@@ -158,7 +156,6 @@ pub async fn run_react_pipeline(
             identity,
             observer_enabled,
             observer_model,
-            data_dir,
         )
     };
 
@@ -223,10 +220,14 @@ pub async fn run_react_pipeline(
     };
 
     let (event_tx, mut event_rx) = mpsc::channel::<ReactEvent>(256);
+    let executor = {
+        let st = state.read().await;
+        std::sync::Arc::clone(&st.executor)
+    };
     let react_handle = super::chat::spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        data_dir,
+        executor,
         #[cfg(feature = "discord")]
         discord_http_for_tools,
     );

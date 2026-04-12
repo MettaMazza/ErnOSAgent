@@ -262,7 +262,10 @@ async fn handle_relay_chat(
     };
 
     let (event_tx, mut event_rx) = mpsc::channel::<ReactEvent>(256);
-    let executor = crate::tools::build_default_executor();
+    let executor = {
+        let st = state.read().await;
+        Arc::clone(&st.executor)
+    };
 
     let react_handle = tokio::spawn(async move {
         react_loop::execute_react_loop(

@@ -42,7 +42,7 @@ pub struct WebAppState {
     pub memory_mgr: MemoryManager,
     pub model_spec: ModelSpec,
     pub steering_config: SteeringConfig,
-    pub executor: ToolExecutor,
+    pub executor: Arc<ToolExecutor>,
     pub core_prompt: String,
     pub identity_prompt: String,
     /// Whether a generation is currently in progress (prevents concurrent sends).

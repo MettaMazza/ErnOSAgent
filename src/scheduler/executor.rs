@@ -89,18 +89,19 @@ pub async fn execute_job(
 
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(256);
 
-    // Spawn the react loop — we need to hold the state read lock while
-    // passing the executor, so we run it inline.
-    let state_clone = state.clone();
+    // Clone the Arc'd executor so we don't hold the state lock during the react loop
+    let executor = {
+        let st = state.read().await;
+        std::sync::Arc::clone(&st.executor)
+    };
     let job_id = job.id.clone();
     let react_handle = tokio::spawn(async move {
-        let st = state_clone.read().await;
         crate::react::r#loop::execute_react_loop(
             &provider,
             &model,
             messages,
             &tools,
-            &st.executor,
+            &executor,
             &config,
             &system_prompt,
             &identity_prompt,
