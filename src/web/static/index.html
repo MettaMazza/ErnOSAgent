@@ -458,6 +458,10 @@
                                     <label for="discord-listen-channel">Listen Channel ID</label>
                                     <input type="text" id="discord-listen-channel" class="platform-input" placeholder="Channel ID to auto-reply in (right-click → Copy Channel ID)">
                                 </div>
+                                <div class="form-group">
+                                    <label for="discord-autonomy-channel">Autonomy Channel ID <span style="color:var(--accent-primary);font-size:0.8em">(optional)</span></label>
+                                    <input type="text" id="discord-autonomy-channel" class="platform-input" placeholder="Channel to forward autonomous activity logs to">
+                                </div>
                                 <button class="platform-save-btn" data-platform="discord">Save</button>
                             </div>
                         </div>
@@ -645,6 +649,12 @@
                         <div class="autonomy-section">
                             <h3>Platform Status</h3>
                             <div id="auto-platforms-list" class="scrollable-feed">Loading…</div>
+                        </div>
+                        <div class="autonomy-section">
+                            <h3>Live Activity Log <span class="mesh-badge" id="activity-count">0</span></h3>
+                            <div id="autonomy-activity-log" class="scrollable-feed" style="max-height:400px;overflow-y:auto">
+                                <div class="empty-state">No autonomous activity recorded yet. Activity appears when the scheduler runs idle or scheduled jobs.</div>
+                            </div>
                         </div>
                     </div>
                 </div>

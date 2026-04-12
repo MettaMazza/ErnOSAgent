@@ -1369,7 +1369,7 @@
 
             // Collect platform-specific fields
             const fields = {
-                discord:  ['token', 'admin-id', 'listen-channel'],
+                discord:  ['token', 'admin-id', 'listen-channel', 'autonomy-channel'],
                 telegram: ['token'],
                 whatsapp: ['token', 'phone-id'],
                 custom:   ['webhook', 'outbound', 'secret'],
@@ -2602,8 +2602,59 @@
                         `).join('');
                     }
                 }
+
+                // Live activity log
+                await this._loadActivityLog();
             } catch (e) {
                 console.warn('Autonomy load failed:', e);
+            }
+        },
+
+        async _loadActivityLog() {
+            try {
+                const res = await fetch('/api/autonomy/log?limit=50');
+                if (!res.ok) return;
+                const entries = await res.json();
+                const container = document.getElementById('autonomy-activity-log');
+                const countBadge = document.getElementById('activity-count');
+                if (!container) return;
+
+                if (countBadge) countBadge.textContent = entries.length;
+
+                if (entries.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No autonomous activity recorded yet. Activity appears when the scheduler runs idle or scheduled jobs.</div>';
+                    return;
+                }
+
+                // Render newest-first
+                const reversed = [...entries].reverse();
+                container.innerHTML = reversed.map(e => {
+                    const statusClass = e.success ? 'activity-success' : 'activity-fail';
+                    const statusIcon = e.success ? '✓' : '✗';
+                    const tools = e.tools_used.length > 0
+                        ? e.tools_used.map(t => `<span class="activity-tool-badge">${Markdown.escapeHtml(t)}</span>`).join(' ')
+                        : '<span style="color:var(--text-tertiary)">no tools</span>';
+                    const duration = e.duration_ms > 0 ? `${(e.duration_ms / 1000).toFixed(1)}s` : '—';
+                    const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+                    const jobName = e.job_name || e.job_id || `Cycle #${e.cycle}`;
+                    const summary = e.summary
+                        ? (e.summary.length > 300 ? e.summary.substring(0, 300) + '…' : e.summary)
+                        : '(no summary)';
+
+                    return `<div class="activity-entry ${statusClass}">
+                        <div class="activity-entry-header">
+                            <span class="activity-status-icon">${statusIcon}</span>
+                            <span class="activity-job-name">${Markdown.escapeHtml(jobName)}</span>
+                            <span class="activity-cycle">#${e.cycle}</span>
+                            <span class="activity-duration">${duration}</span>
+                            <span class="activity-time">${time}</span>
+                        </div>
+                        <div class="activity-tools">${tools}</div>
+                        <div class="activity-summary">${Markdown.escapeHtml(summary)}</div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                console.warn('Activity log load failed:', e);
             }
         },
     };

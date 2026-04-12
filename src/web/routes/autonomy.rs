@@ -12,7 +12,7 @@
 use crate::web::state::SharedState;
 use axum::extract::State;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 pub struct AutonomyStatusResponse {
@@ -101,6 +101,67 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
     })
 }
 
+// ── Activity Log ─────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ActivityEntry {
+    pub cycle: u64,
+    pub timestamp: String,
+    pub job_id: String,
+    pub job_name: String,
+    pub tools_used: Vec<String>,
+    pub summary: String,
+    pub success: bool,
+    pub duration_ms: u64,
+}
+
+#[derive(Deserialize)]
+pub struct LogQuery {
+    limit: Option<usize>,
+}
+
+/// GET /api/autonomy/log — recent autonomy activity from activity.jsonl.
+pub async fn autonomy_log(
+    State(state): State<SharedState>,
+    axum::extract::Query(params): axum::extract::Query<LogQuery>,
+) -> Json<Vec<ActivityEntry>> {
+    let data_dir = {
+        let st = state.read().await;
+        st.config.general.data_dir.clone()
+    };
+
+    let path = data_dir.join("memory/autonomy/activity.jsonl");
+    let limit = params.limit.unwrap_or(50);
+
+    let entries = match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            let lines: Vec<&str> = content.lines()
+                .filter(|l| !l.trim().is_empty())
+                .collect();
+            let start = lines.len().saturating_sub(limit);
+            lines[start..].iter().enumerate().filter_map(|(i, line)| {
+                let entry: serde_json::Value = serde_json::from_str(line).ok()?;
+                Some(ActivityEntry {
+                    cycle: entry.get("cycle").and_then(|v| v.as_u64()).unwrap_or((start + i + 1) as u64),
+                    timestamp: entry.get("timestamp").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    job_id: entry.get("job_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    job_name: entry.get("job_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    tools_used: entry.get("tools_used")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|t| t.as_str().map(|s| s.to_string())).collect())
+                        .unwrap_or_default(),
+                    summary: entry.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    success: entry.get("success").and_then(|v| v.as_bool()).unwrap_or(true),
+                    duration_ms: entry.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                })
+            }).collect()
+        }
+        Err(_) => Vec::new(),
+    };
+
+    Json(entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,4 +203,23 @@ mod tests {
         let json = serde_json::to_string(&dto).unwrap();
         assert!(json.contains("\"connected\":false"));
     }
+
+    #[test]
+    fn test_activity_entry_serialization() {
+        let entry = ActivityEntry {
+            cycle: 5,
+            timestamp: "2026-04-12T19:00:00Z".to_string(),
+            job_id: "job_123".to_string(),
+            job_name: "memory consolidation".to_string(),
+            tools_used: vec!["memory_tool".to_string()],
+            summary: "Consolidated 3 lessons".to_string(),
+            success: true,
+            duration_ms: 1234,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("\"cycle\":5"));
+        assert!(json.contains("\"job_name\":\"memory consolidation\""));
+        assert!(json.contains("\"duration_ms\":1234"));
+    }
 }
+

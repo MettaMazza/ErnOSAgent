@@ -2975,6 +2975,116 @@ kbd {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Activity Log (Autonomy Tab)
+   ═══════════════════════════════════════════════════════════ */
+
+.activity-entry {
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--accent);
+    transition: all var(--transition-fast);
+}
+
+.activity-entry:hover {
+    border-color: var(--border-hover);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.activity-entry.activity-fail {
+    border-left-color: var(--error);
+}
+
+.activity-entry.activity-success {
+    border-left-color: var(--accent);
+}
+
+.activity-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.activity-status-icon {
+    font-size: 14px;
+    font-weight: 700;
+    width: 20px;
+    text-align: center;
+}
+
+.activity-success .activity-status-icon {
+    color: var(--accent);
+}
+
+.activity-fail .activity-status-icon {
+    color: var(--error);
+}
+
+.activity-job-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.activity-cycle {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-overlay);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+}
+
+.activity-duration {
+    font-size: 11px;
+    color: var(--accent-primary);
+    font-family: var(--font-mono);
+    margin-left: auto;
+}
+
+.activity-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.activity-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.activity-tool-badge {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    background: rgba(0, 255, 136, 0.08);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(0, 255, 136, 0.15);
+}
+
+.activity-summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════
    Lesson Reinforce/Weaken Buttons
    ═══════════════════════════════════════════════════════════ */
 

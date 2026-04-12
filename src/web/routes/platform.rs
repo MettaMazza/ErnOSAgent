@@ -145,7 +145,10 @@ pub async fn save_platform(
                     token: token.to_string(),
                     admin_user_id: admin.to_string(),
                     guild_id: String::new(),
-                    autonomy_channel_id: String::new(),
+                    autonomy_channel_id: body.get("autonomy_channel")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     listen_channels,
                 };
                 let mut new_adapter = crate::platform::discord::DiscordAdapter::new(&cfg);

@@ -168,8 +168,11 @@ pub async fn execute_job(
 
     // Log idle (autonomy) sessions for dedup in future cycles
     if matches!(job.schedule, JobSchedule::Idle(_)) {
-        log_autonomy_session(&data_dir, &job.id, &result.output);
+        log_autonomy_session(&data_dir, &job.id, &job.name, &result.output);
     }
+
+    // Forward autonomy activity to Discord channel if configured
+    forward_to_autonomy_channel(state, job, &result).await;
 
     result
 }
@@ -224,7 +227,7 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
 }
 
 /// Log an autonomy session for future dedup.
-fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, summary: &str) {
+fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, job_name: &str, summary: &str) {
     let dir = data_dir.join("memory/autonomy");
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("activity.jsonl");
@@ -238,8 +241,11 @@ fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, summary: &str)
         "timestamp": Utc::now().to_rfc3339(),
         "cycle": cycle,
         "job_id": job_id,
+        "job_name": job_name,
         "tools_used": [],
         "summary": summary,
+        "success": true,
+        "duration_ms": 0,
     });
 
     let line = format!("{}\n", entry);
@@ -250,5 +256,65 @@ fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, summary: &str)
     {
         use std::io::Write;
         let _ = f.write_all(line.as_bytes());
+    }
+}
+
+/// Forward autonomy job results to a Discord channel if configured.
+async fn forward_to_autonomy_channel(
+    state: &SharedState,
+    job: &ScheduledJob,
+    result: &JobResult,
+) {
+    let channel_id = {
+        let st = state.read().await;
+        st.config.platform.discord.autonomy_channel_id.clone()
+    };
+
+    if channel_id.is_empty() {
+        return;
+    }
+
+    // Check if Discord is connected
+    let st = state.read().await;
+    if !st.config.platform.discord.enabled {
+        return;
+    }
+
+    let status = if result.success { "✅" } else { "❌" };
+    let duration = if result.duration_ms > 0 {
+        format!(" ({}s)", result.duration_ms / 1000)
+    } else {
+        String::new()
+    };
+
+    // Truncate output for Discord (max ~1900 chars to stay under 2000 limit)
+    let output_preview = if result.output.len() > 1800 {
+        format!("{}…", &result.output[..1800])
+    } else {
+        result.output.clone()
+    };
+
+    let message = format!(
+        "{} **Autonomy: {}**{}\n> Job: `{}`\n```\n{}\n```",
+        status, job.name, duration, job.id, output_preview
+    );
+
+    for adapter in st.platform_registry.adapters_iter() {
+        if adapter.name().eq_ignore_ascii_case("discord") {
+            if let Err(e) = adapter.send_message(&channel_id, &message).await {
+                tracing::warn!(
+                    error = %e,
+                    channel = %channel_id,
+                    "Failed to forward autonomy activity to Discord channel"
+                );
+            } else {
+                tracing::info!(
+                    job = %job.name,
+                    channel = %channel_id,
+                    "Autonomy activity forwarded to Discord channel"
+                );
+            }
+            break;
+        }
     }
 }

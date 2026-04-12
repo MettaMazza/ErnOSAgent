@@ -140,6 +140,7 @@ fn build_router(state: SharedState) -> Router {
         .route("/api/tools/{name}/toggle", post(routes::toggles::toggle_tool))
         // Autonomy transparency
         .route("/api/autonomy/status", get(routes::autonomy::autonomy_status))
+        .route("/api/autonomy/log", get(routes::autonomy::autonomy_log))
         .with_state(state)
 }
 
