@@ -21,6 +21,9 @@ pub mod reasoning;
 pub mod checkpoints;
 pub mod scheduler;
 pub mod mesh;
+pub mod observer_status;
+pub mod toggles;
+pub mod autonomy;
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse, Response};

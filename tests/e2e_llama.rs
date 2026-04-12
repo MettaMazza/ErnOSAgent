@@ -251,6 +251,7 @@ async fn test_e2e_react_pipeline() {
     let react_config = ReactConfig {
         observer_enabled: false,
         observer_model: None,
+        context_length: 131072,
     };
 
     eprintln!("[e2e] Running ReAct loop (timeout 30s)...");

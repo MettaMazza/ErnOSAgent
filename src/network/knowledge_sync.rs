@@ -13,7 +13,6 @@
 //! - Deduplication via content hashing
 //! - Content filter scanning of all inbound knowledge
 
-use crate::network::peer_id::PeerId;
 use crate::network::wire::{EdgePayload, LessonPayload, SynapticPayload};
 use regex::Regex;
 use serde::{Deserialize, Serialize};

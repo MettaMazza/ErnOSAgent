@@ -53,7 +53,7 @@ async fn test_create_session() {
         .send().await.unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert!(body.get("session_id").is_some(), "Should return session_id");
+    assert!(body.get("id").is_some(), "Should return id");
     eprintln!("[e2e] ✅ POST /api/sessions PASSED");
 }
 

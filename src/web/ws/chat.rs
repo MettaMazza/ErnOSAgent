@@ -226,13 +226,14 @@ async fn map_react_event(
         ReactEvent::Token(token) => Some(ServerMessage::Token { content: token }),
         ReactEvent::Thinking(token) => Some(ServerMessage::Thinking { content: token }),
         ReactEvent::TurnStarted { turn } => Some(ServerMessage::ReactTurn { turn }),
-        ReactEvent::ToolExecuting { name, id: _ } => Some(ServerMessage::ToolCall { name }),
+        ReactEvent::ToolExecuting { name, id: _, arguments } => Some(ServerMessage::ToolCall { name, arguments }),
         ReactEvent::ToolCompleted { name: _, result } => Some(ServerMessage::ToolResult {
             name: result.name.clone(), output: result.output.clone(), success: result.success,
         }),
         ReactEvent::AuditRunning => None,
-        ReactEvent::AuditCompleted { verdict, reason: _ } => Some(ServerMessage::Audit {
+        ReactEvent::AuditCompleted { verdict, reason: _, confidence } => Some(ServerMessage::Audit {
             verdict: format!("{}", verdict),
+            confidence,
         }),
         ReactEvent::ResponseReady { text } => {
             persist_response(state, user_message, &text).await;

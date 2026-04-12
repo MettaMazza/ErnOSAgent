@@ -360,6 +360,7 @@ async fn init_web_state(
         teacher: Some(teacher),
         adapter_manifest,
         platform_registry,
+        feature_toggles: web::routes::toggles::FeatureToggles::default(),
         user_contexts: std::collections::HashMap::new(),
         #[cfg(feature = "discord")]
         discord_http: discord_http_handle,

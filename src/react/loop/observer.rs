@@ -160,6 +160,7 @@ async fn run_observer_audit(
     let _ = event_tx.send(ReactEvent::AuditCompleted {
         verdict: output.result.verdict.clone(),
         reason: output.result.failure_category.clone(),
+        confidence: output.result.confidence,
     }).await;
 
     output

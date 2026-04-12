@@ -54,23 +54,39 @@ pub struct LearningStatusResponse {
     pub enabled: bool,
     pub golden_count: usize,
     pub preference_count: usize,
+    pub rejection_count: usize,
+    pub observer_audit_count: usize,
+    pub distilled_lessons_count: usize,
     pub threshold: String,
     pub teacher_state: String,
     pub can_train: bool,
     pub summary: String,
+    pub adapters: Vec<AdapterVersionDto>,
+}
+
+#[derive(Serialize)]
+pub struct AdapterVersionDto {
+    pub id: String,
+    pub created: String,
+    pub golden_count: usize,
+    pub preference_count: usize,
+    pub training_loss: f32,
+    pub healthy: bool,
 }
 
 pub async fn learning_status(State(state): State<SharedState>) -> Json<LearningStatusResponse> {
     let st = state.read().await;
 
-    let (golden, preference, enabled, summary) = match &st.training_buffers {
+    let (golden, preference, rejection, observer_audit, enabled, summary) = match &st.training_buffers {
         Some(buffers) => (
             buffers.golden.count(),
             buffers.preference.count(),
+            buffers.rejection.count(),
+            buffers.observer.count(),
             true,
             buffers.status(),
         ),
-        None => (0, 0, false, "Learning disabled".to_string()),
+        None => (0, 0, 0, 0, false, "Learning disabled".to_string()),
     };
 
     let (teacher_state, can_train, threshold) = match &st.teacher {
@@ -96,14 +112,50 @@ pub async fn learning_status(State(state): State<SharedState>) -> Json<LearningS
         ),
     };
 
+    // Count distilled lessons from file
+    let distilled_lessons_count = st.teacher.as_ref()
+        .map(|t| {
+            let path = t.config().training_dir.join("distilled_lessons.json");
+            if path.exists() {
+                std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                    .and_then(|v| v.as_array().map(|a| a.len()))
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+        })
+        .unwrap_or(0);
+
+    // Adapter history from manifest
+    let adapters = match &st.adapter_manifest {
+        Some(manifest_lock) => {
+            let manifest = manifest_lock.lock().await;
+            manifest.history.iter().map(|v| AdapterVersionDto {
+                id: v.id.clone(),
+                created: v.created.to_rfc3339(),
+                golden_count: v.golden_count,
+                preference_count: v.preference_count,
+                training_loss: v.training_loss,
+                healthy: v.health_check_passed,
+            }).collect()
+        }
+        None => Vec::new(),
+    };
+
     Json(LearningStatusResponse {
         enabled,
         golden_count: golden,
         preference_count: preference,
+        rejection_count: rejection,
+        observer_audit_count: observer_audit,
+        distilled_lessons_count,
         threshold,
         teacher_state,
         can_train,
         summary,
+        adapters,
     })
 }
 
@@ -243,12 +295,10 @@ pub async fn get_observer(State(state): State<SharedState>) -> Json<ObserverConf
     })
 }
 
-pub async fn toggle_observer(State(state): State<SharedState>) -> StatusCode {
+pub async fn toggle_observer(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let mut st = state.write().await;
     st.config.observer.enabled = !st.config.observer.enabled;
-    tracing::info!(
-        enabled = st.config.observer.enabled,
-        "Observer toggled via dashboard"
-    );
-    StatusCode::OK
+    let enabled = st.config.observer.enabled;
+    tracing::info!(enabled, "Observer toggled via dashboard");
+    Json(serde_json::json!({ "enabled": enabled }))
 }

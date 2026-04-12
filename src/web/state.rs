@@ -60,6 +60,8 @@ pub struct WebAppState {
     pub adapter_manifest: Option<Arc<Mutex<AdapterManifest>>>,
     /// Live platform adapter registry (Discord, Telegram, etc.)
     pub platform_registry: PlatformRegistry,
+    /// Runtime feature toggles — gate subsystems without recompilation.
+    pub feature_toggles: crate::web::routes::toggles::FeatureToggles,
     /// Per-user isolated contexts for platform users.
     /// Key: "platform:user_id" (e.g. "discord:123456789")
     /// Each user gets their own session and memory, scoped by user_id.

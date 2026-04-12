@@ -5,12 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-12
+
+### Added
+- **Mesh Network** — QUIC transport, ed25519/x25519 crypto, binary attestation, 4-layer content filter, distributed compute pool, knowledge sync, LoRA weight exchange, DHT, MeshFS, WASM sandbox, governance engine, censorship-resistant web proxy. 157 unit + 19 integration/E2E tests
+- **14-Tab Dashboard** — expanded from 12 to 14 tabs with full backend wiring
+  - **Checkpoints tab** — create/list/restore/delete system snapshots
+  - **Autonomy tab** — unified agent state view with feature toggles (Observer, TTS, Scheduler, Mesh) and per-tool enable/disable
+  - **Observer tab redesign** — 6-card stats grid (total/allowed/blocked/false positives/confirmed/pending), accuracy progress bar, scrollable audit log
+  - **Learning tab expansion** — rejection count, observer audit count, distilled lessons count, full adapter version history table
+  - **Mesh Network tab** — added connected peers table with trust badges, latency, and status indicators
+- **API Expansion** — 6 new REST endpoints: `/api/observer/stats`, `/api/features`, `/api/features/{feature}/toggle`, `/api/tools/{name}/toggle`, `/api/autonomy/status`, `/api/mesh/peers`
+- **Feature Governance** — runtime enable/disable of all major subsystems from the dashboard
+- **Scratchpad Write** — write to scratchpad directly from the Memory tab
+- **Observer Training Pipeline** — dedicated Observer SFT with retroactive correctness labeling, plus 4 additional training methods (SimPO, KTO, DPO, GRPO)
+- **28 Tools** — added scheduler_tool, autonomy_history, distill_knowledge, performance_review (was 24 in v1.0)
+- **1081 tests** — 941 unit + 140 E2E (was 718 in v1.0)
+
+### Fixed
+- Observer toggle endpoint now returns JSON body with new state
+- Session create endpoint field name alignment (`id` not `session_id`)
+- ReactEvent pattern match exhaustiveness for new telemetry fields
+- Pre-existing `context_length` missing from e2e_llama.rs test config
+
+### Changed
+- Source files: 227 → 230 `.rs` files
+- Lines of code: ~51,600 → ~52,300
+- Web UI: JavaScript IIFE-scoped controllers for all new tabs (ObserverStats, Checkpoints, AutonomyDashboard)
+
 ## [1.0.0] - 2026-04-10
 
 ### Added
 - **ReAct Loop** — multi-turn reasoning with tool dispatch and error recovery
 - **17-Rule Observer** — LLM-based quality audit with rejection-feedback loop
-- **24 Tools** — codebase (8), shell, git, compiler, forge, memory (4), steering, interpretability, reasoning, web, download, synaptic graph, turing grid
+- **24 Tools** — codebase (8), shell, git, compiler, forge, memory (4), steering, interpretability, reasoning, web, download, synaptic graph, turing grid, reply_request
 - **7-Tier Memory** — scratchpad, lessons, timeline, knowledge graph, procedures, embeddings, consolidation
 - **Multi-Provider** — llama.cpp (primary), Ollama, LM Studio, HuggingFace, plus OpenAI-compatible cloud fallbacks (Claude, Groq, OpenRouter)
 - **Self-Improvement Pipeline** — golden/preference buffer capture, SFT+ORPO training, LoRA adapter management with PEFT-compatible safetensors output
@@ -21,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reasoning Traces** — persistent searchable thought traces in JSONL format
 - **Mobile Engine** — UniFFI-exported Rust core with 4 inference modes (local, remote, hybrid, chain-of-agents), 90 tests
 - **Desktop Relay** — WebSocket relay running full ReAct+Observer loop for mobile clients
-- **Web UI** — Axum server with WebSocket chat, 7-tab dashboard, REST API
+- **Web UI** — Axum server with WebSocket chat, 12-tab dashboard, REST API
 - **TUI** — ratatui terminal with chat, sidebar, model picker, steering panel
 - **Feature Flags** — `discord`, `telegram`, `interp`, `mobile-native`, `all-platforms`
 - **718+ tests** — 645 unit tests + 47 E2E tool tests + 12 E2E LoRA + 7 E2E learning + 7 E2E interpretability, 0 warnings

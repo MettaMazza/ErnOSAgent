@@ -122,6 +122,7 @@ pub(super) async fn execute_tool_calls(
         let _ = event_tx.send(ReactEvent::ToolExecuting {
             name: call.name.clone(),
             id: call.id.clone(),
+            arguments: serde_json::to_string(&call.arguments).unwrap_or_default(),
         }).await;
 
         // Discord tool pre-dispatch — async tools that need the HTTP client

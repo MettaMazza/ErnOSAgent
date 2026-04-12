@@ -10,7 +10,7 @@
 //! and exposes a clean API for the rest of ErnOSAgent to interact with.
 //! Feature-gated behind `mesh`, runtime-gated via `config.mesh.enabled`.
 
-use crate::network::capabilities::{CapabilityRegistry, HardwareInfo, PeerCapabilities};
+use crate::network::capabilities::CapabilityRegistry;
 use crate::network::compute::ComputePool;
 use crate::network::content_filter::ContentFilter;
 use crate::network::crypto::KeyStore;
@@ -32,8 +32,6 @@ use crate::network::wire::Attestation;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Mesh network configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +238,33 @@ impl MeshCoordinator {
         }
         tracing::info!("Mesh coordinator shut down");
     }
+
+    /// Get a list of individual peer details for the dashboard.
+    pub async fn peer_list(&self) -> Vec<PeerDetail> {
+        let peers = self.peer_registry.all_peers().await;
+        peers.into_iter().map(|p| {
+            let trust = format!("{}", self.trust_gate.trust_level(&p.peer_id));
+            PeerDetail {
+                peer_id: p.peer_id.0.clone(),
+                display_name: format!("ErnOS-{}", &p.peer_id.0[..8.min(p.peer_id.0.len())]),
+                trust_level: trust,
+                latency_ms: None, // TODO: track RTT per peer
+                last_seen: p.last_seen.clone(),
+                connected: true,
+            }
+        }).collect()
+    }
+}
+
+/// Peer detail returned by the coordinator for the dashboard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerDetail {
+    pub peer_id: String,
+    pub display_name: String,
+    pub trust_level: String,
+    pub latency_ms: Option<u64>,
+    pub last_seen: String,
+    pub connected: bool,
 }
 
 #[cfg(test)]

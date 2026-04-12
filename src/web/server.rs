@@ -131,6 +131,15 @@ fn build_router(state: SharedState) -> Router {
         .route("/api/scheduler/jobs/{id}/logs", get(routes::scheduler::job_logs))
         // Mesh network
         .route("/api/mesh/status", get(routes::mesh::mesh_status))
+        .route("/api/mesh/peers", get(routes::mesh::mesh_peers))
+        // Observer stats
+        .route("/api/observer/stats", get(routes::observer_status::observer_stats))
+        // Feature toggles
+        .route("/api/features", get(routes::toggles::get_features))
+        .route("/api/features/{feature}/toggle", post(routes::toggles::toggle_feature))
+        .route("/api/tools/{name}/toggle", post(routes::toggles::toggle_tool))
+        // Autonomy transparency
+        .route("/api/autonomy/status", get(routes::autonomy::autonomy_status))
         .with_state(state)
 }
 

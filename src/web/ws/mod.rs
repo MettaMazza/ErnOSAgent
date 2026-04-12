@@ -58,11 +58,11 @@ pub(crate) enum ServerMessage {
     #[serde(rename = "thinking")]
     Thinking { content: String },
     #[serde(rename = "tool_call")]
-    ToolCall { name: String },
+    ToolCall { name: String, arguments: String },
     #[serde(rename = "tool_result")]
     ToolResult { name: String, output: String, success: bool },
     #[serde(rename = "audit")]
-    Audit { verdict: String },
+    Audit { verdict: String, confidence: f32 },
     #[serde(rename = "react_turn")]
     ReactTurn { turn: usize },
     #[serde(rename = "done")]

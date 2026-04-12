@@ -2644,3 +2644,467 @@ kbd {
         grid-template-columns: 1fr;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Observer Stats Dashboard
+   ═══════════════════════════════════════════════════════════ */
+
+.observer-dashboard {
+    padding: 20px;
+}
+
+.observer-header {
+    margin-bottom: 20px;
+}
+
+.observer-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+}
+
+.stat-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.stat-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.stat-card-success .stat-card-value { color: var(--accent); }
+.stat-card-danger .stat-card-value { color: var(--error); }
+.stat-card-warning .stat-card-value { color: var(--warning); }
+
+.stat-card-success { border-left: 3px solid var(--accent); }
+.stat-card-danger { border-left: 3px solid var(--error); }
+.stat-card-warning { border-left: 3px solid var(--warning); }
+
+/* Accuracy bar */
+.observer-accuracy-bar {
+    margin-bottom: 20px;
+}
+
+.observer-accuracy-bar h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.accuracy-track {
+    height: 8px;
+    background: var(--bg-active);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.accuracy-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+    border-radius: 4px;
+    transition: width 0.6s ease-out;
+}
+
+.accuracy-label {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+}
+
+.observer-audit-log h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.audit-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.audit-verdict {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.audit-verdict.allowed {
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent);
+}
+
+.audit-verdict.blocked {
+    background: rgba(255, 68, 68, 0.15);
+    color: var(--error);
+}
+
+.audit-confidence {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+}
+
+.audit-category {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.audit-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Checkpoints Dashboard
+   ═══════════════════════════════════════════════════════════ */
+
+.checkpoints-dashboard {
+    padding: 20px;
+}
+
+.checkpoints-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.checkpoints-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.checkpoint-status {
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    margin-bottom: 12px;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+
+.checkpoint-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.checkpoint-id {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.checkpoint-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-left: 8px;
+}
+
+.checkpoint-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.checkpoint-actions button {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    transition: all var(--transition-fast);
+}
+
+.checkpoint-actions .restore-btn:hover {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.checkpoint-actions .delete-btn:hover {
+    background: var(--error-bg);
+    border-color: var(--error);
+    color: var(--error);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Autonomy Dashboard
+   ═══════════════════════════════════════════════════════════ */
+
+.autonomy-dashboard {
+    padding: 20px;
+}
+
+.autonomy-overview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.autonomy-section {
+    margin-bottom: 24px;
+}
+
+.autonomy-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Feature toggles grid */
+.feature-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.feature-toggle-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.feature-toggle-card:hover {
+    border-color: var(--border-hover);
+}
+
+.feature-toggle-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-transform: capitalize;
+}
+
+/* Tool toggles grid */
+.tool-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.tool-toggle-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    transition: all var(--transition-fast);
+}
+
+.tool-toggle-card.disabled {
+    opacity: 0.5;
+    border-color: var(--error);
+}
+
+.tool-toggle-card:hover {
+    border-color: var(--border-hover);
+}
+
+/* Platform status list */
+.platform-status-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.platform-status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.platform-status-badge.connected {
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent);
+}
+
+.platform-status-badge.disconnected {
+    background: rgba(255, 68, 68, 0.12);
+    color: var(--error);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Lesson Reinforce/Weaken Buttons
+   ═══════════════════════════════════════════════════════════ */
+
+.lesson-actions {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.lesson-actions button {
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+}
+
+.lesson-actions button:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Adapter History Table
+   ═══════════════════════════════════════════════════════════ */
+
+.adapter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px 80px 70px 60px;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.adapter-row-header {
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 11px;
+}
+
+.adapter-health {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.adapter-health.healthy { background: var(--accent); }
+.adapter-health.unhealthy { background: var(--error); }
+
+/* ═══════════════════════════════════════════════════════════
+   Mesh Peer List 
+   ═══════════════════════════════════════════════════════════ */
+
+.mesh-peer-item {
+    display: grid;
+    grid-template-columns: 1fr 100px 80px 80px 60px;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.mesh-peer-item-header {
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 11px;
+}
+
+.mesh-peer-trust-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.mesh-peer-trust-badge.full {
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent);
+}
+
+.mesh-peer-trust-badge.attested {
+    background: rgba(255, 170, 0, 0.15);
+    color: var(--warning);
+}
+
+.mesh-peer-trust-badge.unattested {
+    background: var(--bg-active);
+    color: var(--text-secondary);
+}
+
+.mesh-peer-connected-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.mesh-peer-connected-dot.online { background: var(--accent); }
+.mesh-peer-connected-dot.offline { background: var(--text-tertiary); }
+
+/* ═══════════════════════════════════════════════════════════
+   Responsive additions
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+    .observer-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .autonomy-overview {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .feature-toggles-grid {
+        grid-template-columns: 1fr;
+    }
+    .tool-toggles-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .adapter-row {
+        grid-template-columns: 1fr 1fr 60px 60px;
+    }
+    .mesh-peer-item {
+        grid-template-columns: 1fr 80px 60px;
+    }
+}

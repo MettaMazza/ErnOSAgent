@@ -1,6 +1,6 @@
 # Claude Opus 4.6 — ErnOSAgent Codebase Review
 
-**Reviewer**: Claude Opus 4.6 (Anthropic)
+**Reviewer**: Claude Opus 4.6 (Anthropic) (OUTDATED)
 **Date**: 10 April 2026
 **Scope**: Full codebase — 174 source files, 36,240 lines of production Rust, 3,130 lines of integration tests
 **Constraint**: Read-only forensic audit. Zero source modifications. All claims code-evidenced.

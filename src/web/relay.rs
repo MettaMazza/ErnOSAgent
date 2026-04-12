@@ -307,11 +307,11 @@ async fn handle_relay_chat(
                     is_thinking: true,
                 }).await;
             }
-            ReactEvent::ToolExecuting { name, id } => {
+            ReactEvent::ToolExecuting { name, id, arguments } => {
                 send_relay(socket, &RelayMessage::ToolCall {
                     id,
                     name,
-                    arguments: "{}".to_string(),
+                    arguments,
                 }).await;
             }
             ReactEvent::ToolCompleted { name: _, result: _ } => {

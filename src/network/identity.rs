@@ -13,7 +13,7 @@
 use crate::network::peer_id::PeerId;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Peer online status.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -118,6 +118,7 @@ impl PeerIdentity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn temp_dir() -> PathBuf {
         use std::sync::atomic::{AtomicU64, Ordering};

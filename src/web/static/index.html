@@ -80,9 +80,9 @@
                     <div id="welcome" class="welcome">
                         <div class="welcome-icon">ε</div>
                         <h1>ErnOSAgent</h1>
-                        <p>Local multi-modal reasoning engine with 5-tier memory.</p>
+                        <p>Local multi-modal reasoning engine with 7-tier memory.</p>
                         <div class="welcome-cards">
-                            <div class="wcard"><span class="wcard-icon">🧠</span><span>5-Tier Memory</span></div>
+                            <div class="wcard"><span class="wcard-icon">🧠</span><span>7-Tier Memory</span></div>
                             <div class="wcard"><span class="wcard-icon">🔧</span><span>Tool Calling</span></div>
                             <div class="wcard"><span class="wcard-icon">🎛️</span><span>Cognitive Steering</span></div>
                             <div class="wcard"><span class="wcard-icon">👁️</span><span>Observer Audit</span></div>
@@ -166,6 +166,8 @@
                 <button class="tab-btn" data-tab="tab-system">System</button>
                 <button class="tab-btn" data-tab="tab-platforms">Platforms</button>
                 <button class="tab-btn" data-tab="tab-automation">Automation</button>
+                <button class="tab-btn" data-tab="tab-checkpoints">Checkpoints</button>
+                <button class="tab-btn" data-tab="tab-autonomy">Autonomy</button>
                 <button class="tab-btn" data-tab="tab-mesh">Mesh Network</button>
             </div>
             
@@ -199,6 +201,10 @@
                         <div class="memory-section">
                             <h3>Scratchpad</h3>
                             <div id="scratchpad-viewer" class="scrollable-feed">Loading…</div>
+                            <div class="scratchpad-write-section" style="margin-top:8px">
+                                <textarea id="scratchpad-input" class="platform-input" rows="3" placeholder="Write to scratchpad…" style="width:100%;resize:vertical"></textarea>
+                                <button id="scratchpad-save-btn" class="msg-action-btn" style="padding:6px 12px;margin-top:4px">Save</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -218,6 +224,18 @@
                             <div class="buffer-stat">
                                 <span class="buffer-label">Preference Pairs</span>
                                 <span id="preference-count" class="buffer-value">0</span>
+                            </div>
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Rejections</span>
+                                <span id="rejection-count" class="buffer-value">0</span>
+                            </div>
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Observer Audits</span>
+                                <span id="observer-audit-count" class="buffer-value">0</span>
+                            </div>
+                            <div class="buffer-stat">
+                                <span class="buffer-label">Distilled Lessons</span>
+                                <span id="distilled-lessons-count" class="buffer-value">0</span>
                             </div>
                             <div class="buffer-stat">
                                 <span class="buffer-label">Threshold</span>
@@ -352,8 +370,49 @@
                 
                 <!-- Observer Tab -->
                 <div id="tab-observer" class="tab-pane">
-                    <div class="observer-config" id="observer-config">
-                        <div class="loading-text">Loading observer config...</div>
+                    <div class="observer-dashboard">
+                        <div class="observer-header">
+                            <div class="observer-toggle-row" id="observer-config">
+                                <div class="loading-text">Loading observer config...</div>
+                            </div>
+                        </div>
+                        <div class="observer-stats-grid" id="observer-stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-card-label">Total Audits</div>
+                                <div class="stat-card-value" id="obs-total">0</div>
+                            </div>
+                            <div class="stat-card stat-card-success">
+                                <div class="stat-card-label">Allowed</div>
+                                <div class="stat-card-value" id="obs-allowed">0</div>
+                            </div>
+                            <div class="stat-card stat-card-danger">
+                                <div class="stat-card-label">Blocked</div>
+                                <div class="stat-card-value" id="obs-blocked">0</div>
+                            </div>
+                            <div class="stat-card stat-card-warning">
+                                <div class="stat-card-label">False Positives</div>
+                                <div class="stat-card-value" id="obs-false-pos">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Confirmed</div>
+                                <div class="stat-card-value" id="obs-confirmed">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Pending</div>
+                                <div class="stat-card-value" id="obs-pending">0</div>
+                            </div>
+                        </div>
+                        <div class="observer-accuracy-bar">
+                            <h3>Accuracy</h3>
+                            <div class="accuracy-track">
+                                <div class="accuracy-fill" id="obs-accuracy-fill" style="width:0%"></div>
+                            </div>
+                            <span class="accuracy-label" id="obs-accuracy-label">—</span>
+                        </div>
+                        <div class="observer-audit-log">
+                            <h3>Recent Audit Log</h3>
+                            <div id="obs-audit-feed" class="scrollable-feed">Loading…</div>
+                        </div>
                     </div>
                 </div>
                 
@@ -534,6 +593,62 @@
                     </div>
                 </div>
 
+                <!-- Checkpoints Tab -->
+                <div id="tab-checkpoints" class="tab-pane">
+                    <div class="checkpoints-dashboard">
+                        <div class="checkpoints-header">
+                            <h3>System Checkpoints</h3>
+                            <button id="create-checkpoint-btn" class="msg-action-btn" style="padding:8px 16px">Create Snapshot</button>
+                        </div>
+                        <div id="checkpoint-status" class="checkpoint-status" style="display:none"></div>
+                        <div id="checkpoint-list" class="scrollable-feed">Loading checkpoints…</div>
+                    </div>
+                </div>
+
+                <!-- Autonomy Tab -->
+                <div id="tab-autonomy" class="tab-pane">
+                    <div class="autonomy-dashboard">
+                        <div class="autonomy-overview" id="autonomy-overview">
+                            <div class="stat-card">
+                                <div class="stat-card-label">Observer</div>
+                                <div class="stat-card-value" id="auto-observer">—</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Active Tools</div>
+                                <div class="stat-card-value" id="auto-tools-count">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Platforms</div>
+                                <div class="stat-card-value" id="auto-platforms-count">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Scheduler</div>
+                                <div class="stat-card-value" id="auto-scheduler">—</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Sessions</div>
+                                <div class="stat-card-value" id="auto-sessions">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-card-label">Training</div>
+                                <div class="stat-card-value" id="auto-training">—</div>
+                            </div>
+                        </div>
+                        <div class="autonomy-section">
+                            <h3>Feature Toggles</h3>
+                            <div class="feature-toggles-grid" id="feature-toggles-grid">Loading…</div>
+                        </div>
+                        <div class="autonomy-section">
+                            <h3>Tool Permissions</h3>
+                            <div class="tool-toggles-grid" id="tool-toggles-grid">Loading…</div>
+                        </div>
+                        <div class="autonomy-section">
+                            <h3>Platform Status</h3>
+                            <div id="auto-platforms-list" class="scrollable-feed">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Mesh Network Tab -->
                 <div id="tab-mesh" class="tab-pane">
                     <div class="mesh-dashboard">
@@ -650,6 +765,12 @@
                                     <span class="security-value" id="mesh-integrity">—</span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Peer List -->
+                        <div class="mesh-section">
+                            <h3 class="mesh-section-title">Connected Peers</h3>
+                            <div id="mesh-peer-list" class="scrollable-feed">No peers connected.</div>
                         </div>
                     </div>
                 </div>

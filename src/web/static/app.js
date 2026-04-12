@@ -133,8 +133,7 @@
                 case 'token':
                     Chat.appendToken(msg.content);
                     if (msg.context_usage !== undefined) {
-                        els.contextBar.style.width = (msg.context_usage * 100) + '%';
-                        els.contextPercent.textContent = Math.round(msg.context_usage * 100) + '%';
+                        Status.setContextUsage(msg.context_usage);
                     }
                     break;
                 case 'thinking': Chat.appendThinking(msg.content); break;
@@ -1081,10 +1080,12 @@
             if (activeTab === 'tab-steering')  Dashboard.loadSteering();
             if (activeTab === 'tab-neural')    NeuralDashboard.load();
             if (activeTab === 'tab-models')    Dashboard.loadModels();
-            if (activeTab === 'tab-observer')  Dashboard.loadObserver();
+            if (activeTab === 'tab-observer')  ObserverStats.load();
             if (activeTab === 'tab-system')    Dashboard.loadSystem();
             if (activeTab === 'tab-platforms') Platforms.load();
             if (activeTab === 'tab-automation') Scheduler.loadJobs();
+            if (activeTab === 'tab-checkpoints') Checkpoints.load();
+            if (activeTab === 'tab-autonomy') AutonomyDashboard.load();
             if (activeTab === 'tab-mesh')      MeshDashboard.load();
         },
 
@@ -1952,10 +1953,35 @@
                 $('#teacher-state').textContent = data.teacher_state || 'Idle';
                 $('#golden-count').textContent = data.golden_count ?? 0;
                 $('#preference-count').textContent = data.preference_count ?? 0;
+                $('#rejection-count').textContent = data.rejection_count ?? 0;
+                $('#observer-audit-count').textContent = data.observer_audit_count ?? 0;
+                $('#distilled-lessons-count').textContent = data.distilled_lessons_count ?? 0;
                 $('#training-threshold').textContent = data.threshold ?? '—';
                 const btn = $('#train-btn');
                 btn.disabled = !data.can_train;
                 btn.onclick = () => DashboardExtras._triggerTraining();
+
+                // Adapter history table
+                const tableEl = $('#adapter-table');
+                if (data.adapters && data.adapters.length > 0) {
+                    tableEl.innerHTML = `
+                        <div class="adapter-row adapter-row-header">
+                            <span>Version</span><span>Created</span><span>Golden</span><span>Pref</span><span>Loss</span><span>Health</span>
+                        </div>
+                        ${data.adapters.map(a => `
+                            <div class="adapter-row">
+                                <span style="font-family:var(--font-mono)">${Markdown.escapeHtml(a.id).slice(0,12)}</span>
+                                <span>${new Date(a.created).toLocaleDateString()}</span>
+                                <span>${a.golden_count}</span>
+                                <span>${a.preference_count}</span>
+                                <span>${a.training_loss.toFixed(4)}</span>
+                                <span><span class="adapter-health ${a.healthy ? 'healthy' : 'unhealthy'}"></span></span>
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    tableEl.textContent = 'No adapters trained yet.';
+                }
             } catch (e) {
                 console.warn('Learning load failed:', e);
             }
@@ -2253,10 +2279,19 @@
 
         async load() {
             try {
-                const res = await fetch('/api/mesh/status');
-                if (!res.ok) throw new Error('Not available');
-                const d = await res.json();
+                const [statusRes, peersRes] = await Promise.all([
+                    fetch('/api/mesh/status'),
+                    fetch('/api/mesh/peers'),
+                ]);
+                if (!statusRes.ok) throw new Error('Not available');
+                const d = await statusRes.json();
                 this.render(d);
+
+                // Render peer list
+                if (peersRes.ok) {
+                    const peers = await peersRes.json();
+                    this.renderPeers(peers);
+                }
             } catch (e) {
                 this.renderOffline();
             }
@@ -2312,6 +2347,265 @@
             const el = document.getElementById(id);
             if (el) el.textContent = val !== undefined ? val : '—';
         },
+
+        renderPeers(peers) {
+            const el = document.getElementById('mesh-peer-list');
+            if (!el) return;
+            if (!peers || peers.length === 0) {
+                el.textContent = 'No peers connected.';
+                return;
+            }
+            el.innerHTML = `
+                <div class="mesh-peer-item mesh-peer-item-header">
+                    <span>Peer</span><span>Trust</span><span>Latency</span><span>Last Seen</span><span>Status</span>
+                </div>
+                ${peers.map(p => {
+                    const trustClass = p.trust_level.toLowerCase().includes('full') ? 'full' :
+                                       p.trust_level.toLowerCase().includes('attested') ? 'attested' : 'unattested';
+                    return `<div class="mesh-peer-item">
+                        <span style="font-family:var(--font-mono)">${Markdown.escapeHtml(p.display_name)}<br><small style="color:var(--text-tertiary)">${Markdown.escapeHtml(p.peer_id).slice(0,16)}…</small></span>
+                        <span><span class="mesh-peer-trust-badge ${trustClass}">${Markdown.escapeHtml(p.trust_level)}</span></span>
+                        <span>${p.latency_ms !== null ? p.latency_ms + 'ms' : '—'}</span>
+                        <span style="color:var(--text-tertiary);font-size:11px">${new Date(p.last_seen).toLocaleTimeString()}</span>
+                        <span><span class="mesh-peer-connected-dot ${p.connected ? 'online' : 'offline'}"></span></span>
+                    </div>`;
+                }).join('')}
+            `;
+        },
+    };
+
+    // ── Observer Stats Controller ──────────────────────────────────
+    const ObserverStats = {
+        async load() {
+            // Load existing observer config (toggle)
+            Dashboard.loadObserver();
+
+            // Load observer stats from new endpoint
+            try {
+                const resp = await fetch('/api/observer/stats');
+                const data = await resp.json();
+
+                // Stats cards
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                set('obs-total', data.total_audits);
+                set('obs-allowed', data.allowed_count);
+                set('obs-blocked', data.blocked_count);
+                set('obs-false-pos', data.false_positive_count);
+                set('obs-confirmed', data.confirmed_correct_count);
+                set('obs-pending', data.pending_label_count);
+
+                // Accuracy bar
+                const total = data.total_audits || 1;
+                const accuracy = ((data.total_audits - data.false_positive_count) / total * 100);
+                const fill = document.getElementById('obs-accuracy-fill');
+                const label = document.getElementById('obs-accuracy-label');
+                if (fill) fill.style.width = accuracy.toFixed(1) + '%';
+                if (label) label.textContent = accuracy.toFixed(1) + '%';
+
+                // Audit feed
+                const feed = document.getElementById('obs-audit-feed');
+                if (feed && data.recent_audits && data.recent_audits.length > 0) {
+                    feed.innerHTML = data.recent_audits.map(a => {
+                        const vc = a.verdict.toLowerCase() === 'allowed' ? 'allowed' : 'blocked';
+                        const time = new Date(a.timestamp).toLocaleTimeString();
+                        return `<div class="audit-entry">
+                            <span class="audit-verdict ${vc}">${Markdown.escapeHtml(a.verdict)}</span>
+                            <span class="audit-confidence">${(a.confidence * 100).toFixed(0)}%</span>
+                            <span class="audit-category">${Markdown.escapeHtml(a.failure_category)}</span>
+                            <span class="audit-time">${time}</span>
+                        </div>`;
+                    }).join('');
+                } else if (feed) {
+                    feed.textContent = 'No audits recorded yet.';
+                }
+            } catch (e) {
+                console.warn('Observer stats load failed:', e);
+            }
+        },
+    };
+
+    // ── Checkpoints Controller ────────────────────────────────────
+    const Checkpoints = {
+        async load() {
+            const list = document.getElementById('checkpoint-list');
+            if (!list) return;
+            try {
+                const resp = await fetch('/api/checkpoints');
+                const data = await resp.json();
+                if (data.length === 0) {
+                    list.textContent = 'No checkpoints created yet.';
+                    return;
+                }
+                list.innerHTML = data.map(ck => `
+                    <div class="checkpoint-item">
+                        <div>
+                            <span class="checkpoint-id">${Markdown.escapeHtml(ck.id)}</span>
+                            <span class="checkpoint-time">${new Date(ck.created).toLocaleString()}</span>
+                        </div>
+                        <div class="checkpoint-actions">
+                            <button class="restore-btn" data-id="${Markdown.escapeHtml(ck.id)}">Restore</button>
+                            <button class="delete-btn" data-id="${Markdown.escapeHtml(ck.id)}">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                list.querySelectorAll('.restore-btn').forEach(btn => {
+                    btn.addEventListener('click', () => Checkpoints._restore(btn.dataset.id));
+                });
+                list.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => Checkpoints._delete(btn.dataset.id));
+                });
+            } catch (e) {
+                list.textContent = 'Failed to load checkpoints.';
+                console.warn('Checkpoints load failed:', e);
+            }
+        },
+
+        async _create() {
+            const statusEl = document.getElementById('checkpoint-status');
+            try {
+                const resp = await fetch('/api/checkpoints', { method: 'POST' });
+                const data = await resp.json();
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.textContent = `Checkpoint ${data.id} created successfully.`;
+                }
+                Toast.show('Checkpoint created', 'success');
+                Checkpoints.load();
+            } catch (e) {
+                Toast.show('Checkpoint creation failed: ' + e.message, 'error');
+            }
+        },
+
+        async _restore(id) {
+            if (!confirm(`Restore checkpoint ${id}? This will revert current state.`)) return;
+            try {
+                await fetch(`/api/checkpoints/${id}/restore`, { method: 'POST' });
+                Toast.show(`Checkpoint ${id} restored`, 'success');
+                Checkpoints.load();
+            } catch (e) {
+                Toast.show('Restore failed: ' + e.message, 'error');
+            }
+        },
+
+        async _delete(id) {
+            if (!confirm(`Delete checkpoint ${id}?`)) return;
+            try {
+                await fetch(`/api/checkpoints/${id}`, { method: 'DELETE' });
+                Toast.show(`Checkpoint ${id} deleted`, 'success');
+                Checkpoints.load();
+            } catch (e) {
+                Toast.show('Delete failed: ' + e.message, 'error');
+            }
+        },
+
+        init() {
+            const btn = document.getElementById('create-checkpoint-btn');
+            if (btn) btn.addEventListener('click', () => Checkpoints._create());
+        },
+    };
+
+    // ── Autonomy Dashboard Controller ─────────────────────────────
+    const AutonomyDashboard = {
+        async load() {
+            try {
+                const [statusResp, featResp] = await Promise.all([
+                    fetch('/api/autonomy/status'),
+                    fetch('/api/features'),
+                ]);
+                const status = await statusResp.json();
+                const features = await featResp.json();
+
+                // Overview cards
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                set('auto-observer', status.observer_enabled ? '✓ Active' : '✗ Off');
+                set('auto-tools-count', status.active_tools.length);
+                set('auto-platforms-count', status.active_platforms.length);
+                set('auto-scheduler', status.scheduler_enabled ? '✓ Active' : '✗ Off');
+                set('auto-sessions', status.total_sessions);
+                set('auto-training', status.training_active ? '⚡ Training' : 'Idle');
+
+                // Feature toggles
+                const featureGrid = document.getElementById('feature-toggles-grid');
+                if (featureGrid) {
+                    const featureNames = ['observer', 'tts', 'scheduler', 'mesh'];
+                    featureGrid.innerHTML = featureNames.map(f => {
+                        const enabled = features[f];
+                        return `<div class="feature-toggle-card">
+                            <span class="feature-toggle-name">${f}</span>
+                            <label class="platform-toggle">
+                                <input type="checkbox" ${enabled ? 'checked' : ''} data-feature="${f}">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>`;
+                    }).join('');
+
+                    featureGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        cb.addEventListener('change', async () => {
+                            const feat = cb.dataset.feature;
+                            try {
+                                await fetch(`/api/features/${feat}/toggle`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ enabled: cb.checked }),
+                                });
+                                Toast.show(`${feat} ${cb.checked ? 'enabled' : 'disabled'}`, 'success');
+                            } catch (e) {
+                                Toast.show(`Toggle ${feat} failed`, 'error');
+                                cb.checked = !cb.checked;
+                            }
+                        });
+                    });
+                }
+
+                // Tool toggles
+                const toolGrid = document.getElementById('tool-toggles-grid');
+                if (toolGrid) {
+                    toolGrid.innerHTML = features.available_tools.map(tool => {
+                        const disabled = features.disabled_tools.includes(tool);
+                        return `<div class="tool-toggle-card ${disabled ? 'disabled' : ''}">
+                            <span>${Markdown.escapeHtml(tool)}</span>
+                            <label class="platform-toggle">
+                                <input type="checkbox" ${!disabled ? 'checked' : ''} data-tool="${Markdown.escapeHtml(tool)}">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>`;
+                    }).join('');
+
+                    toolGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        cb.addEventListener('change', async () => {
+                            const tool = cb.dataset.tool;
+                            try {
+                                await fetch(`/api/tools/${tool}/toggle`, { method: 'POST' });
+                                Toast.show(`${tool} ${cb.checked ? 'enabled' : 'disabled'}`, 'success');
+                                AutonomyDashboard.load();
+                            } catch (e) {
+                                Toast.show(`Toggle ${tool} failed`, 'error');
+                                cb.checked = !cb.checked;
+                            }
+                        });
+                    });
+                }
+
+                // Platform status
+                const platList = document.getElementById('auto-platforms-list');
+                if (platList) {
+                    if (status.active_platforms.length === 0) {
+                        platList.textContent = 'No platforms connected.';
+                    } else {
+                        platList.innerHTML = status.active_platforms.map(p => `
+                            <div class="platform-status-item">
+                                <span>${Markdown.escapeHtml(p.name)}</span>
+                                <span class="platform-status-badge ${p.connected ? 'connected' : 'disconnected'}">${p.connected ? 'Connected' : 'Offline'}</span>
+                                <span style="color:var(--text-tertiary);font-size:12px">${p.user_count} users</span>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.warn('Autonomy load failed:', e);
+            }
+        },
     };
 
     // ── Init ──────────────────────────────────────────────────────
@@ -2327,6 +2621,28 @@
         Theme.init();
         Sessions.refresh();
         Scheduler.init();
+        Checkpoints.init();
+
+        // Scratchpad write button
+        const scratchSaveBtn = document.getElementById('scratchpad-save-btn');
+        if (scratchSaveBtn) {
+            scratchSaveBtn.addEventListener('click', async () => {
+                const input = document.getElementById('scratchpad-input');
+                if (!input || !input.value.trim()) return;
+                try {
+                    await fetch('/api/scratchpad', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'dashboard', content: input.value }),
+                    });
+                    Toast.show('Scratchpad saved', 'success');
+                    input.value = '';
+                    DashboardExtras.initMemoryExtras();
+                } catch (e) {
+                    Toast.show('Failed to save scratchpad', 'error');
+                }
+            });
+        }
 
         // Poll status every 10s
         setInterval(() => Status.poll(), 10000);

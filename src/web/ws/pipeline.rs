@@ -305,7 +305,7 @@ pub async fn run_react_pipeline(
                     }
                 }
             }
-            ReactEvent::ToolExecuting { name, id: _ } => {
+            ReactEvent::ToolExecuting { name, id: _, arguments: _ } => {
                 tracing::info!(tool = %name, platform = %ctx.platform, "Platform: tool executing");
             }
             ReactEvent::ToolCompleted { name, result } => {
@@ -317,7 +317,7 @@ pub async fn run_react_pipeline(
             ReactEvent::AuditRunning => {
                 tracing::info!(platform = %ctx.platform, "Platform: Observer audit running");
             }
-            ReactEvent::AuditCompleted { verdict, reason } => {
+            ReactEvent::AuditCompleted { verdict, reason, confidence: _ } => {
                 tracing::info!(
                     verdict = %verdict, reason = %reason, platform = %ctx.platform,
                     "Platform: Observer audit completed"

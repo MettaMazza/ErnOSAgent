@@ -12,9 +12,8 @@
 //!
 //! Gated behind the `mesh-sandbox` Cargo feature.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 /// Resource limits for sandbox execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]

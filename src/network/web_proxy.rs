@@ -12,7 +12,6 @@
 //! content-type filtering.
 
 use crate::network::peer_id::PeerId;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

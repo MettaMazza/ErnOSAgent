@@ -14,9 +14,9 @@ fn test_react_event_variants() {
         ReactEvent::TurnStarted { turn: 1 },
         ReactEvent::Token("hello".to_string()),
         ReactEvent::Thinking("hmm".to_string()),
-        ReactEvent::ToolExecuting { name: "search".to_string(), id: "t1".to_string() },
+        ReactEvent::ToolExecuting { name: "search".to_string(), id: "t1".to_string(), arguments: "{}".to_string() },
         ReactEvent::AuditRunning,
-        ReactEvent::AuditCompleted { verdict: Verdict::Allowed, reason: "none".to_string() },
+        ReactEvent::AuditCompleted { verdict: Verdict::Allowed, reason: "none".to_string(), confidence: 0.95 },
         ReactEvent::ResponseReady { text: "hi".to_string() },
         ReactEvent::Error("oops".to_string()),
         ReactEvent::NeuralSnapshot(crate::interpretability::snapshot::simulate_snapshot(1, "test")),
@@ -96,10 +96,12 @@ fn test_react_event_audit_rejected() {
     let event = ReactEvent::AuditCompleted {
         verdict: Verdict::Blocked,
         reason: "Safety violation".to_string(),
+        confidence: 0.85,
     };
-    if let ReactEvent::AuditCompleted { verdict, reason } = event {
+    if let ReactEvent::AuditCompleted { verdict, reason, confidence } = event {
         assert!(!verdict.is_allowed());
         assert!(reason.contains("Safety"));
+        assert!(confidence > 0.0);
     }
 }
 
