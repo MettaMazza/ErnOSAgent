@@ -125,6 +125,7 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
         if let Ok(raw) = std::fs::read_to_string(&sp_path) {
             if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) {
                 let mut sp_text = String::from("[Scratchpad]\n");
+                let mut found = false;
                 for entry in &entries {
                     let key = entry.get("key").and_then(|v| v.as_str()).unwrap_or("");
                     let val = entry.get("value").and_then(|v| v.as_str()).unwrap_or("");
@@ -138,8 +139,11 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
                     let line = format!("• {}: {}\n", key, val);
                     if sp_text.len() + line.len() > sp_budget { break; }
                     sp_text.push_str(&line);
+                    found = true;
                 }
-                context.push_str(&sp_text);
+                if found {
+                    context.push_str(&sp_text);
+                }
             }
         }
     }
@@ -151,21 +155,108 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
         if let Ok(raw) = std::fs::read_to_string(&les_path) {
             if let Ok(lessons) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) {
                 let mut les_text = String::from("[Lessons]\n");
+                let mut found = false;
                 for l in &lessons {
                     let rule = l.get("rule").and_then(|v| v.as_str()).unwrap_or("");
                     let conf = l.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
                     if conf < 0.5 { continue; }
+                    if !query_lower.is_empty()
+                        && !rule.to_lowercase().contains(&query_lower)
+                    {
+                        continue;
+                    }
                     let line = format!("• {} ({:.0}%)\n", rule, conf * 100.0);
                     if les_text.len() + line.len() > les_budget { break; }
                     les_text.push_str(&line);
+                    found = true;
                 }
-                context.push_str(&les_text);
+                if found {
+                    context.push_str(&les_text);
+                }
+            }
+        }
+    }
+
+    // Timeline (20%) — search transcripts by substring match
+    let tl_budget = budget_chars * 20 / 100;
+    let tl_dir = dir.join("timeline");
+    if tl_dir.exists() {
+        if let Ok(rd) = std::fs::read_dir(&tl_dir) {
+            // Collect and sort by filename (which encodes timestamp) — newest first
+            let mut files: Vec<_> = rd.filter_map(|e| e.ok())
+                .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+                .collect();
+            files.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+
+            let mut tl_text = String::from("[Timeline]\n");
+            let mut found = false;
+            for file in &files {
+                if let Ok(raw) = std::fs::read_to_string(file.path()) {
+                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&raw) {
+                        let transcript = entry.get("transcript")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let ts = entry.get("timestamp")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        // If query is provided, filter by relevance
+                        if !query_lower.is_empty()
+                            && !transcript.to_lowercase().contains(&query_lower)
+                        {
+                            continue;
+                        }
+                        let preview: String = transcript.chars().take(200).collect();
+                        let line = format!("• [{}] {}\n", ts, preview);
+                        if tl_text.len() + line.len() > tl_budget { break; }
+                        tl_text.push_str(&line);
+                        found = true;
+                    }
+                }
+            }
+            if found {
+                context.push_str(&tl_text);
+            }
+        }
+    }
+
+    // Embeddings (10%) — text-based search on source_text
+    let emb_budget = budget_chars * 10 / 100;
+    let emb_path = dir.join("embeddings.json");
+    if emb_path.exists() {
+        if let Ok(raw) = std::fs::read_to_string(&emb_path) {
+            if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) {
+                let mut emb_text = String::from("[Embeddings]\n");
+                let mut found = false;
+                for entry in &entries {
+                    let source = entry.get("source_text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let source_type = entry.get("source_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    if !query_lower.is_empty()
+                        && !source.to_lowercase().contains(&query_lower)
+                    {
+                        continue;
+                    }
+                    let preview: String = source.chars().take(120).collect();
+                    let line = format!("• [{}] {}\n", source_type, preview);
+                    if emb_text.len() + line.len() > emb_budget { break; }
+                    emb_text.push_str(&line);
+                    found = true;
+                }
+                if found {
+                    context.push_str(&emb_text);
+                }
             }
         }
     }
 
     let output = if context.is_empty() {
-        "No memory context available.".to_string()
+        format!(
+            "No memory context found for query '{}'. Searched: scratchpad, lessons, timeline, embeddings.",
+            query
+        )
     } else {
         format!("RECALLED CONTEXT (budget: {} tokens)\n\n{}", budget, context.trim())
     };
@@ -251,5 +342,90 @@ mod tests {
         let mut executor = ToolExecutor::new();
         register_tools(&mut executor);
         assert!(executor.has_tool("memory_tool"));
+    }
+
+    #[test]
+    fn recall_with_query_succeeds() {
+        let call = make_call(serde_json::json!({"action": "recall", "query": "nonexistent_gibberish_xyz"}));
+        let result = memory_tool(&call);
+        assert!(result.success);
+        // Should report that nothing was found with tiers listed
+        assert!(
+            result.output.contains("No memory context found") || result.output.contains("RECALLED CONTEXT"),
+            "Recall output should be either 'no context found' or 'RECALLED CONTEXT', got: {}",
+            result.output
+        );
+    }
+
+    #[test]
+    fn recall_empty_query_succeeds() {
+        let call = make_call(serde_json::json!({"action": "recall", "query": ""}));
+        let result = memory_tool(&call);
+        assert!(result.success);
+    }
+
+    #[test]
+    fn recall_with_budget() {
+        let call = make_call(serde_json::json!({"action": "recall", "query": "", "budget": 500}));
+        let result = memory_tool(&call);
+        assert!(result.success);
+    }
+
+    #[test]
+    fn recall_timeline_integration() {
+        // Create a temp timeline dir with a test entry
+        let tmp = tempfile::TempDir::new().unwrap();
+        let tl_dir = tmp.path().join("timeline");
+        std::fs::create_dir_all(&tl_dir).unwrap();
+
+        let entry = serde_json::json!({
+            "session_id": "test-session",
+            "timestamp": "2026-04-12T10:00:00Z",
+            "transcript": "The first spark was an AI named Echo",
+            "summary": null
+        });
+        std::fs::write(
+            tl_dir.join("20260412_100000_000_test1234_abc123.json"),
+            serde_json::to_string_pretty(&entry).unwrap(),
+        ).unwrap();
+
+        // Temporarily override ERNOSAGENT_DATA_DIR
+        let old = std::env::var("ERNOSAGENT_DATA_DIR").ok();
+        std::env::set_var("ERNOSAGENT_DATA_DIR", tmp.path());
+
+        let call = make_call(serde_json::json!({"action": "recall", "query": "first spark"}));
+        let result = memory_tool(&call);
+
+        // Restore
+        match old {
+            Some(v) => std::env::set_var("ERNOSAGENT_DATA_DIR", v),
+            None => std::env::remove_var("ERNOSAGENT_DATA_DIR"),
+        }
+
+        assert!(result.success);
+        assert!(result.output.contains("RECALLED CONTEXT"), "Should find timeline data, got: {}", result.output);
+        assert!(result.output.contains("[Timeline]"), "Should have timeline section, got: {}", result.output);
+        assert!(result.output.contains("Echo"), "Should contain the matched transcript, got: {}", result.output);
+    }
+
+    #[test]
+    fn recall_no_match_reports_tiers() {
+        // Use a temp dir with no data
+        let tmp = tempfile::TempDir::new().unwrap();
+        let old = std::env::var("ERNOSAGENT_DATA_DIR").ok();
+        std::env::set_var("ERNOSAGENT_DATA_DIR", tmp.path());
+
+        let call = make_call(serde_json::json!({"action": "recall", "query": "absolutely_nothing_xzq"}));
+        let result = memory_tool(&call);
+
+        match old {
+            Some(v) => std::env::set_var("ERNOSAGENT_DATA_DIR", v),
+            None => std::env::remove_var("ERNOSAGENT_DATA_DIR"),
+        }
+
+        assert!(result.success);
+        assert!(result.output.contains("No memory context found"), "Should report no context, got: {}", result.output);
+        assert!(result.output.contains("scratchpad"), "Should list searched tiers");
+        assert!(result.output.contains("timeline"), "Should list searched tiers");
     }
 }

@@ -100,6 +100,9 @@ pub async fn execute_react_loop(
     let mut audit_passes = 0_usize;
     let mut total_audit_rejections = 0_usize;
     let mut consecutive_audit_rejections = 0_usize;
+    // Tool-loop detection: track consecutive identical tool calls
+    let mut last_tool_sig: Option<String> = None;
+    let mut same_tool_count = 0_usize;
 
     loop {
         turn += 1;
@@ -176,6 +179,54 @@ pub async fn execute_react_loop(
         tracing::info!(turn = turn, has_reply = has_reply, has_other = has_other, has_none = has_none, "ReAct branch decision");
 
         if has_other {
+            // Build a signature for dedup detection before executing
+            let tool_sig = {
+                let mut parts: Vec<String> = output.tool_calls.iter()
+                    .filter(|tc| !schema::is_reply_request(tc))
+                    .map(|tc| format!("{}:{}", tc.name, tc.arguments))
+                    .collect();
+                parts.sort();
+                parts.join("|")
+            };
+
+            // Check for repeated identical tool calls
+            if Some(&tool_sig) == last_tool_sig.as_ref() {
+                same_tool_count += 1;
+            } else {
+                last_tool_sig = Some(tool_sig);
+                same_tool_count = 1;
+            }
+
+            if same_tool_count >= 3 {
+                tracing::warn!(
+                    turn = turn,
+                    count = same_tool_count,
+                    tool_sig = %last_tool_sig.as_deref().unwrap_or(""),
+                    "Tool-loop detected — same tool(s) called {} times with identical arguments",
+                    same_tool_count
+                );
+                messages.push(Message {
+                    role: "system".to_string(),
+                    content: format!(
+                        "[SYSTEM: TOOL-LOOP DETECTED — You have called the same tool(s) {} times \
+                        in a row with identical arguments and received the same result each time. \
+                        This is NOT making progress. STOP calling '{}'. \
+                        Try a DIFFERENT tool, a different query, or deliver your response via reply_request.]",
+                        same_tool_count,
+                        output.tool_calls.iter()
+                            .filter(|tc| !schema::is_reply_request(tc))
+                            .map(|tc| tc.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    images: Vec::new(),
+                });
+                // Reset counter so the message doesn't fire every turn
+                same_tool_count = 0;
+                last_tool_sig = None;
+                continue;
+            }
+
             execute_tool_calls(
                 &output.tool_calls, executor, &mut messages,
                 &mut all_tool_results, &event_tx,

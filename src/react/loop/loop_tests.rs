@@ -134,3 +134,85 @@ fn test_react_result_with_tools() {
     assert!(result.tool_results[0].success);
     assert!(!result.tool_results[1].success);
 }
+
+#[test]
+fn test_tool_loop_signature_same_calls() {
+    use crate::tools::schema::ToolCall;
+    // Simulate the signature building logic from the ReAct loop
+    fn build_sig(calls: &[ToolCall]) -> String {
+        let mut parts: Vec<String> = calls.iter()
+            .filter(|tc| !schema::is_reply_request(tc))
+            .map(|tc| format!("{}:{}", tc.name, tc.arguments))
+            .collect();
+        parts.sort();
+        parts.join("|")
+    }
+
+    let calls_a = vec![ToolCall {
+        id: "1".to_string(),
+        name: "memory_tool".to_string(),
+        arguments: serde_json::json!({"action": "recall", "query": "spark"})
+    }];
+    let calls_b = vec![ToolCall {
+        id: "2".to_string(),
+        name: "memory_tool".to_string(),
+        arguments: serde_json::json!({"action": "recall", "query": "spark"})
+    }];
+    // Same tool + same args = same signature (id is different but irrelevant)
+    assert_eq!(build_sig(&calls_a), build_sig(&calls_b));
+}
+
+#[test]
+fn test_tool_loop_signature_different_calls() {
+    use crate::tools::schema::ToolCall;
+    fn build_sig(calls: &[ToolCall]) -> String {
+        let mut parts: Vec<String> = calls.iter()
+            .filter(|tc| !schema::is_reply_request(tc))
+            .map(|tc| format!("{}:{}", tc.name, tc.arguments))
+            .collect();
+        parts.sort();
+        parts.join("|")
+    }
+
+    let calls_a = vec![ToolCall {
+        id: "1".to_string(),
+        name: "memory_tool".to_string(),
+        arguments: serde_json::json!({"action": "recall", "query": "spark"})
+    }];
+    let calls_b = vec![ToolCall {
+        id: "2".to_string(),
+        name: "timeline_tool".to_string(),
+        arguments: serde_json::json!({"action": "search", "query": "spark"})
+    }];
+    // Different tool = different signature
+    assert_ne!(build_sig(&calls_a), build_sig(&calls_b));
+}
+
+#[test]
+fn test_tool_loop_counter_logic() {
+    // Simulate the counter tracking from the ReAct loop
+    let mut last_sig: Option<String> = None;
+    let mut count = 0_usize;
+
+    // First call
+    let sig1 = "memory_tool:{\"action\":\"recall\",\"query\":\"spark\"}".to_string();
+    if Some(&sig1) == last_sig.as_ref() { count += 1; } else { last_sig = Some(sig1); count = 1; }
+    assert_eq!(count, 1);
+
+    // Second identical call
+    let sig2 = "memory_tool:{\"action\":\"recall\",\"query\":\"spark\"}".to_string();
+    if Some(&sig2) == last_sig.as_ref() { count += 1; } else { last_sig = Some(sig2); count = 1; }
+    assert_eq!(count, 2);
+
+    // Third identical call — triggers detection
+    let sig3 = "memory_tool:{\"action\":\"recall\",\"query\":\"spark\"}".to_string();
+    if Some(&sig3) == last_sig.as_ref() { count += 1; } else { last_sig = Some(sig3); count = 1; }
+    assert_eq!(count, 3);
+    assert!(count >= 3, "Should trigger tool-loop detection at count >= 3");
+
+    // Different call resets
+    let sig4 = "timeline_tool:{\"action\":\"search\",\"query\":\"spark\"}".to_string();
+    if Some(&sig4) == last_sig.as_ref() { count += 1; } else { last_sig = Some(sig4); count = 1; }
+    assert_eq!(count, 1, "Different tool should reset counter");
+}
+
