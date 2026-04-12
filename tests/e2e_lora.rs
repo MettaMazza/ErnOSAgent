@@ -15,8 +15,7 @@
 //! Run with: cargo test --test e2e_lora -- --nocapture
 
 use ernosagent::learning::buffers::{GoldenExample, PreferencePair};
-use ernosagent::learning::lora::{self, LoraConfig, TrainingReport};
-use tempfile::TempDir;
+use ernosagent::learning::lora::{self, LoraConfig};
 
 fn make_golden(msg: &str, resp: &str) -> GoldenExample {
     GoldenExample {
@@ -158,7 +157,7 @@ fn test_training_time_estimation() {
 
 #[test]
 fn test_lora_varmap_cpu() {
-    use candle_core::{Device, DType};
+    use candle_core::Device;
 
     use ernosagent::learning::lora::forward::ModelArchitecture;
     let config = LoraConfig {
@@ -203,12 +202,12 @@ fn test_lora_varmap_cpu() {
 
 #[test]
 fn test_cross_entropy_loss_synthetic() {
-    use candle_core::{Device, DType, Tensor};
+    use candle_core::{Device, Tensor};
 
     let device = Device::Cpu;
 
     // Synthetic logits [1, 3, 4]: vocab_size=4, seq_len=3
-    let logits = Tensor::from_slice(
+    let _logits = Tensor::from_slice(
         &[
             1.0f32, 0.0, 0.0, 0.0, // pos 0: predicts token 0
             0.0, 2.0, 0.0, 0.0,     // pos 1: predicts token 1
@@ -220,7 +219,7 @@ fn test_cross_entropy_loss_synthetic() {
     .unwrap();
 
     // Labels: pos 0 is prompt (-100), pos 1,2 are targets (token 1, token 2)
-    let labels = vec![-100i32, 1, 2];
+    let _labels = vec![-100i32, 1, 2];
 
     // Use the internal cross_entropy_loss via the test module
     // (it's not pub, so we test via the ORPO formula which exercises it)
@@ -278,7 +277,7 @@ fn test_orpo_loss_formula() {
 
 #[test]
 fn test_learning_rate_schedule() {
-    let config = LoraConfig {
+    let _config = LoraConfig {
         learning_rate: 3e-4,
         warmup_steps: 10,
         num_iterations: 200,

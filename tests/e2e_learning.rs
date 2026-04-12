@@ -16,7 +16,7 @@ use ernosagent::learning::buffers::{PreferencePair, TrainingBuffers};
 use ernosagent::learning::distill::{self, DistillConfig};
 use ernosagent::learning::manifest::AdapterManifest;
 use ernosagent::learning::teacher::{Teacher, TeacherConfig, TeacherState, TrainingKind};
-use std::path::Path;
+
 use std::time::Duration;
 use tempfile::TempDir;
 
@@ -299,7 +299,7 @@ async fn test_manifest_promote_rollback() {
 
 #[tokio::test]
 async fn test_distillation_creates_lessons() {
-    let tmp = TempDir::new().unwrap();
+    let _tmp = TempDir::new().unwrap();
     let mut lessons = ernosagent::memory::lessons::LessonStore::new();
     let config = DistillConfig {
         threshold: 2,
