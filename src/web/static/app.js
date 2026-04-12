@@ -1999,20 +1999,48 @@
 
         async loadTools() {
             try {
-                const [toolsResp, histResp] = await Promise.all([
+                const [toolsResp, histResp, featResp] = await Promise.all([
                     fetch('/api/tools'),
                     fetch('/api/tools/history'),
+                    fetch('/api/features'),
                 ]);
                 const tools = await toolsResp.json();
                 const history = await histResp.json();
+                const features = await featResp.json();
+                const disabledChat = features.disabled_tools || [];
 
                 const grid = $('#tool-registry');
-                grid.innerHTML = tools.map(t => `
-                    <div class="tool-card">
-                        <div class="tool-card-name">${Markdown.escapeHtml(t.name)}</div>
+                grid.innerHTML = tools.map(t => {
+                    const disabled = disabledChat.includes(t.name);
+                    return `<div class="tool-card ${disabled ? 'tool-disabled' : ''}">
+                        <div class="tool-card-header">
+                            <div class="tool-card-name">${Markdown.escapeHtml(t.name)}</div>
+                            <label class="platform-toggle">
+                                <input type="checkbox" ${!disabled ? 'checked' : ''} data-tool-chat="${Markdown.escapeHtml(t.name)}">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
                         <div class="tool-card-desc">${Markdown.escapeHtml(t.description)}</div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
+
+                // Wire toggle events for chat tools
+                grid.querySelectorAll('input[data-tool-chat]').forEach(cb => {
+                    cb.addEventListener('change', async () => {
+                        const tool = cb.dataset.toolChat;
+                        try {
+                            const res = await fetch(`/api/tools/${tool}/toggle`, { method: 'POST' });
+                            const data = await res.json();
+                            Toast.show(`${tool} ${data.enabled ? 'enabled' : 'disabled'} for chat`, 'success');
+                            // Update visual state
+                            const card = cb.closest('.tool-card');
+                            if (card) card.classList.toggle('tool-disabled', !data.enabled);
+                        } catch (e) {
+                            Toast.show(`Toggle ${tool} failed`, 'error');
+                            cb.checked = !cb.checked;
+                        }
+                    });
+                });
 
                 const feed = $('#tool-history-feed');
                 if (history.length === 0) {
@@ -2558,27 +2586,30 @@
                     });
                 }
 
-                // Tool toggles
+                // Tool toggles (autonomy scope — independent from chat)
                 const toolGrid = document.getElementById('tool-toggles-grid');
                 if (toolGrid) {
+                    const disabledAutonomy = features.disabled_autonomy_tools || [];
                     toolGrid.innerHTML = features.available_tools.map(tool => {
-                        const disabled = features.disabled_tools.includes(tool);
+                        const disabled = disabledAutonomy.includes(tool);
                         return `<div class="tool-toggle-card ${disabled ? 'disabled' : ''}">
                             <span>${Markdown.escapeHtml(tool)}</span>
                             <label class="platform-toggle">
-                                <input type="checkbox" ${!disabled ? 'checked' : ''} data-tool="${Markdown.escapeHtml(tool)}">
+                                <input type="checkbox" ${!disabled ? 'checked' : ''} data-tool-autonomy="${Markdown.escapeHtml(tool)}">
                                 <span class="toggle-track"></span>
                             </label>
                         </div>`;
                     }).join('');
 
-                    toolGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    toolGrid.querySelectorAll('input[data-tool-autonomy]').forEach(cb => {
                         cb.addEventListener('change', async () => {
-                            const tool = cb.dataset.tool;
+                            const tool = cb.dataset.toolAutonomy;
                             try {
-                                await fetch(`/api/tools/${tool}/toggle`, { method: 'POST' });
-                                Toast.show(`${tool} ${cb.checked ? 'enabled' : 'disabled'}`, 'success');
-                                AutonomyDashboard.load();
+                                const res = await fetch(`/api/tools/${tool}/toggle/autonomy`, { method: 'POST' });
+                                const data = await res.json();
+                                Toast.show(`${tool} ${data.enabled ? 'enabled' : 'disabled'} for autonomy`, 'success');
+                                const card = cb.closest('.tool-toggle-card');
+                                if (card) card.classList.toggle('disabled', !data.enabled);
                             } catch (e) {
                                 Toast.show(`Toggle ${tool} failed`, 'error');
                                 cb.checked = !cb.checked;

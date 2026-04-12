@@ -34,12 +34,18 @@ pub async fn execute_job(
     // Extract everything we need from state
     let (provider, model, system_prompt, identity_prompt, tools, data_dir, context_length) = {
         let st = state.read().await;
+        // Get all tool definitions, then filter by autonomy toggles
+        let mut tool_defs = tool_schemas::all_tool_definitions();
+        let disabled = &st.feature_toggles.disabled_autonomy_tools;
+        if !disabled.is_empty() {
+            tool_defs.retain(|t| !disabled.contains(&t.function.name));
+        }
         (
             Arc::clone(&st.provider),
             st.config.general.active_model.clone(),
             st.core_prompt.clone(),
             st.identity_prompt.clone(),
-            tool_schemas::all_tool_definitions(),
+            tool_defs,
             st.config.general.data_dir.clone(),
             st.model_spec.context_length,
         )

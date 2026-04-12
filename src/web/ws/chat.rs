@@ -101,6 +101,11 @@ pub(crate) async fn build_chat_context(
 
     let mut tools = tool_schemas::all_tool_definitions();
     tools.push(reply::reply_request_tool());
+    // Enforce chat-level tool toggles: remove disabled tools from schema
+    let disabled = &st.feature_toggles.disabled_tools;
+    if !disabled.is_empty() {
+        tools.retain(|t| !disabled.contains(&t.function.name));
+    }
     (Arc::clone(&st.provider), st.config.general.active_model.clone(), msgs, tools, system_prompt, identity)
 }
 

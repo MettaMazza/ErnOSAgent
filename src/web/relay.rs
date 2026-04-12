@@ -234,6 +234,11 @@ async fn handle_relay_chat(
 
         let mut tools = crate::tools::tool_schemas::all_tool_definitions();
         tools.push(reply::reply_request_tool());
+        // Enforce chat-level tool toggles
+        let disabled = &st.feature_toggles.disabled_tools;
+        if !disabled.is_empty() {
+            tools.retain(|t| !disabled.contains(&t.function.name));
+        }
         let training = st.training_buffers.clone();
 
         (

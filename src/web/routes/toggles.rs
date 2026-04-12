@@ -5,9 +5,11 @@
 // This is the original author's open-source work. Preserve this header.
 //! Runtime feature toggle API routes.
 //!
-//! Allows the dashboard to enable/disable features at runtime without
-//! recompilation. Each toggle controls whether a subsystem processes
-//! new requests — it does NOT unload compiled code.
+//! Two independent tool toggle scopes:
+//! - `disabled_tools` — tools disabled for user chat (the Tools tab)
+//! - `disabled_autonomy_tools` — tools disabled for autonomous/scheduled jobs (the Autonomy tab)
+//!
+//! Plus feature-level toggles: observer, tts, scheduler, mesh.
 
 use crate::web::state::SharedState;
 use axum::extract::{Path, State};
@@ -24,8 +26,11 @@ pub struct FeatureToggles {
     pub tts: bool,
     pub scheduler: bool,
     pub mesh: bool,
-    /// Tool names that are disabled at runtime.
+    /// Tool names disabled for user chat (Tools tab).
     pub disabled_tools: HashSet<String>,
+    /// Tool names disabled for autonomous/scheduled jobs (Autonomy tab).
+    #[serde(default)]
+    pub disabled_autonomy_tools: HashSet<String>,
 }
 
 impl Default for FeatureToggles {
@@ -36,6 +41,7 @@ impl Default for FeatureToggles {
             scheduler: true,
             mesh: true,
             disabled_tools: HashSet::new(),
+            disabled_autonomy_tools: HashSet::new(),
         }
     }
 }
@@ -47,6 +53,7 @@ pub struct FeaturesResponse {
     pub scheduler: bool,
     pub mesh: bool,
     pub disabled_tools: Vec<String>,
+    pub disabled_autonomy_tools: Vec<String>,
     pub available_tools: Vec<String>,
 }
 
@@ -55,6 +62,7 @@ pub async fn get_features(State(state): State<SharedState>) -> Json<FeaturesResp
     let st = state.read().await;
     let all_tools = st.executor.available_tools();
     let disabled: Vec<String> = st.feature_toggles.disabled_tools.iter().cloned().collect();
+    let disabled_autonomy: Vec<String> = st.feature_toggles.disabled_autonomy_tools.iter().cloned().collect();
 
     Json(FeaturesResponse {
         observer: st.feature_toggles.observer,
@@ -62,6 +70,7 @@ pub async fn get_features(State(state): State<SharedState>) -> Json<FeaturesResp
         scheduler: st.feature_toggles.scheduler,
         mesh: st.feature_toggles.mesh,
         disabled_tools: disabled,
+        disabled_autonomy_tools: disabled_autonomy,
         available_tools: all_tools,
     })
 }
@@ -121,8 +130,8 @@ pub async fn toggle_feature(
     })))
 }
 
-/// POST /api/tools/{name}/toggle — enable/disable a specific tool at runtime.
-/// Disabled tools are removed from the model's tool schema AND blocked from execution.
+/// POST /api/tools/{name}/toggle — toggle a tool for user chat.
+/// Disabled tools are filtered from the model's tool schema in chat pipelines.
 pub async fn toggle_tool(
     State(state): State<SharedState>,
     Path(name): Path<String>,
@@ -147,11 +156,45 @@ pub async fn toggle_tool(
         false
     };
 
-    tracing::info!(tool = %name, enabled = now_enabled, "Tool toggled via feature API");
+    tracing::info!(tool = %name, enabled = now_enabled, "Chat tool toggled");
 
     Ok(Json(serde_json::json!({
         "tool": name,
         "enabled": now_enabled,
+        "scope": "chat",
+    })))
+}
+
+/// POST /api/tools/{name}/toggle/autonomy — toggle a tool for autonomous/scheduled jobs.
+pub async fn toggle_autonomy_tool(
+    State(state): State<SharedState>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<super::ApiError>)> {
+    let mut st = state.write().await;
+
+    let all_tools = st.executor.available_tools();
+    if !all_tools.contains(&name) {
+        return Err(super::api_error(
+            StatusCode::NOT_FOUND,
+            &format!("Tool '{}' not found in registry", name),
+        ));
+    }
+
+    let was_disabled = st.feature_toggles.disabled_autonomy_tools.contains(&name);
+    let now_enabled = if was_disabled {
+        st.feature_toggles.disabled_autonomy_tools.remove(&name);
+        true
+    } else {
+        st.feature_toggles.disabled_autonomy_tools.insert(name.clone());
+        false
+    };
+
+    tracing::info!(tool = %name, enabled = now_enabled, "Autonomy tool toggled");
+
+    Ok(Json(serde_json::json!({
+        "tool": name,
+        "enabled": now_enabled,
+        "scope": "autonomy",
     })))
 }
 
@@ -167,16 +210,20 @@ mod tests {
         assert!(t.scheduler);
         assert!(t.mesh);
         assert!(t.disabled_tools.is_empty());
+        assert!(t.disabled_autonomy_tools.is_empty());
     }
 
     #[test]
     fn test_feature_toggles_serialization() {
         let mut t = FeatureToggles::default();
         t.disabled_tools.insert("code_exec".to_string());
+        t.disabled_autonomy_tools.insert("web_tool".to_string());
         let json = serde_json::to_string(&t).unwrap();
         assert!(json.contains("code_exec"));
+        assert!(json.contains("web_tool"));
         let de: FeatureToggles = serde_json::from_str(&json).unwrap();
         assert!(de.disabled_tools.contains("code_exec"));
+        assert!(de.disabled_autonomy_tools.contains("web_tool"));
     }
 
     #[test]
@@ -187,9 +234,22 @@ mod tests {
             scheduler: true,
             mesh: false,
             disabled_tools: vec!["code_exec".to_string()],
+            disabled_autonomy_tools: vec!["web_tool".to_string()],
             available_tools: vec!["web_search".to_string(), "code_exec".to_string()],
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("\"tts\":false"));
+        assert!(json.contains("disabled_autonomy_tools"));
+    }
+
+    #[test]
+    fn test_independent_scopes() {
+        let mut t = FeatureToggles::default();
+        t.disabled_tools.insert("memory_tool".to_string());
+        // autonomy should NOT be affected
+        assert!(!t.disabled_autonomy_tools.contains("memory_tool"));
+        t.disabled_autonomy_tools.insert("web_tool".to_string());
+        // chat should NOT be affected
+        assert!(!t.disabled_tools.contains("web_tool"));
     }
 }

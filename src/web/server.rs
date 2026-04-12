@@ -138,6 +138,7 @@ fn build_router(state: SharedState) -> Router {
         .route("/api/features", get(routes::toggles::get_features))
         .route("/api/features/{feature}/toggle", post(routes::toggles::toggle_feature))
         .route("/api/tools/{name}/toggle", post(routes::toggles::toggle_tool))
+        .route("/api/tools/{name}/toggle/autonomy", post(routes::toggles::toggle_autonomy_tool))
         // Autonomy transparency
         .route("/api/autonomy/status", get(routes::autonomy::autonomy_status))
         .route("/api/autonomy/log", get(routes::autonomy::autonomy_log))

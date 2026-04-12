@@ -140,6 +140,11 @@ pub async fn run_react_pipeline(
 
         let mut tools = crate::tools::tool_schemas::all_tool_definitions();
         tools.push(crate::react::reply::reply_request_tool());
+        // Enforce chat-level tool toggles
+        let disabled = &st.feature_toggles.disabled_tools;
+        if !disabled.is_empty() {
+            tools.retain(|t| !disabled.contains(&t.function.name));
+        }
 
         let observer_enabled = st.config.observer.enabled;
         let observer_model = if st.config.observer.model.is_empty() {

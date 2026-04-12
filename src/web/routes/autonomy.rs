@@ -48,11 +48,11 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
         st.config.observer.model.clone()
     };
 
-    // Tools
+    // Tools — autonomy scope uses disabled_autonomy_tools
     let all_tools = st.executor.available_tools();
-    let disabled: Vec<String> = st.feature_toggles.disabled_tools.iter().cloned().collect();
+    let disabled: Vec<String> = st.feature_toggles.disabled_autonomy_tools.iter().cloned().collect();
     let active: Vec<String> = all_tools.iter()
-        .filter(|t| !st.feature_toggles.disabled_tools.contains(*t))
+        .filter(|t| !st.feature_toggles.disabled_autonomy_tools.contains(*t))
         .cloned()
         .collect();
 

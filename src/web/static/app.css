@@ -2270,14 +2270,23 @@ kbd {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, opacity 0.2s;
 }
 .tool-card:hover { border-color: var(--accent-dim); }
+.tool-card.tool-disabled {
+    opacity: 0.45;
+    border-color: var(--error);
+}
+.tool-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
 .tool-card-name {
     font-weight: 600;
     color: var(--text-primary);
     font-size: 13px;
-    margin-bottom: 4px;
 }
 .tool-card-desc { color: var(--text-secondary); font-size: 12px; }
 
