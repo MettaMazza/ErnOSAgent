@@ -22,6 +22,10 @@ pub mod telemetry;
 mod commands;
 #[cfg(feature = "discord")]
 mod kickall;
+#[cfg(feature = "discord")]
+pub mod onboarding;
+#[cfg(feature = "discord")]
+pub mod sentinel;
 
 use crate::platform::adapter::{PlatformAdapter, PlatformMessage, PlatformStatus};
 use anyhow::Result;
@@ -84,11 +88,34 @@ impl PlatformAdapter for DiscordAdapter {
             | serenity::all::GatewayIntents::MESSAGE_CONTENT
             | serenity::all::GatewayIntents::GUILD_MEMBERS;
 
-        let event_handler = handler::DiscordHandler::new(
+        let mut event_handler = handler::DiscordHandler::new(
             self.tx.clone(),
             &self.config.admin_user_id,
             self.config.listen_channels.clone(),
         );
+
+        // Configure onboarding if channel and role are set
+        if !self.config.onboarding_channel_id.is_empty() && !self.config.new_member_role_id.is_empty() {
+            event_handler = event_handler.with_onboarding(
+                &self.config.onboarding_channel_id,
+                &self.config.new_member_role_id,
+                &self.config.guild_id,
+            );
+            tracing::info!(
+                onboarding_channel = %self.config.onboarding_channel_id,
+                new_role = %self.config.new_member_role_id,
+                "Onboarding interview system enabled"
+            );
+        }
+
+        // Configure sentinel if enabled — will be started after we have the HTTP client
+        let sentinel_tx = if self.config.sentinel_enabled {
+            let (stx, srx) = tokio::sync::mpsc::channel(512);
+            event_handler = event_handler.with_sentinel(stx.clone());
+            Some((stx, srx))
+        } else {
+            None
+        };
 
         let mut client = serenity::Client::builder(&self.config.token, intents)
             .event_handler(event_handler)
@@ -96,6 +123,41 @@ impl PlatformAdapter for DiscordAdapter {
             .map_err(|e| anyhow::anyhow!("Failed to build Discord client: {e}"))?;
 
         self.http = Some(client.http.clone());
+
+        // Start sentinel worker if enabled
+        if let Some((_stx, srx)) = sentinel_tx {
+            let http = client.http.clone();
+            let guild_id: u64 = self.config.guild_id.parse().unwrap_or(0);
+            let admin_ids: Vec<String> = self.config.admin_user_id
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            // The sentinel needs a provider — we'll get it from env config
+            // For now, create an Ollama provider pointing at the same backend
+            let provider: std::sync::Arc<dyn crate::provider::Provider> = {
+                let ollama_config = crate::config::OllamaConfig {
+                    host: std::env::var("OLLAMA_HOST")
+                        .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+                    port: std::env::var("OLLAMA_PORT")
+                        .ok().and_then(|v| v.parse().ok())
+                        .unwrap_or(11434),
+                    keep_alive: -1,
+                };
+                std::sync::Arc::new(crate::provider::ollama::OllamaProvider::new(&ollama_config))
+            };
+            let model = std::env::var("ERNOSAGENT_MODEL")
+                .unwrap_or_else(|_| "gemma4:26b".to_string());
+
+            let state = std::sync::Arc::new(tokio::sync::RwLock::new(sentinel::SentinelState::new()));
+
+            tokio::spawn(sentinel::run_sentinel_worker(
+                srx, provider, model, http, guild_id, state, admin_ids,
+            ));
+
+            tracing::info!("Sentinel AI scanner started");
+        }
 
         let shutdown_flag = std::sync::Arc::new(tokio::sync::RwLock::new(false));
         self.shutdown = Some(shutdown_flag.clone());

@@ -145,7 +145,21 @@ pub struct DiscordConfig {
     pub guild_id: String,
     pub autonomy_channel_id: String,
     pub listen_channels: Vec<String>,
+    /// Channel where onboarding interview threads are created.
+    #[serde(default)]
+    pub onboarding_channel_id: String,
+    /// Role ID assigned to users who pass the interview.
+    #[serde(default)]
+    pub new_member_role_id: String,
+    /// Days before the "New" role auto-expires (default: 7).
+    #[serde(default = "default_role_duration")]
+    pub new_role_duration_days: u64,
+    /// Enable AI sentinel scanning on all channels.
+    #[serde(default)]
+    pub sentinel_enabled: bool,
 }
+
+fn default_role_duration() -> u64 { 7 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramConfig {

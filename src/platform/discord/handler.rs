@@ -16,6 +16,10 @@ pub struct DiscordHandler {
     tx: mpsc::Sender<PlatformMessage>,
     admin_user_ids: Vec<String>,
     listen_channels: Vec<String>,
+    onboarding_channel_id: String,
+    new_member_role_id: String,
+    guild_id: String,
+    sentinel_tx: Option<mpsc::Sender<super::sentinel::SentinelMessage>>,
 }
 
 impl DiscordHandler {
@@ -32,7 +36,29 @@ impl DiscordHandler {
                 .filter(|s| !s.is_empty())
                 .collect(),
             listen_channels,
+            onboarding_channel_id: String::new(),
+            new_member_role_id: String::new(),
+            guild_id: String::new(),
+            sentinel_tx: None,
         }
+    }
+
+    /// Configure onboarding settings.
+    pub fn with_onboarding(mut self, channel_id: &str, role_id: &str, guild_id: &str) -> Self {
+        self.onboarding_channel_id = channel_id.to_string();
+        self.new_member_role_id = role_id.to_string();
+        self.guild_id = guild_id.to_string();
+        self
+    }
+
+    /// Configure sentinel sender.
+    pub fn with_sentinel(mut self, tx: mpsc::Sender<super::sentinel::SentinelMessage>) -> Self {
+        self.sentinel_tx = Some(tx);
+        self
+    }
+
+    fn onboarding_enabled(&self) -> bool {
+        !self.onboarding_channel_id.is_empty() && !self.new_member_role_id.is_empty()
     }
 }
 
@@ -45,8 +71,52 @@ impl EventHandler for DiscordHandler {
         let is_dm = msg.guild_id.is_none();
         let author_id = msg.author.id.to_string();
         let is_admin = self.admin_user_ids.iter().any(|id| id == &author_id);
+        let channel_id_str = msg.channel_id.to_string();
+
+        // ─── Sentinel: queue ALL guild messages for classification ───
+        if !is_dm {
+            if let Some(ref sentinel_tx) = self.sentinel_tx {
+                let sentinel_msg = super::sentinel::SentinelMessage {
+                    user_id: author_id.clone(),
+                    user_name: msg.author.name.clone(),
+                    channel_id: channel_id_str.clone(),
+                    content: msg.content.clone(),
+                };
+                let _ = sentinel_tx.try_send(sentinel_msg);
+            }
+        }
+
+        // ─── Onboarding thread routing ───
+        // Messages in onboarding threads bypass the normal listen_channels filter
+        // and get the interview prompt injected.
+        let is_onboarding = super::onboarding::is_onboarding_thread(&channel_id_str);
+        if is_onboarding {
+            // Increment turn counter
+            super::onboarding::increment_turn(&channel_id_str);
+
+            // Trigger typing
+            let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
+
+            let platform_msg = PlatformMessage {
+                platform: "discord".to_string(),
+                channel_id: channel_id_str,
+                user_id: msg.author.id.to_string(),
+                user_name: msg.author.name.clone(),
+                content: msg.content.clone(),
+                attachments: Vec::new(),
+                message_id: msg.id.to_string(),
+                is_admin: false, // Interviewees are never admin
+            };
+
+            if let Err(e) = self.tx.send(platform_msg).await {
+                tracing::warn!(error = %e, "Failed to forward onboarding message to router");
+            }
+            return;
+        }
+
+        // Normal channel filtering
         let in_listen_channel = self.listen_channels.is_empty()
-            || self.listen_channels.contains(&msg.channel_id.to_string());
+            || self.listen_channels.contains(&channel_id_str);
 
         // Non-admin DMs are blocked
         if is_dm && !is_admin { return; }
@@ -57,10 +127,8 @@ impl EventHandler for DiscordHandler {
         let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
 
         // Download image attachments and base64-encode them for the vision model.
-        // The provider expects data URIs (data:image/png;base64,...), not raw URLs.
         let mut encoded_images = Vec::new();
         for attachment in &msg.attachments {
-            // Only download image content types
             let is_image = attachment.content_type
                 .as_ref()
                 .map(|ct| ct.starts_with("image/"))
@@ -98,7 +166,7 @@ impl EventHandler for DiscordHandler {
 
         let platform_msg = PlatformMessage {
             platform: "discord".to_string(),
-            channel_id: msg.channel_id.to_string(),
+            channel_id: channel_id_str,
             user_id: msg.author.id.to_string(),
             user_name: msg.author.name.clone(),
             content: msg.content.clone(),
@@ -131,9 +199,55 @@ impl EventHandler for DiscordHandler {
             "Discord bot connected"
         );
 
-        // Register slash commands per-guild (instant, no 1hr global propagation delay)
+        // Register slash commands per-guild
         for guild in &ready.guilds {
             super::commands::register_guild_commands(&ctx.http, guild.id).await;
+        }
+    }
+
+    async fn guild_member_addition(&self, ctx: Context, new_member: serenity::all::Member) {
+        if !self.onboarding_enabled() { return; }
+
+        // Don't interview bots
+        if new_member.user.bot { return; }
+
+        let user_id = new_member.user.id.get();
+        let user_name = &new_member.user.name;
+
+        tracing::info!(
+            user_id = user_id,
+            user_name = %user_name,
+            "New member joined — starting onboarding interview"
+        );
+
+        let channel_id: u64 = match self.onboarding_channel_id.parse() {
+            Ok(id) => id,
+            Err(_) => {
+                tracing::error!(
+                    channel_id = %self.onboarding_channel_id,
+                    "Invalid onboarding channel ID"
+                );
+                return;
+            }
+        };
+
+        match super::onboarding::create_interview_thread(
+            &ctx.http, channel_id, user_id, user_name
+        ).await {
+            Ok(thread_id) => {
+                tracing::info!(
+                    user_id = user_id,
+                    thread_id = thread_id,
+                    "Onboarding thread created"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    user_id = user_id,
+                    "Failed to create onboarding interview thread"
+                );
+            }
         }
     }
 }

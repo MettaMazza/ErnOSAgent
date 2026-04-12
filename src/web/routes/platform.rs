@@ -144,12 +144,26 @@ pub async fn save_platform(
                     enabled: true,
                     token: token.to_string(),
                     admin_user_id: admin.to_string(),
-                    guild_id: String::new(),
+                    guild_id: body.get("guild_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                     autonomy_channel_id: body.get("autonomy_channel")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
                     listen_channels,
+                    onboarding_channel_id: body.get("onboarding_channel_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    new_member_role_id: body.get("new_member_role_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    new_role_duration_days: body.get("new_role_duration_days")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(7),
+                    sentinel_enabled: body.get("sentinel_enabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                 };
                 let mut new_adapter = crate::platform::discord::DiscordAdapter::new(&cfg);
                 if let Err(e) = new_adapter.connect().await {

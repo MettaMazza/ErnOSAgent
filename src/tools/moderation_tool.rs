@@ -184,8 +184,10 @@ fn moderation_tool(call: &ToolCall) -> ToolResult {
         "set_boundary" => action_set_boundary(call),
         "remove_boundary" => action_remove_boundary(call),
         "escalate" => action_escalate(call),
-        "" => error_result(call, "Missing required argument: action. Valid: mute_user, unmute_user, list_muted, set_boundary, remove_boundary, escalate"),
-        other => error_result(call, &format!("Unknown action: '{}'. Valid: mute_user, unmute_user, list_muted, set_boundary, remove_boundary, escalate", other)),
+        "onboarding_decision" => action_onboarding_decision(call),
+        "ban_user" => action_ban_user(call),
+        "" => error_result(call, "Missing required argument: action"),
+        other => error_result(call, &format!("Unknown action: '{}'", other)),
     }
 }
 
@@ -376,6 +378,123 @@ fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
         output: format!("Error: {}", msg),
         success: false,
         error: Some(msg.to_string()),
+    }
+}
+
+/// Handle onboarding interview decision (pass/fail).
+/// This is called by the model during an interview via moderation_tool.
+fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
+    let decision = call.arguments.get("decision").and_then(|v| v.as_str()).unwrap_or("");
+    if decision.is_empty() { return error_result(call, "Missing required argument: decision (pass/fail)"); }
+
+    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
+    let scores = call.arguments.get("scores").and_then(|v| v.as_str()).unwrap_or("");
+
+    match decision.to_lowercase().as_str() {
+        "pass" => {
+            tracing::info!(
+                user_id = %user_id,
+                scores = %scores,
+                "Onboarding PASSED — queueing role assignment"
+            );
+
+            // Log the decision
+            let record = serde_json::json!({
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "user_id": user_id,
+                "decision": "pass",
+                "scores": scores,
+                "reason": reason,
+            });
+            append_jsonl(&data_dir().join("onboarding_decisions.jsonl"), &record);
+
+            ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: format!(
+                    "✅ PASS — User {} admitted.\nScores: {}\n\
+                    [SYSTEM: The user needs the 'New' role assigned via Discord API. \
+                    This will be handled by the onboarding system. Reply to the user \
+                    welcoming them to the community.]",
+                    user_id, scores
+                ),
+                success: true,
+                error: None,
+            }
+        }
+        "fail" => {
+            tracing::warn!(
+                user_id = %user_id,
+                reason = %reason,
+                "Onboarding FAILED — queueing kick"
+            );
+
+            let record = serde_json::json!({
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "user_id": user_id,
+                "decision": "fail",
+                "reason": reason,
+            });
+            append_jsonl(&data_dir().join("onboarding_decisions.jsonl"), &record);
+
+            ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: format!(
+                    "❌ FAIL — User {} rejected. Reason: {}\n\
+                    [SYSTEM: The user will be kicked. Reply with your rejection message \
+                    before they are removed.]",
+                    user_id, reason
+                ),
+                success: true,
+                error: None,
+            }
+        }
+        _ => error_result(call, &format!("Invalid decision: '{}'. Must be 'pass' or 'fail'", decision)),
+    }
+}
+
+/// Handle ban_user action (sentinel or manual admin ban).
+fn action_ban_user(call: &ToolCall) -> ToolResult {
+    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id"); }
+
+    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
+
+    tracing::warn!(user_id = %user_id, reason = %reason, "Ban requested via moderation_tool");
+
+    let record = serde_json::json!({
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "user_id": user_id,
+        "action": "ban",
+        "reason": reason,
+    });
+    append_jsonl(&data_dir().join("sentinel_log.jsonl"), &record);
+
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!(
+            "⛔ Ban logged for user {}. Reason: {}\n\
+            [SYSTEM: Actual Discord ban will be executed by the sentinel/onboarding system.]",
+            user_id, reason
+        ),
+        success: true,
+        error: None,
+    }
+}
+
+/// Append a JSON record to a JSONL file.
+fn append_jsonl(path: &std::path::Path, record: &serde_json::Value) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string(record) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{}", json);
+        }
     }
 }
 

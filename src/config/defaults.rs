@@ -172,6 +172,14 @@ fn default_platform_config() -> PlatformConfig {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
+            onboarding_channel_id: std::env::var("ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL").unwrap_or_default(),
+            new_member_role_id: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE").unwrap_or_default(),
+            new_role_duration_days: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE_DAYS")
+                .ok().and_then(|v| v.parse().ok())
+                .unwrap_or(7),
+            sentinel_enabled: std::env::var("ERNOSAGENT_DISCORD_SENTINEL")
+                .map(|v| v == "1" || v.to_lowercase() == "true")
+                .unwrap_or(false),
         },
         telegram: TelegramConfig {
             enabled: std::env::var("ERNOSAGENT_TELEGRAM_ENABLED")

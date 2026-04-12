@@ -763,29 +763,28 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
         // ── Moderation (Discord-only) ────────────────────────────
         def("moderation_tool",
             "Self-moderation tool — mute abusive users, set topic boundaries, \
-             escalate to admin. Discord-only. Use this to enforce the escalation \
-             ladder: mute after disengagement, set boundaries on topics you refuse \
-             to discuss, or flag safety concerns for admin review.",
+             escalate to admin, make onboarding decisions, ban users. Discord-only.",
             serde_json::json!({
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
                         "enum": ["mute_user", "unmute_user", "list_muted",
-                                 "set_boundary", "remove_boundary", "escalate"],
+                                 "set_boundary", "remove_boundary", "escalate",
+                                 "onboarding_decision", "ban_user"],
                         "description": "The moderation action."
                     },
                     "user_id": {
                         "type": "string",
-                        "description": "Discord user ID (for mute/unmute/escalate)."
+                        "description": "Discord user ID."
                     },
                     "user_name": {
                         "type": "string",
-                        "description": "Discord username (for escalate — included in audit log)."
+                        "description": "Discord username (for audit logs)."
                     },
                     "reason": {
                         "type": "string",
-                        "description": "Reason for the action (for mute/boundary/escalate)."
+                        "description": "Reason for the action."
                     },
                     "duration_minutes": {
                         "type": "integer",
@@ -793,7 +792,7 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                     },
                     "topic": {
                         "type": "string",
-                        "description": "Topic to set/remove boundary on (for set_boundary/remove_boundary)."
+                        "description": "Topic to set/remove boundary on."
                     },
                     "concern": {
                         "type": "string",
@@ -802,11 +801,20 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                     "severity": {
                         "type": "string",
                         "enum": ["low", "medium", "high", "critical"],
-                        "description": "Severity level of the concern (for escalate)."
+                        "description": "Severity level (for escalate)."
                     },
                     "context": {
                         "type": "string",
-                        "description": "Additional context (for escalate)."
+                        "description": "Additional context."
+                    },
+                    "decision": {
+                        "type": "string",
+                        "enum": ["pass", "fail"],
+                        "description": "Interview decision (for onboarding_decision)."
+                    },
+                    "scores": {
+                        "type": "string",
+                        "description": "Scoring breakdown (for onboarding_decision, e.g. 'Technical:20 Philosophy:15 Attitude:20 Engagement:18 = 73/100')."
                     }
                 },
                 "required": ["action"]

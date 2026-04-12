@@ -83,6 +83,24 @@ pub async fn process_message(
         msg.content.clone()
     };
 
+    // ─── Onboarding interview prompt injection (Discord only) ───
+    // If this message is from an onboarding interview thread, prepend the
+    // interview system context so the model runs in gatekeeper mode.
+    #[cfg(feature = "discord")]
+    let content = if msg.platform == "discord" {
+        if let Some(interview) = crate::platform::discord::onboarding::get_interview_for_thread(&msg.channel_id) {
+            let interview_ctx = crate::platform::discord::onboarding::interview_prompt(
+                &interview.user_name,
+                interview.turn_count,
+            );
+            format!("{}\n\n{}", interview_ctx, content)
+        } else {
+            content
+        }
+    } else {
+        content
+    };
+
     // Run the FULL ReAct pipeline — 1-to-1 with WebSocket chat
     let reply = crate::web::ws::pipeline::run_react_pipeline(
         state,
