@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/MettaMazza/ErnOSAgent/releases"><img src="https://img.shields.io/badge/version-1.1.0-blue?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
-  <img src="https://img.shields.io/badge/tests-1081-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1083-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/rust-1.75+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
@@ -523,7 +523,7 @@ This creates an audit trail of **why** the agent made every decision, not just w
 ## 🧪 Testing
 
 ```bash
-# Full suite (1081 tests)
+# Full suite (1083 tests)
 cargo test -- --test-threads=1
 
 # Unit tests only (~1.3s)
@@ -552,23 +552,23 @@ cargo test --test e2e_llama -- --nocapture --test-threads=1
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 784 | ~1.3s | Nothing |
+| Unit tests (all modules) | 786 | ~1.3s | Nothing |
 | Mesh unit tests | 157 | ~8s | Nothing (default feature) |
 | Mesh integration tests | 7 | ~1.2s | Nothing (default feature) |
 | Mesh E2E tests | 12 | ~1.3s | Nothing (default feature) |
-| E2E Tools (all 28 tools) | 47 | ~0.3s | Nothing |
+| E2E Tools | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights in `models/` |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E Web Routes | 14 | ~0.12s | Nothing |
-| E2E Web API | 7 | ~0.12s | Server running |
+| E2E Web API | 7 | ~0.12s | Nothing |
 | E2E PWA | 5 | ~0.12s | Nothing |
 | E2E Chat | 10 | ~240s | llama-server + model |
 | E2E Observer | 2 | ~0.1s | Server running |
-| E2E Sessions | 4 | ~0.1s | Server running |
+| E2E Sessions | 4 | ~0.1s | Nothing |
 | E2E Platforms | 2 | ~0.04s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **1081** | — | — |
+| **Total** | **1083** | — | — |
 
 > **Note:** Some tests that use process-global `set_current_dir` may fail intermittently
 > when run in parallel. Use `--test-threads=1` for deterministic results.
@@ -652,7 +652,7 @@ Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 | Model load time | ~2 minutes (Gemma 4 26B Q4_K_M) |
 | VRAM usage | 17.6 GB (of 475 GB available) |
 | LoRA forward pass (27B, 30 layers) | ~46s on Metal GPU |
-| Full test suite | 1081 tests, unit tests in ~1.3s |
+| Full test suite | 1083 tests, unit tests in ~8s |
 
 > These are reference benchmarks from the primary development machine. ErnOSAgent runs on any platform that supports llama.cpp — performance scales with your hardware.
 
@@ -709,8 +709,8 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 | Metric | Value |
 |--------|-------|
 | Source files | 230 `.rs` files |
-| Lines of code | ~52,300 (incl. ~6,555 mesh network) |
-| Test count | 1081 (941 unit + 140 E2E) |
+| Lines of code | ~52,500 (incl. ~6,550 mesh network) |
+| Test count | 1083 (943 unit + 140 E2E) |
 | Modules | 35 core + 18 mesh subsystems |
 | Tools | 28 integrated |
 | Memory tiers | 7 |
@@ -726,7 +726,7 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ### v1.0 (Current Release)
 
-Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure and trains itself via Observer SFT with retroactive correctness labeling. Auto-distillation converts recurring failure patterns into persistent lessons. All 28 tools are wired and tested. 1081 tests pass. The 14-tab web dashboard provides full observability: memory tiers, learning buffers, tool registry, reasoning traces, cognitive steering, neural activity, model status, Observer audit stats, system info, platform adapters, scheduled tasks, checkpoints, autonomy controls with feature/tool toggles, and mesh network status with peer topology.
+Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure and trains itself via Observer SFT with retroactive correctness labeling. Auto-distillation converts recurring failure patterns into persistent lessons. All 28 tools are wired and tested. 1083 tests pass. The 14-tab web dashboard provides full observability: memory tiers, learning buffers, tool registry with per-tool toggles, reasoning traces, cognitive steering, neural activity, model status, Observer audit stats, system info, platform adapters (Discord with autonomy channel forwarding), scheduled tasks, checkpoints, autonomy controls with independent feature/tool toggles and live activity log, and mesh network status with peer topology. Tool toggles operate in two independent scopes — chat and autonomy — both enforced at the execution layer.
 
 ### v1.1 — Mesh Network (Current)
 

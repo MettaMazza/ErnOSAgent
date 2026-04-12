@@ -1,6 +1,6 @@
 # ErnOSAgent — Architecture Reference
 
-Created by [@mettamazza](https://github.com/mettamazza) | 230 Rust source files | ~52,300 lines | 1081 tests
+Created by [@mettamazza](https://github.com/mettamazza) | 230 Rust source files | ~52,500 lines | 1083 tests
 
 ---
 
@@ -310,7 +310,7 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 941 | ~8s | Nothing |
+| Unit tests (all modules) | 943 | ~8s | Nothing |
 | Mesh unit tests | 157 | (incl. above) | Nothing |
 | E2E Tools | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
@@ -320,7 +320,7 @@ Tier 7: Consolidation ── Cross-tier compression & pruning
 | E2E Chat | 10 | ~240s | llama-server + model |
 | E2E Mesh | 19 | ~1.3s | Nothing |
 | E2E Other (Observer, Sessions, PWA, Platforms, Web API, llama) | 24 | ~6s | Varies |
-| **Total** | **1081** | — | — |
+| **Total** | **1083** | — | — |
 
 ---
 

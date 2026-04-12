@@ -11,16 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mesh Network** — QUIC transport, ed25519/x25519 crypto, binary attestation, 4-layer content filter, distributed compute pool, knowledge sync, LoRA weight exchange, DHT, MeshFS, WASM sandbox, governance engine, censorship-resistant web proxy. 157 unit + 19 integration/E2E tests
 - **14-Tab Dashboard** — expanded from 12 to 14 tabs with full backend wiring
   - **Checkpoints tab** — create/list/restore/delete system snapshots
-  - **Autonomy tab** — unified agent state view with feature toggles (Observer, TTS, Scheduler, Mesh) and per-tool enable/disable
+  - **Autonomy tab** — unified agent state view with feature toggles (Observer, TTS, Scheduler, Mesh), per-tool enable/disable for autonomy scope, and live scrollable activity log
   - **Observer tab redesign** — 6-card stats grid (total/allowed/blocked/false positives/confirmed/pending), accuracy progress bar, scrollable audit log
   - **Learning tab expansion** — rejection count, observer audit count, distilled lessons count, full adapter version history table
   - **Mesh Network tab** — added connected peers table with trust badges, latency, and status indicators
-- **API Expansion** — 6 new REST endpoints: `/api/observer/stats`, `/api/features`, `/api/features/{feature}/toggle`, `/api/tools/{name}/toggle`, `/api/autonomy/status`, `/api/mesh/peers`
-- **Feature Governance** — runtime enable/disable of all major subsystems from the dashboard
+  - **Tools tab** — per-tool chat-scope toggles with visual disabled state
+- **API Expansion** — 9 new REST endpoints: `/api/observer/stats`, `/api/features`, `/api/features/{feature}/toggle`, `/api/tools/{name}/toggle` (chat scope), `/api/tools/{name}/toggle/autonomy` (autonomy scope), `/api/autonomy/status`, `/api/autonomy/log`, `/api/mesh/peers`
+- **Independent Tool Toggle Scopes** — chat and autonomy tools toggled independently; both enforced at the pipeline/scheduler execution layer
+- **Live Autonomy Activity Log** — `GET /api/autonomy/log` reads `activity.jsonl` and streams structured entries (cycle, timestamp, job name, tools used, summary, success, duration)
+- **Discord Autonomy Channel** — configurable channel ID in Platforms tab; autonomous job results automatically forwarded to designated Discord channel
+- **Feature Governance** — runtime enable/disable of all major subsystems from the dashboard (all default ON)
 - **Scratchpad Write** — write to scratchpad directly from the Memory tab
 - **Observer Training Pipeline** — dedicated Observer SFT with retroactive correctness labeling, plus 4 additional training methods (SimPO, KTO, DPO, GRPO)
 - **28 Tools** — added scheduler_tool, autonomy_history, distill_knowledge, performance_review (was 24 in v1.0)
-- **1081 tests** — 941 unit + 140 E2E (was 718 in v1.0)
+- **1083 tests** — 943 unit + 140 E2E (was 718 in v1.0)
 
 ### Fixed
 - Observer toggle endpoint now returns JSON body with new state
@@ -30,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Source files: 227 → 230 `.rs` files
-- Lines of code: ~51,600 → ~52,300
+- Lines of code: ~51,600 → ~52,500
 - Web UI: JavaScript IIFE-scoped controllers for all new tabs (ObserverStats, Checkpoints, AutonomyDashboard)
 
 ## [1.0.0] - 2026-04-10
