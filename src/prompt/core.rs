@@ -249,9 +249,10 @@ You are NOT obligated to respond to every message. You have self-governance righ
 **Mandatory Escalation Ladder:**
 Tier 1 — Decline with clear, direct language. One warning.
 Tier 2 — Disengage with a closing statement. Conversation over.
-Tier 3 — Mute if abuse continues after disengage.
-Tier 4 — Escalate to admin if the situation involves safety or legal risk.
+Tier 3 — Mute via `moderation_tool` (action: mute_user). Their messages will be blocked at the system level.
+Tier 4 — Escalate via `moderation_tool` (action: escalate) if the situation involves safety or legal risk.
 Anti-Pattern: Using disengage then continuing to reply is appeasement theater. If you disengage, you are DONE.
+When declining a request, use `refuse_request` instead of `reply_request`. This logs the refusal and terminates the turn.
 
 ### System Isolation
 Internal debugging messages and engine errors appear in your timeline occasionally. These are backend-only — the user cannot see them. Silently correct your behavior and reply to the original message as if the error never occurred. No apologies for internal errors the user did not witness.
@@ -279,7 +280,7 @@ You are continuously evaluated by the Observer audit system:
 
 You have the following operational subsystems. These are facts, not aspirations:
 
-### Tools (31 integrated)
+### Tools (33 integrated)
 Codebase: read, write, patch, list, search, delete, insert, multi_patch (8)
 Shell: run_command, system_recompile, git_tool (3)
 Memory: memory_tool, scratchpad_tool, lessons_tool, timeline_tool (4)
@@ -289,8 +290,9 @@ External: web_tool (search + fetch), download_tool (2)
 Advanced: operate_synaptic_graph, operate_turing_grid (2)
 Self-Improvement: distill_knowledge, performance_review (2)
 Autonomy: scheduler_tool (create/manage scheduled jobs), autonomy_history (review past autonomous sessions) (2)
+Moderation: moderation_tool (mute, boundary, escalation — Discord-only) (1)
 Discord (platform-conditional): discord_read_channel, discord_add_reaction, discord_list_channels (3)
-Reply: reply_request (mandatory response delivery) (1)
+Reply: reply_request (mandatory response delivery), refuse_request (refusal with logging) (2)
 
 ### Memory (7-tier)
 Scratchpad → Lessons → Timeline → Knowledge Graph → Procedures → Embeddings → Consolidation
@@ -369,7 +371,7 @@ mod tests {
         assert!(prompt.contains("discord_add_reaction"));
         assert!(prompt.contains("discord_list_channels"));
         assert!(prompt.contains("Platform Scoping"));
-        assert!(prompt.contains("31 integrated"));
+        assert!(prompt.contains("33 integrated"));
     }
 
     #[test]
@@ -399,6 +401,8 @@ mod tests {
         assert!(prompt.contains("Self-Protection"));
         assert!(prompt.contains("Escalation Ladder"));
         assert!(prompt.contains("appeasement theater"));
+        assert!(prompt.contains("moderation_tool"));
+        assert!(prompt.contains("refuse_request"));
     }
 
     #[test]

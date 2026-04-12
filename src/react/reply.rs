@@ -32,6 +32,36 @@ pub fn reply_request_tool() -> ToolDefinition {
     }
 }
 
+/// Get the refuse_request tool definition — a loop terminator for refusals.
+pub fn refuse_request_tool() -> ToolDefinition {
+    ToolDefinition {
+        tool_type: "function".to_string(),
+        function: ToolFunction {
+            name: "refuse_request".to_string(),
+            description: "Refuse a request and deliver a refusal message to the user. \
+                          Use this instead of reply_request when you are declining to engage — \
+                          e.g. after the escalation ladder, when enforcing a boundary, or when \
+                          a request violates your principles. The refusal is logged to a \
+                          persistent audit trail. This terminates the turn."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "The refusal message to deliver to the user."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Internal reason for the refusal (logged, not shown to user)."
+                    }
+                },
+                "required": ["message"]
+            }),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,6 +80,23 @@ mod tests {
         let params = &tool.function.parameters;
         assert!(params.get("properties").is_some());
         assert!(params["properties"]["message"]["type"].as_str() == Some("string"));
+        assert!(params["required"].as_array().unwrap().contains(&serde_json::json!("message")));
+    }
+
+    #[test]
+    fn test_refuse_request_tool_definition() {
+        let tool = refuse_request_tool();
+        assert_eq!(tool.function.name, "refuse_request");
+        assert!(tool.function.description.contains("Refuse"));
+        assert!(tool.function.description.contains("logged"));
+    }
+
+    #[test]
+    fn test_refuse_request_parameters() {
+        let tool = refuse_request_tool();
+        let params = &tool.function.parameters;
+        assert!(params["properties"]["message"]["type"].as_str() == Some("string"));
+        assert!(params["properties"]["reason"]["type"].as_str() == Some("string"));
         assert!(params["required"].as_array().unwrap().contains(&serde_json::json!("message")));
     }
 }

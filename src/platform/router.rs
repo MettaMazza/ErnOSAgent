@@ -41,6 +41,19 @@ pub async fn process_message(
         "Routing platform message through full ReAct pipeline"
     );
 
+    // ─── Mute gate (Discord only) ───
+    // If this user is muted, skip inference entirely.
+    if msg.platform == "discord" && !msg.is_admin {
+        if crate::tools::moderation_tool::is_user_muted(&msg.user_id) {
+            tracing::info!(
+                user_id = %msg.user_id,
+                platform = %msg.platform,
+                "Message blocked — user is muted"
+            );
+            return Ok("I have disengaged from this conversation.".to_string());
+        }
+    }
+
     let ctx = PlatformContext {
         user_id: msg.user_id.clone(),
         user_name: msg.user_name.clone(),
@@ -50,10 +63,30 @@ pub async fn process_message(
         message_id: msg.message_id.clone(),
     };
 
+    // ─── Boundary injection (Discord only) ───
+    // Inject active boundaries for this user into the message content so
+    // the model is aware of topics it has previously refused to discuss.
+    let content = if msg.platform == "discord" {
+        let boundaries = crate::tools::moderation_tool::get_active_boundaries(Some(&msg.user_id));
+        if boundaries.is_empty() {
+            msg.content.clone()
+        } else {
+            let boundary_list: Vec<String> = boundaries.iter()
+                .map(|b| format!("  • {} — {}", b.topic, b.reason))
+                .collect();
+            format!(
+                "{}\n\n[SYSTEM — ACTIVE BOUNDARIES for user {}:\n{}\nDo NOT engage with these topics. If the user attempts to discuss them, use refuse_request.]",
+                msg.content, msg.user_id, boundary_list.join("\n")
+            )
+        }
+    } else {
+        msg.content.clone()
+    };
+
     // Run the FULL ReAct pipeline — 1-to-1 with WebSocket chat
     let reply = crate::web::ws::pipeline::run_react_pipeline(
         state,
-        &msg.content,
+        &content,
         msg.attachments.clone(),
         &ctx,
     ).await?;

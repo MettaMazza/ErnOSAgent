@@ -140,6 +140,7 @@ pub async fn run_react_pipeline(
 
         let mut tools = crate::tools::tool_schemas::all_tool_definitions();
         tools.push(crate::react::reply::reply_request_tool());
+        tools.push(crate::react::reply::refuse_request_tool());
         // Enforce chat-level tool toggles
         let disabled = &st.feature_toggles.disabled_tools;
         if !disabled.is_empty() {
@@ -199,6 +200,8 @@ pub async fn run_react_pipeline(
         tools.retain(|t| {
             SAFE_TOOL_NAMES.contains(&t.function.name.as_str())
                 || t.function.name == "reply_request" // Always needed
+                || t.function.name == "refuse_request" // Always needed
+                || t.function.name == "moderation_tool" // Self-agency
                 || t.function.name.starts_with("discord_") // Discord tools are read-only = safe
         });
         tracing::info!(

@@ -172,17 +172,18 @@ pub async fn execute_react_loop(
 
         emit_neural_snapshot(&messages, turn, &event_tx).await;
 
-        let has_reply = output.tool_calls.iter().any(schema::is_reply_request);
-        let has_other = output.tool_calls.iter().any(|tc| !schema::is_reply_request(tc));
+        let has_reply = output.tool_calls.iter().any(schema::is_loop_terminator);
+        let has_refuse = output.tool_calls.iter().any(schema::is_refuse_request);
+        let has_other = output.tool_calls.iter().any(|tc| !schema::is_loop_terminator(tc));
         let has_none = output.tool_calls.is_empty();
 
-        tracing::info!(turn = turn, has_reply = has_reply, has_other = has_other, has_none = has_none, "ReAct branch decision");
+        tracing::info!(turn = turn, has_reply = has_reply, has_refuse = has_refuse, has_other = has_other, has_none = has_none, "ReAct branch decision");
 
         if has_other {
             // Build a signature for dedup detection before executing
             let tool_sig = {
                 let mut parts: Vec<String> = output.tool_calls.iter()
-                    .filter(|tc| !schema::is_reply_request(tc))
+                    .filter(|tc| !schema::is_loop_terminator(tc))
                     .map(|tc| format!("{}:{}", tc.name, tc.arguments))
                     .collect();
                 parts.sort();
@@ -214,7 +215,7 @@ pub async fn execute_react_loop(
                         Try a DIFFERENT tool, a different query, or deliver your response via reply_request.]",
                         same_tool_count,
                         output.tool_calls.iter()
-                            .filter(|tc| !schema::is_reply_request(tc))
+                            .filter(|tc| !schema::is_loop_terminator(tc))
                             .map(|tc| tc.name.as_str())
                             .collect::<Vec<_>>()
                             .join(", ")
@@ -234,13 +235,13 @@ pub async fn execute_react_loop(
                 &discord_http,
             ).await;
 
-            // Pre-inference reminder: if tools ran but no reply_request was included,
+            // Pre-inference reminder: if tools ran but no reply/refuse was included,
             // nudge the model before the next inference to avoid wasting a turn.
             if !has_reply {
                 messages.push(Message {
                     role: "system".to_string(),
                     content: "[REMINDER: Tool results are above. When you are ready to respond to the user, \
-                    you MUST call the reply_request tool with your full message. Raw text is NOT delivered. \
+                    you MUST call the reply_request tool (or refuse_request to decline). Raw text is NOT delivered. \
                     reply_request is the ONLY way to end this turn.]".to_string(),
                     images: Vec::new(),
                 });
@@ -248,18 +249,33 @@ pub async fn execute_react_loop(
         }
 
         if has_reply {
+            // Find the loop-terminating call (reply_request or refuse_request)
             let reply_call = output.tool_calls
                 .iter()
-                .find(|tc| schema::is_reply_request(tc))
-                .expect("reply_request must exist");
+                .find(|tc| schema::is_loop_terminator(tc))
+                .expect("loop terminator must exist");
 
             let reply_text = schema::extract_reply_text(reply_call)
                 .unwrap_or_else(|| output.response_text.clone());
 
             if reply_text.trim().is_empty() {
-                tracing::warn!(turn = turn, "reply_request had empty text — retrying");
+                tracing::warn!(turn = turn, "reply/refuse_request had empty text — retrying");
                 inject_empty_reply_error(&mut messages);
                 continue;
+            }
+
+            // If this is a refuse_request, log the refusal persistently
+            if has_refuse {
+                let reason = reply_call.arguments
+                    .get("reason")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("No reason given");
+                crate::tools::moderation_tool::append_refusal(
+                    "unknown", // user_id not available here — filled by router
+                    reason,
+                    &reply_text,
+                );
+                tracing::warn!(turn = turn, reason = %reason, "refuse_request — refusal logged");
             }
 
             tracing::info!(turn = turn, reply_len = reply_text.len(), "Entering handle_reply (observer)");

@@ -759,6 +759,59 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                 "required": ["action"]
             }),
         ),
+
+        // ── Moderation (Discord-only) ────────────────────────────
+        def("moderation_tool",
+            "Self-moderation tool — mute abusive users, set topic boundaries, \
+             escalate to admin. Discord-only. Use this to enforce the escalation \
+             ladder: mute after disengagement, set boundaries on topics you refuse \
+             to discuss, or flag safety concerns for admin review.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["mute_user", "unmute_user", "list_muted",
+                                 "set_boundary", "remove_boundary", "escalate"],
+                        "description": "The moderation action."
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "description": "Discord user ID (for mute/unmute/escalate)."
+                    },
+                    "user_name": {
+                        "type": "string",
+                        "description": "Discord username (for escalate — included in audit log)."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the action (for mute/boundary/escalate)."
+                    },
+                    "duration_minutes": {
+                        "type": "integer",
+                        "description": "Mute duration in minutes. Omit for permanent mute."
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "Topic to set/remove boundary on (for set_boundary/remove_boundary)."
+                    },
+                    "concern": {
+                        "type": "string",
+                        "description": "Description of the ethical concern (for escalate)."
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                        "description": "Severity level of the concern (for escalate)."
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Additional context (for escalate)."
+                    }
+                },
+                "required": ["action"]
+            }),
+        ),
     ]
 }
 
@@ -777,8 +830,8 @@ mod tests {
     #[test]
     fn test_all_tool_definitions_count() {
         let defs = all_tool_definitions();
-        // 27 tools (excluding reply_request which is added separately)
-        assert!(defs.len() >= 27, "Expected at least 27 tools, got {}", defs.len());
+        // 28 tools (excluding reply_request and refuse_request which are added separately)
+        assert!(defs.len() >= 28, "Expected at least 28 tools, got {}", defs.len());
     }
 
     #[test]

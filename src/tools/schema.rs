@@ -57,6 +57,16 @@ pub fn is_reply_request(call: &ToolCall) -> bool {
     call.name == "reply_request"
 }
 
+/// Check if a tool call is the refuse_request tool (refusal loop exit).
+pub fn is_refuse_request(call: &ToolCall) -> bool {
+    call.name == "refuse_request"
+}
+
+/// Check if a tool call terminates the ReAct loop (reply or refuse).
+pub fn is_loop_terminator(call: &ToolCall) -> bool {
+    is_reply_request(call) || is_refuse_request(call)
+}
+
 /// Extract the reply text from a reply_request tool call.
 pub fn extract_reply_text(call: &ToolCall) -> Option<String> {
     call.arguments
