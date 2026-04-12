@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/MettaMazza/ErnOSAgent/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
-  <img src="https://img.shields.io/badge/tests-727+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-750+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/rust-1.75+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
@@ -19,7 +19,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Metal%20GPU-Accelerated-8A2BE2?style=flat-square&logo=apple&logoColor=white" alt="Metal">
   <img src="https://img.shields.io/badge/CUDA-Supported-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="CUDA">
-  <img src="https://img.shields.io/badge/24%20Tools-Integrated-00ADD8?style=flat-square" alt="Tools">
+  <img src="https://img.shields.io/badge/28%20Tools-Integrated-00ADD8?style=flat-square" alt="Tools">
   <img src="https://img.shields.io/badge/17%20Rule-Observer%20Audit-FF6B6B?style=flat-square" alt="Observer">
   <img src="https://img.shields.io/badge/7%20Tier-Memory%20System-FFD93D?style=flat-square" alt="Memory">
   <img src="https://img.shields.io/badge/LoRA-Self--Improving-E040FB?style=flat-square" alt="LoRA">
@@ -31,7 +31,7 @@
 
 ---
 
-> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 24 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation) on Metal/CUDA/CPU. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
+> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 28 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation) on Metal/CUDA/CPU. Includes a task scheduler with idle-triggered autonomy mode. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
 
 ```
 ┌─ ErnOSAgent ─────────────────────────────────────────────────┐
@@ -134,7 +134,7 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | **17-Rule Observer** | LLM-based quality audit — catches hallucination, sycophancy, ghost tooling, confabulation | 6 |
 | **7-Tier Memory** | Scratchpad → Lessons → Timeline → Knowledge Graph → Procedures → Embeddings → Consolidation | 25 |
 | **Multi-Provider** | llama.cpp (primary), Ollama, LM Studio, HuggingFace, plus OpenAI-compatible cloud fallbacks | 8 |
-| **24 Tools** | Full toolset: codebase (8), shell, git, compiler, forge, memory (4), steering, interpretability, reasoning, web, download, synaptic graph, turing grid | 47 E2E |
+| **28 Tools** | Full toolset: codebase (8), shell, git, compiler, forge, memory (4), steering, interpretability, reasoning, web, download, synaptic graph, turing grid, scheduler, autonomy history, distillation, performance review | 47 E2E |
 | **Prompt Assembly** | 3-layer: operational kernel (protocols) + dynamic context (model/session/tools) + identity (persona) | 8 |
 | **Session Management** | Persistence, multi-session, conversation history | 4 |
 | **Web UI** | Axum server at localhost:3000 with WebSocket chat, 7-tab dashboard, REST API | 7 |
@@ -153,9 +153,11 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | **Distillation** | Auto-generate persistent lessons from repeated Observer failure patterns | 7 |
 | **Divergence Detection** | Detects when internal emotional state contradicts output text (safety-refusal aware) | 7 |
 | **Structured Logging** | JSON session-scoped tracing with structured fields | 4 |
-| **Scheduler** | Job execution system with persistent store | 4 |
+| **Scheduler** | Cron/interval/one-off/idle job execution through full ReAct loop, persistent store, autonomy mode | 8 |
+| **Scheduler Tool** | Agent-driven job management — create, list, delete, toggle scheduled tasks via tool calls | 8 |
+| **Autonomy History** | Agent introspection of past autonomous sessions — list, detail, search, stats | 10 |
 
-### Tool Inventory (24 tools)
+### Tool Inventory (28 tools)
 
 | Tool | Category | What it does |
 |------|----------|-------------|
@@ -182,6 +184,10 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | `download_tool` | External | Background file downloads with progress tracking |
 | `operate_synaptic_graph` | Memory | Synaptic plasticity graph operations with relationship management |
 | `operate_turing_grid` | Compute | Turing grid navigation, execution, and analysis |
+| `scheduler_tool` | Autonomy | Create, list, delete, toggle, force-run scheduled jobs (cron/interval/once/idle) |
+| `autonomy_history` | Autonomy | Introspect past autonomy sessions — list, detail, search, stats |
+| `distillation` | Learning | Generate synthetic training data from expert models for domain-specific fine-tuning |
+| `performance_review` | Learning | Self-introspection — review training data, failure/success patterns, lessons |
 | `reply_request` | Response | Mandatory response delivery to the user (the ONLY way to end a ReAct turn) |
 
 ### Infrastructure (Working Framework, Requires Training Data)
@@ -498,10 +504,10 @@ This creates an audit trail of **why** the agent made every decision, not just w
 ## 🧪 Testing
 
 ```bash
-# Full suite (727+ tests)
+# Full suite (750+ tests)
 cargo test -- --test-threads=1
 
-# Unit tests only (~1.3s, 727 tests)
+# Unit tests only (~1.3s, 750 tests)
 cargo test --lib
 
 # E2E tool tests (47 tests)
@@ -522,13 +528,13 @@ cargo test --test e2e_llama -- --nocapture --test-threads=1
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 727 | ~1.3s | Nothing |
+| Unit tests (all modules) | 750 | ~1.3s | Nothing |
 | E2E Tools (all 24 tools) | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights in `models/` |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **727+** | — | — |
+| **Total** | **750+** | — | — |
 
 > **Note:** Some tests that use process-global `set_current_dir` may fail intermittently
 > when run in parallel. Use `--test-threads=1` for deterministic results.
@@ -558,6 +564,10 @@ export ERNOS_GRPO_GROUP_SIZE="4"     # GRPO candidates per prompt
 export ERNOS_GRPO_KL_BETA="0.01"     # GRPO KL regularisation
 export ERNOS_GRPO_ENABLED="1"        # Enable GRPO self-play
 export ERNOS_EWC_LAMBDA="1.0"        # EWC consolidation strength
+
+# Autonomy
+export ERNOS_AUTONOMY_ENABLED="1"    # Enable idle-triggered autonomy mode
+export ERNOS_AUTONOMY_IDLE_SECS="300" # Seconds idle before autonomy fires (default: 300)
 
 # Cloud provider API keys (optional — accessibility fallbacks, not recommended for primary use)
 # These are untested by the maintainer and provided for users who lack local hardware.
@@ -609,7 +619,7 @@ Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 | Model load time | ~2 minutes (Gemma 4 26B Q4_K_M) |
 | VRAM usage | 17.6 GB (of 475 GB available) |
 | LoRA forward pass (27B, 30 layers) | ~46s on Metal GPU |
-| Full test suite | 727+ tests, unit tests in ~1.3s |
+| Full test suite | 750+ tests, unit tests in ~1.3s |
 
 > These are reference benchmarks from the primary development machine. ErnOSAgent runs on any platform that supports llama.cpp — performance scales with your hardware.
 
@@ -667,9 +677,9 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 |--------|-------|
 | Source files | 173 `.rs` files |
 | Lines of code | ~37,000 |
-| Test count | 727+ (727 unit + E2E) |
+| Test count | 750+ (750 unit + E2E) |
 | Modules | 20 top-level subsystems |
-| Tools | 24 integrated |
+| Tools | 28 integrated |
 | Memory tiers | 7 |
 | Observer rules | 17 |
 | Platform adapters | 4 (TUI, Web, Discord, Telegram) |
@@ -681,7 +691,7 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ### v1.0 (Current Release)
 
-Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure. All 24 tools are wired and tested. 727+ tests pass.
+Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure. All 28 tools are wired and tested. 750+ tests pass.
 
 ### Coming Soon (v1.1+)
 

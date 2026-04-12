@@ -53,6 +53,15 @@ impl Scheduler {
             .collect()
     }
 
+    /// Get all idle-type jobs that are due based on the user idle duration.
+    pub async fn get_due_idle_jobs(&self, idle_elapsed: std::time::Duration) -> Vec<ScheduledJob> {
+        let jobs = self.jobs.read().await;
+        jobs.iter()
+            .filter(|j| j.is_due_idle(idle_elapsed))
+            .cloned()
+            .collect()
+    }
+
     /// Record the result of a job execution and save to disk.
     pub async fn record_result(&self, job_id: &str, result: JobResult) {
         let mut jobs = self.jobs.write().await;
@@ -220,5 +229,33 @@ mod tests {
         let mut ran_job = job.clone();
         ran_job.last_run = Some(now);
         assert!(!ran_job.is_due(now)); // Already ran
+    }
+
+    #[test]
+    fn test_idle_due_when_threshold_exceeded() {
+        let job = ScheduledJob::new("Idle job".into(), "x".into(), JobSchedule::Idle(300));
+        // Idle for 400 seconds → should be due
+        assert!(job.is_due_idle(std::time::Duration::from_secs(400)));
+    }
+
+    #[test]
+    fn test_idle_not_due_under_threshold() {
+        let job = ScheduledJob::new("Idle job".into(), "x".into(), JobSchedule::Idle(300));
+        // Idle for only 100 seconds → not due
+        assert!(!job.is_due_idle(std::time::Duration::from_secs(100)));
+    }
+
+    #[test]
+    fn test_idle_not_due_when_disabled() {
+        let mut job = ScheduledJob::new("Idle job".into(), "x".into(), JobSchedule::Idle(60));
+        job.enabled = false;
+        assert!(!job.is_due_idle(std::time::Duration::from_secs(120)));
+    }
+
+    #[test]
+    fn test_idle_not_via_standard_is_due() {
+        // Idle jobs should NEVER fire via the standard is_due() path
+        let job = ScheduledJob::new("Idle job".into(), "x".into(), JobSchedule::Idle(1));
+        assert!(!job.is_due(Utc::now()));
     }
 }

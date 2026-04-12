@@ -192,7 +192,7 @@ async fn init_web_state(
         }
     };
 
-    // Scheduler (cron jobs, one-off tasks, heartbeats)
+    // Scheduler (cron jobs, one-off tasks, heartbeats, idle autonomy)
     let scheduler = match ernosagent::scheduler::Scheduler::new(&config.general.data_dir) {
         Ok(s) => {
             tracing::info!("Task scheduler initialised");
@@ -203,6 +203,10 @@ async fn init_web_state(
             None
         }
     };
+
+    // Idle timer — shared with scheduler runner and platform adapters
+    let last_user_input: Arc<tokio::sync::Mutex<std::time::Instant>> =
+        Arc::new(tokio::sync::Mutex::new(std::time::Instant::now()));
 
     // Teacher (LoRA training orchestrator)
     let teacher_config = ernosagent::learning::teacher::TeacherConfig {
@@ -323,15 +327,30 @@ async fn init_web_state(
         discord_http: discord_http_handle,
     }));
 
+    // Register scheduler_tool + autonomy_tool (require runtime state)
+    {
+        let mut st = state.write().await;
+        if let Some(ref sched) = st.scheduler {
+            let sched_clone = Arc::clone(sched);
+            tools::scheduler_tool::register_tools(&mut st.executor, sched_clone);
+            tracing::info!("Registered scheduler_tool");
+        }
+        let data_dir = st.config.general.data_dir.clone();
+        tools::autonomy_tool::register_tools(&mut st.executor, data_dir);
+        tracing::info!("Registered autonomy_history tool");
+    }
+
     // Start the scheduler background loop
     if let Some(scheduler_handle) = scheduler {
         let state_for_scheduler = state.clone();
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let idle_timer = Some(Arc::clone(&last_user_input));
         tokio::spawn(async move {
             ernosagent::scheduler::runner::run(
                 scheduler_handle,
                 state_for_scheduler,
                 cancel,
+                idle_timer,
             ).await;
         });
     }

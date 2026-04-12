@@ -42,6 +42,8 @@ pub enum JobSchedule {
     Once(DateTime<Utc>),
     /// Run every N seconds.
     Interval(u64),
+    /// Run when user has been idle for N seconds.
+    Idle(u64),
 }
 
 /// Result of a single job execution.
@@ -79,6 +81,9 @@ impl ScheduledJob {
     }
 
     /// Check if this job is due to execute at the given time.
+    ///
+    /// For `Idle` schedule type, an `idle_since` timestamp must be provided
+    /// via `is_due_with_idle`. This method treats Idle jobs as never due.
     pub fn is_due(&self, now: DateTime<Utc>) -> bool {
         if !self.enabled {
             return false;
@@ -90,7 +95,6 @@ impl ScheduledJob {
                     Ok(s) => s,
                     Err(_) => return false,
                 };
-                // Check if any upcoming event is within the current second
                 if let Some(next) = schedule.upcoming(Utc).next() {
                     let diff = (next - now).num_seconds().abs();
                     diff == 0
@@ -100,7 +104,7 @@ impl ScheduledJob {
             }
             JobSchedule::Once(at) => {
                 if self.last_run.is_some() {
-                    return false; // Already ran
+                    return false;
                 }
                 let diff = (*at - now).num_seconds().abs();
                 diff <= 1
@@ -112,9 +116,37 @@ impl ScheduledJob {
                         let elapsed = (now - last).to_std().unwrap_or(Duration::ZERO);
                         elapsed >= interval
                     }
-                    None => true, // Never ran — run immediately
+                    None => true,
                 }
             }
+            // Idle jobs require the idle timer — use is_due_idle()
+            JobSchedule::Idle(_) => false,
+        }
+    }
+
+    /// Check if an idle-type job is due based on the idle timer.
+    pub fn is_due_idle(&self, idle_elapsed: Duration) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        match &self.schedule {
+            JobSchedule::Idle(threshold_secs) => {
+                let threshold = Duration::from_secs(*threshold_secs);
+                if idle_elapsed < threshold {
+                    return false;
+                }
+                // Don't re-fire within the threshold window after last run
+                match self.last_run {
+                    Some(last) => {
+                        let since_last = (Utc::now() - last)
+                            .to_std()
+                            .unwrap_or(Duration::ZERO);
+                        since_last >= threshold
+                    }
+                    None => true,
+                }
+            }
+            _ => false,
         }
     }
 }

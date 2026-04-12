@@ -5,7 +5,7 @@
 // This is the original author's open-source work. Preserve this header.
 //! Job executor — converts a scheduled job into a ReAct loop execution.
 
-use super::job::{JobResult, ScheduledJob};
+use super::job::{JobResult, JobSchedule, ScheduledJob};
 use crate::provider::Message;
 use crate::tools::tool_schemas;
 use crate::web::state::SharedState;
@@ -32,7 +32,7 @@ pub async fn execute_job(
     );
 
     // Extract everything we need from state
-    let (provider, model, system_prompt, identity_prompt, tools) = {
+    let (provider, model, system_prompt, identity_prompt, tools, data_dir) = {
         let st = state.read().await;
         (
             Arc::clone(&st.provider),
@@ -40,6 +40,29 @@ pub async fn execute_job(
             st.core_prompt.clone(),
             st.identity_prompt.clone(),
             tool_schemas::all_tool_definitions(),
+            st.config.general.data_dir.clone(),
+        )
+    };
+
+    // For idle-type jobs, inject autonomy context so the agent doesn't repeat work
+    let autonomy_context = if matches!(job.schedule, JobSchedule::Idle(_)) {
+        build_autonomy_context(&data_dir)
+    } else {
+        String::new()
+    };
+
+    let job_header = if matches!(job.schedule, JobSchedule::Idle(_)) {
+        format!(
+            "[AUTONOMY MODE] You are in autonomous idle mode. No user is currently interacting. \n\
+             Use this time productively: review memory, consolidate lessons, run diagnostics, \n\
+             organize knowledge, or work on goals. Report what you accomplished.\n{}",
+            autonomy_context
+        )
+    } else {
+        format!(
+            "[SCHEDULED TASK] This is an automated scheduled job named '{}'. \
+             Execute the following instruction and provide a clear result.",
+            job.name
         )
     };
 
@@ -47,9 +70,8 @@ pub async fn execute_job(
         Message {
             role: "system".to_string(),
             content: format!(
-                "{}\n{}\n\n[SCHEDULED TASK] This is an automated scheduled job named '{}'. \
-                 Execute the following instruction and provide a clear result.",
-                system_prompt, identity_prompt, job.name
+                "{}\n{}\n\n{}",
+                system_prompt, identity_prompt, job_header
             ),
             images: Vec::new(),
         },
@@ -141,5 +163,89 @@ pub async fn execute_job(
         "Scheduler: job completed"
     );
 
+    // Log idle (autonomy) sessions for dedup in future cycles
+    if matches!(job.schedule, JobSchedule::Idle(_)) {
+        log_autonomy_session(&data_dir, &job.id, &result.output);
+    }
+
     result
+}
+
+/// Build autonomy context for idle jobs — prevents repeating work.
+fn build_autonomy_context(data_dir: &std::path::Path) -> String {
+    let mut ctx = String::new();
+
+    // Load recent autonomy sessions for dedup
+    let activity_path = data_dir.join("memory/autonomy/activity.jsonl");
+    if let Ok(content) = std::fs::read_to_string(&activity_path) {
+        let lines: Vec<&str> = content.lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        if !lines.is_empty() {
+            let start = lines.len().saturating_sub(10);
+            ctx.push_str(&format!(
+                "\n🚫 PREVIOUS AUTONOMY SESSIONS ({} total) — DO NOT REPEAT:\n",
+                lines.len()
+            ));
+            for line in &lines[start..] {
+                if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+                    let summary = entry.get("summary")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no summary)");
+                    let tools = entry.get("tools_used")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter()
+                            .filter_map(|t| t.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "))
+                        .unwrap_or_default();
+                    ctx.push_str(&format!("  • Tools: {} | {}\n", tools, summary));
+                }
+            }
+            ctx.push_str("Do something DIFFERENT this session.\n");
+        }
+    }
+
+    // Load research directive if present
+    let directive_path = data_dir.join(".ernosagent/directive.md");
+    if let Ok(content) = std::fs::read_to_string(&directive_path) {
+        if !content.trim().is_empty() {
+            ctx.push_str(&format!(
+                "\n[ACTIVE RESEARCH DIRECTIVE]\n{}\n",
+                content.trim()
+            ));
+        }
+    }
+
+    ctx
+}
+
+/// Log an autonomy session for future dedup.
+fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, summary: &str) {
+    let dir = data_dir.join("memory/autonomy");
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("activity.jsonl");
+
+    // Count existing entries for cycle number
+    let cycle = std::fs::read_to_string(&path)
+        .map(|c| c.lines().filter(|l| !l.trim().is_empty()).count())
+        .unwrap_or(0) + 1;
+
+    let entry = serde_json::json!({
+        "timestamp": Utc::now().to_rfc3339(),
+        "cycle": cycle,
+        "job_id": job_id,
+        "tools_used": [],
+        "summary": summary,
+    });
+
+    let line = format!("{}\n", entry);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        use std::io::Write;
+        let _ = f.write_all(line.as_bytes());
+    }
 }

@@ -680,6 +680,85 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                 "required": []
             }),
         ),
+
+        // ── Scheduler ────────────────────────────────────────────
+        def("scheduler_tool",
+            "Create, list, delete, toggle, or force-run scheduled tasks. \
+             Use this to set up reminders, recurring jobs, or idle-triggered \
+             autonomy tasks. Jobs execute through the full ReAct + Observer pipeline.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["create", "list", "delete", "toggle", "run_now"],
+                        "description": "The scheduler operation."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Job name (required for 'create')."
+                    },
+                    "instruction": {
+                        "type": "string",
+                        "description": "Natural language instruction for the job (required for 'create')."
+                    },
+                    "schedule_type": {
+                        "type": "string",
+                        "enum": ["cron", "once", "interval", "idle"],
+                        "description": "Schedule type (required for 'create'). \
+                                        'cron' = standard cron expression, \
+                                        'once' = ISO datetime, \
+                                        'interval' = seconds between runs, \
+                                        'idle' = fire when user idle for N seconds."
+                    },
+                    "schedule_value": {
+                        "type": "string",
+                        "description": "Schedule value (required for 'create'). \
+                                        Cron: '0 9 * * *', Once: '2026-04-13T09:00:00Z', \
+                                        Interval: '3600', Idle: '300'."
+                    },
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job ID (required for delete/toggle/run_now)."
+                    }
+                },
+                "required": ["action"]
+            }),
+        ),
+
+        // ── Autonomy History ─────────────────────────────────────
+        def("autonomy_history",
+            "Introspect past autonomy sessions — review what the system did during \
+             idle periods. Use to understand patterns, avoid repeating work, and \
+             track autonomous productivity.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "detail", "search", "stats"],
+                        "description": "The introspection action: \
+                                        'list' shows recent sessions, \
+                                        'detail' shows a specific cycle, \
+                                        'search' finds sessions by keyword, \
+                                        'stats' shows aggregate statistics."
+                    },
+                    "cycle": {
+                        "type": "integer",
+                        "description": "Cycle number for 'detail' action."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search keyword for 'search' action."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results to return (default: 20 for list, 10 for search)."
+                    }
+                },
+                "required": ["action"]
+            }),
+        ),
     ]
 }
 
@@ -698,8 +777,8 @@ mod tests {
     #[test]
     fn test_all_tool_definitions_count() {
         let defs = all_tool_definitions();
-        // 25 tools (excluding reply_request which is added separately)
-        assert!(defs.len() >= 25, "Expected at least 25 tools, got {}", defs.len());
+        // 27 tools (excluding reply_request which is added separately)
+        assert!(defs.len() >= 27, "Expected at least 27 tools, got {}", defs.len());
     }
 
     #[test]

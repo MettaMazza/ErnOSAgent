@@ -33,6 +33,8 @@ pub mod discord_tools;
 pub mod expert_selector;
 pub mod distillation;
 pub mod performance_review;
+pub mod scheduler_tool;
+pub mod autonomy_tool;
 
 pub use schema::{ToolCall, ToolResult};
 
