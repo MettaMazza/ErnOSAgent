@@ -26,13 +26,22 @@ pub(crate) mod optimizer;
 pub mod weights;
 pub mod forward;
 pub(crate) mod loss;
+pub mod loss_simpo;
+pub mod loss_kto;
+pub mod loss_dpo;
+pub mod ewc;
 pub mod training;
+pub mod training_alignment;
 pub mod adapters;
 
 // Re-exports for backward compatibility
 pub use training::{train_sft, train_orpo};
-pub use weights::{build_lora_varmap, load_base_weights};
+pub use training_alignment::{train_simpo, train_kto, train_dpo};
+pub use weights::{build_lora_varmap, build_lora_varmap_with_resume, load_base_weights, load_previous_adapter};
 pub use loss::compute_orpo_loss;
+pub use loss_simpo::compute_simpo_loss;
+pub use loss_kto::{compute_kto_loss, KtoParams};
+pub use loss_dpo::compute_dpo_loss;
 pub use adapters::save_adapters;
 
 use crate::learning::buffers::{GoldenExample, PreferencePair};

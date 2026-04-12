@@ -273,3 +273,84 @@ pub fn build_lora_varmap(config: &LoraConfig, device: &Device) -> Result<VarMap>
 
     Ok(var_map)
 }
+
+/// Load a previous adapter's weights from a safetensors file.
+///
+/// Returns a map of tensor name → Tensor so we can initialise
+/// the new VarMap from the previous training run's weights.
+pub fn load_previous_adapter(
+    adapter_dir: &Path,
+    device: &Device,
+) -> Result<HashMap<String, candle_core::Tensor>> {
+    let adapter_path = adapter_dir.join("adapter_model.safetensors");
+    if !adapter_path.exists() {
+        anyhow::bail!(
+            "Previous adapter not found at {}",
+            adapter_path.display()
+        );
+    }
+
+    let tensors = candle_core::safetensors::load(&adapter_path, device)
+        .with_context(|| format!(
+            "Failed to load previous adapter: {}",
+            adapter_path.display()
+        ))?;
+
+    tracing::info!(
+        tensors = tensors.len(),
+        path = %adapter_path.display(),
+        "Previous adapter loaded for stacking"
+    );
+
+    Ok(tensors)
+}
+
+/// Build a LoRA VarMap initialised from a previous adapter's weights.
+///
+/// This is the core mechanism for cumulative adapter stacking — instead of
+/// initialising B matrices to zero (losing all previous training), we load
+/// the previous adapter's trained weights as the starting point.
+pub fn build_lora_varmap_with_resume(
+    config: &LoraConfig,
+    device: &Device,
+    resume_from: &Path,
+) -> Result<VarMap> {
+    // First, load the previous adapter's weights
+    let previous = load_previous_adapter(resume_from, device)?;
+
+    // Build the VarMap normally (with random A / zero B init)
+    let var_map = build_lora_varmap(config, device)?;
+
+    // Overwrite matching tensors from the previous adapter
+    let mut resumed = 0usize;
+    let data = var_map.data().lock().map_err(|e| {
+        anyhow::anyhow!("VarMap lock failed: {e}")
+    })?;
+
+    for (name, var) in data.iter() {
+        if let Some(prev_tensor) = previous.get(name) {
+            // Shape must match — skip silently if architecture changed
+            if var.as_tensor().dims() == prev_tensor.dims() {
+                var.set(prev_tensor)?;
+                resumed += 1;
+            } else {
+                tracing::debug!(
+                    tensor = %name,
+                    prev_shape = ?prev_tensor.dims(),
+                    new_shape = ?var.as_tensor().dims(),
+                    "Shape mismatch — skipping resume for this tensor"
+                );
+            }
+        }
+    }
+
+    tracing::info!(
+        resumed = resumed,
+        total = data.len(),
+        adapter_path = %resume_from.display(),
+        "LoRA VarMap resumed from previous adapter"
+    );
+
+    drop(data);
+    Ok(var_map)
+}

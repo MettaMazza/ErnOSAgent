@@ -118,7 +118,7 @@ impl Drop for TestServer {
 async fn test_e2e_model_spec_derivation() {
     if skip_if_missing() { return; }
 
-    let mut server = TestServer::start(TEST_PORT).await;
+    let server = TestServer::start(TEST_PORT).await;
     let config = server.make_config();
     let provider = LlamaCppProvider::new(&config);
 
@@ -153,7 +153,7 @@ async fn test_e2e_model_spec_derivation() {
 async fn test_e2e_raw_inference() {
     if skip_if_missing() { return; }
 
-    let mut server = TestServer::start(TEST_PORT + 1).await;
+    let server = TestServer::start(TEST_PORT + 1).await;
     let config = server.make_config();
     let provider: Arc<dyn Provider> = Arc::new(LlamaCppProvider::new(&config));
 
@@ -216,7 +216,7 @@ async fn test_e2e_raw_inference() {
 async fn test_e2e_react_pipeline() {
     if skip_if_missing() { return; }
 
-    let mut server = TestServer::start(TEST_PORT + 2).await;
+    let server = TestServer::start(TEST_PORT + 2).await;
     let config = server.make_config();
     let provider: Arc<dyn Provider> = Arc::new(LlamaCppProvider::new(&config));
 
@@ -271,6 +271,8 @@ async fn test_e2e_react_pipeline() {
             tx,
             None,
             "e2e-test",
+            #[cfg(feature = "discord")]
+            None,
         )
         .await
     });

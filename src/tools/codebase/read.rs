@@ -194,7 +194,7 @@ fn format_size(size: u64) -> String {
     }
 }
 
-/// Search within a file using text query or regex.
+/// Search within a file or recursively across a directory using text query or regex.
 pub(super) fn search_file(call: &ToolCall) -> ToolResult {
     let path_str = call.arguments.get("path")
         .and_then(|v| v.as_str())
@@ -216,27 +216,116 @@ pub(super) fn search_file(call: &ToolCall) -> ToolResult {
         Err(msg) => return error_result(call, &msg),
     };
 
-    if !full_path.exists() || !full_path.is_file() {
-        return error_result(call, &format!("File not found: {}", path_str));
+    if !full_path.exists() {
+        return error_result(call, &format!("Path not found: {}", path_str));
     }
 
-    let content = match std::fs::read_to_string(&full_path) {
-        Ok(c) => c,
-        Err(e) => return error_result(call, &format!("Failed to read file: {}", e)),
-    };
-
-    let matches = find_matches(&content, query, regex_pattern);
     let search_term = query.unwrap_or_else(|| regex_pattern.unwrap_or(""));
-    let output = format_search_results(path_str, search_term, &matches);
 
-    tracing::info!(path = %path_str, matches = matches.len(), "codebase_search executed");
+    if full_path.is_file() {
+        // Single file search (original behaviour)
+        let content = match std::fs::read_to_string(&full_path) {
+            Ok(c) => c,
+            Err(e) => return error_result(call, &format!("Failed to read file: {}", e)),
+        };
+        let matches = find_matches(&content, query, regex_pattern);
+        let output = format_search_results(path_str, search_term, &matches);
 
-    ToolResult {
-        tool_call_id: call.id.clone(),
-        name: call.name.clone(),
-        output,
-        success: true,
-        error: None,
+        tracing::info!(path = %path_str, matches = matches.len(), "codebase_search executed (file)");
+
+        ToolResult {
+            tool_call_id: call.id.clone(),
+            name: call.name.clone(),
+            output,
+            success: true,
+            error: None,
+        }
+    } else if full_path.is_dir() {
+        // Directory search — recursively walk and search all text files
+        let project_root = match super::project_root() {
+            Ok(d) => d,
+            Err(e) => return error_result(call, &e),
+        };
+        let mut all_results: Vec<String> = Vec::new();
+        let mut files_searched = 0_usize;
+        search_dir_recursive(&full_path, &project_root, query, regex_pattern, &mut all_results, &mut files_searched);
+
+        let output = if all_results.is_empty() {
+            format!("Searched {} files in '{}' — no matches found for '{}'", files_searched, path_str, search_term)
+        } else {
+            // Cap output to prevent context bloat
+            let display = if all_results.len() > 50 {
+                let mut d = all_results[..50].to_vec();
+                d.push(format!("... and {} more matches. Narrow the search path or query.", all_results.len() - 50));
+                d
+            } else {
+                all_results.clone()
+            };
+            format!("Searched {} files in '{}'  — {} match(es) for '{}':\n\n{}",
+                files_searched, path_str, all_results.len(), search_term, display.join("\n\n"))
+        };
+
+        tracing::info!(path = %path_str, files = files_searched, matches = all_results.len(), "codebase_search executed (directory)");
+
+        ToolResult {
+            tool_call_id: call.id.clone(),
+            name: call.name.clone(),
+            output,
+            success: true,
+            error: None,
+        }
+    } else {
+        error_result(call, &format!("Path is neither a file nor a directory: {}", path_str))
+    }
+}
+
+/// Recursively walk a directory and search all text files, collecting matches.
+fn search_dir_recursive(
+    dir: &std::path::Path,
+    project_root: &std::path::Path,
+    query: Option<&str>,
+    regex_pattern: Option<&str>,
+    results: &mut Vec<String>,
+    files_searched: &mut usize,
+) {
+    let mut entries: Vec<_> = match std::fs::read_dir(dir) {
+        Ok(iter) => iter.filter_map(|e| e.ok()).collect(),
+        Err(_) => return,
+    };
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden, build artifacts, and dependency directories
+        if name.starts_with('.') || name == "target" || name == "node_modules" {
+            continue;
+        }
+
+        let path = entry.path();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+
+        if is_dir {
+            search_dir_recursive(&path, project_root, query, regex_pattern, results, files_searched);
+        } else {
+            // Skip large/binary files
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            if size > MAX_READ_BYTES || size == 0 { continue; }
+
+            // Compute relative path for display
+            let rel_path = path.strip_prefix(project_root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
+
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                *files_searched += 1;
+                let matches = find_matches(&content, query, regex_pattern);
+                for m in &matches {
+                    results.push(format!("📄 {}\n{}", rel_path, m));
+                }
+            }
+        }
     }
 }
 

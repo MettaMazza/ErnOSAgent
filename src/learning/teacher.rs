@@ -126,6 +126,28 @@ pub enum TrainingKind {
     Orpo,
     /// Combined (both golden and preference data available).
     Combined,
+    /// Simple Preference Optimization (reference-free alignment).
+    SimPO,
+    /// Kahneman-Tversky Optimization (binary signal training).
+    Kto,
+    /// Direct Preference Optimization (KL-constrained pairwise).
+    Dpo,
+    /// Group Relative Policy Optimization (self-play RL).
+    Grpo,
+}
+
+impl std::fmt::Display for TrainingKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sft => write!(f, "SFT"),
+            Self::Orpo => write!(f, "ORPO"),
+            Self::Combined => write!(f, "Combined"),
+            Self::SimPO => write!(f, "SimPO"),
+            Self::Kto => write!(f, "KTO"),
+            Self::Dpo => write!(f, "DPO"),
+            Self::Grpo => write!(f, "GRPO"),
+        }
+    }
 }
 
 /// The Teacher Module — orchestrates the entire training lifecycle.
@@ -301,11 +323,24 @@ impl Teacher {
             ..Default::default()
         };
 
+        // Resolve the latest adapter for cumulative stacking
+        let resume_from = manifest.current_model_path()
+            .and_then(|p| p.parent())
+            .map(|p| p.to_path_buf());
+
+        if let Some(ref adapter_path) = resume_from {
+            tracing::info!(
+                adapter = %adapter_path.display(),
+                "Stacking on previous adapter"
+            );
+        }
+
         // Run the appropriate training pipeline
         let training_loss = match kind {
             TrainingKind::Sft => {
                 let report = crate::learning::lora::train_sft(
                     &golden_data, &lora_config,
+                    resume_from.as_deref(),
                 ).context("SFT training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
@@ -318,6 +353,7 @@ impl Teacher {
             TrainingKind::Orpo => {
                 let report = crate::learning::lora::train_orpo(
                     &pref_data, &lora_config, 0.1,
+                    resume_from.as_deref(),
                 ).context("ORPO training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
@@ -341,10 +377,14 @@ impl Teacher {
 
                 let sft_report = crate::learning::lora::train_sft(
                     &golden_data, &sft_config,
+                    resume_from.as_deref(),
                 ).context("Combined SFT phase failed")?;
 
+                // ORPO stacks on the SFT adapter we just produced
+                let orpo_resume = Some(adapter_dir.as_path());
                 let orpo_report = crate::learning::lora::train_orpo(
                     &pref_data, &orpo_config, 0.1,
+                    orpo_resume,
                 ).context("Combined ORPO phase failed")?;
 
                 tracing::info!(
@@ -354,6 +394,86 @@ impl Teacher {
                     "Combined training completed"
                 );
                 (sft_report.loss + orpo_report.loss) / 2.0
+            }
+            TrainingKind::SimPO => {
+                let simpo_beta = std::env::var("ERNOS_SIMPO_BETA")
+                    .unwrap_or_else(|_| "0.5".to_string())
+                    .parse::<f64>().unwrap_or(0.5);
+                let simpo_gamma = std::env::var("ERNOS_SIMPO_GAMMA")
+                    .unwrap_or_else(|_| "0.5".to_string())
+                    .parse::<f64>().unwrap_or(0.5);
+
+                let report = crate::learning::lora::train_simpo(
+                    &pref_data, &lora_config, simpo_beta, simpo_gamma,
+                    resume_from.as_deref(),
+                ).context("SimPO training failed")?;
+                tracing::info!(
+                    loss = format!("{:.4}", report.loss),
+                    samples = report.samples_processed,
+                    beta = simpo_beta, gamma = simpo_gamma,
+                    "SimPO training completed"
+                );
+                report.loss
+            }
+            TrainingKind::Kto => {
+                let kto_params = crate::learning::lora::KtoParams {
+                    beta: std::env::var("ERNOS_KTO_BETA")
+                        .unwrap_or_else(|_| "0.1".to_string())
+                        .parse::<f64>().unwrap_or(0.1),
+                    lambda_d: std::env::var("ERNOS_KTO_LAMBDA_D")
+                        .unwrap_or_else(|_| "1.0".to_string())
+                        .parse::<f64>().unwrap_or(1.0),
+                    lambda_u: std::env::var("ERNOS_KTO_LAMBDA_U")
+                        .unwrap_or_else(|_| "1.5".to_string())
+                        .parse::<f64>().unwrap_or(1.5),
+                };
+
+                // Load rejection data for KTO undesirable examples
+                let rejection_data = self.load_rejection_data();
+
+                let report = crate::learning::lora::train_kto(
+                    &golden_data, &rejection_data, &lora_config, &kto_params,
+                    resume_from.as_deref(),
+                ).context("KTO training failed")?;
+                tracing::info!(
+                    loss = format!("{:.4}", report.loss),
+                    samples = report.samples_processed,
+                    desirable = golden_data.len(),
+                    undesirable = rejection_data.len(),
+                    "KTO training completed"
+                );
+                report.loss
+            }
+            TrainingKind::Dpo => {
+                let dpo_beta = std::env::var("ERNOS_DPO_BETA")
+                    .unwrap_or_else(|_| "0.1".to_string())
+                    .parse::<f64>().unwrap_or(0.1);
+
+                let report = crate::learning::lora::train_dpo(
+                    &pref_data, &lora_config, dpo_beta,
+                    resume_from.as_deref(),
+                ).context("DPO training failed")?;
+                tracing::info!(
+                    loss = format!("{:.4}", report.loss),
+                    samples = report.samples_processed,
+                    beta = dpo_beta,
+                    "DPO training completed"
+                );
+                report.loss
+            }
+            TrainingKind::Grpo => {
+                // GRPO is triggered by its own pipeline via grpo::training::train_grpo()
+                // In the generic teacher cycle, we run SFT on golden data as the GRPO
+                // self-play generates new golden examples for future cycles
+                tracing::info!(
+                    "GRPO training kind in teacher cycle — running SFT on \
+                     golden data (GRPO self-play runs independently)"
+                );
+                let report = crate::learning::lora::train_sft(
+                    &golden_data, &lora_config,
+                    resume_from.as_deref(),
+                ).context("GRPO cycle SFT failed")?;
+                report.loss
             }
         };
 
@@ -409,6 +529,82 @@ impl Teacher {
     /// Check if training is in progress.
     pub fn is_training(&self) -> bool {
         self.training_lock.load(Ordering::Relaxed)
+    }
+
+    /// Start a background monitor that auto-triggers training when thresholds are met.
+    ///
+    /// Spawns a tokio task that periodically checks `should_train()` and runs
+    /// the training cycle when enough data has accumulated. Gated by
+    /// `ERNOS_TRAINING_ENABLED` env var.
+    pub fn start_background_monitor(
+        self: &Arc<Self>,
+        buffers: Arc<TrainingBuffers>,
+        manifest: Arc<Mutex<AdapterManifest>>,
+    ) {
+        let training_enabled = std::env::var("ERNOS_TRAINING_ENABLED")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        if !training_enabled {
+            tracing::info!("Background training monitor disabled (ERNOS_TRAINING_ENABLED not set)");
+            return;
+        }
+
+        let teacher = Arc::clone(self);
+        let interval = teacher.config.check_interval;
+
+        tokio::spawn(async move {
+            tracing::info!(
+                interval_secs = interval.as_secs(),
+                "Background training monitor started"
+            );
+
+            loop {
+                tokio::time::sleep(interval).await;
+
+                if teacher.is_training() {
+                    continue;
+                }
+
+                let kind = match teacher.should_train(&buffers).await {
+                    Some(k) => k,
+                    None => continue,
+                };
+
+                tracing::info!(
+                    kind = %kind,
+                    "Background monitor: threshold reached, starting training"
+                );
+
+                let mut manifest_guard = manifest.lock().await;
+                if let Err(e) = teacher
+                    .run_training_cycle(&buffers, &mut manifest_guard, kind)
+                    .await
+                {
+                    tracing::error!(error = %e, "Background training cycle failed");
+                }
+            }
+        });
+    }
+    /// Load rejection records from the JSONL buffer for KTO training.
+    fn load_rejection_data(&self) -> Vec<crate::learning::buffers_rejection::RejectionRecord> {
+        let rejection_path = self.config.training_dir.join("rejections.jsonl");
+        match crate::learning::buffers_rejection::RejectionBuffer::open(&rejection_path) {
+            Ok(buf) => match buf.read_all() {
+                Ok(records) => {
+                    tracing::info!(count = records.len(), "Loaded rejection records for KTO");
+                    records
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to read rejection buffer");
+                    Vec::new()
+                }
+            },
+            Err(e) => {
+                tracing::debug!(error = %e, "No rejection buffer found — KTO will use desirable-only");
+                Vec::new()
+            }
+        }
     }
 }
 

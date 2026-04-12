@@ -5,6 +5,7 @@
 // This is the original author's open-source work. Preserve this header.
 //! Mobile relay, platform adapter config, and factory reset routes.
 
+use crate::platform::adapter::PlatformAdapter;
 use crate::web::state::SharedState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -147,9 +148,14 @@ pub async fn save_platform(
                     autonomy_channel_id: String::new(),
                     listen_channels,
                 };
-                st.platform_registry.replace_adapter(Box::new(
-                    crate::platform::discord::DiscordAdapter::new(&cfg),
-                )).await;
+                let mut new_adapter = crate::platform::discord::DiscordAdapter::new(&cfg);
+                if let Err(e) = new_adapter.connect().await {
+                    tracing::error!(error = %e, "Failed to connect Discord adapter at runtime");
+                }
+                // Store HTTP handle in SharedState so thinking threads + typing indicators work
+                #[cfg(feature = "discord")]
+                { st.discord_http = new_adapter.http_client(); }
+                st.platform_registry.replace_adapter(Box::new(new_adapter)).await;
             }
             "telegram" => {
                 let token = body.get("token").and_then(|v| v.as_str()).unwrap_or("");

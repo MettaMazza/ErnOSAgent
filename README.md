@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/MettaMazza/ErnOSAgent/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
-  <img src="https://img.shields.io/badge/tests-718+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-727+-brightgreen?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
   <img src="https://img.shields.io/badge/rust-1.75+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
@@ -31,7 +31,7 @@
 
 ---
 
-> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 24 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using LoRA on Metal/CUDA/CPU. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
+> A pure-Rust AI agent that runs transformer models on your hardware via `llama-server`, uses a ReAct reasoning loop with 24 integrated tools, audits its own responses through a 17-rule Observer system, and trains itself from its own mistakes using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation) on Metal/CUDA/CPU. On mobile, the same Rust engine runs on-device via compact edge models, or relays to your desktop for heavier inference.
 
 ```
 ┌─ ErnOSAgent ─────────────────────────────────────────────────┐
@@ -64,9 +64,9 @@
 | One-size-fits-all personality | **Steering vectors** — adjust model behaviour (honesty, creativity, formality) at inference time |
 | Vendor lock-in | **Multi-provider** — llama.cpp (primary), Ollama, LM Studio, HuggingFace, plus OpenAI-compatible cloud fallbacks |
 | Desktop-only | **Mobile + glasses** — on-device edge models, desktop relay, Meta Ray-Ban Smart Glasses (planned) |
-| No learning from mistakes | **Self-improvement** — Observer rejections become preference pairs, training LoRA adapters with ORPO on Metal GPU |
+| No learning from mistakes | **Self-improvement** — Observer rejections become preference pairs and standalone rejection signals, training LoRA adapters with 8 methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC) on Metal GPU |
 | Other agent harnesses can't self-correct | **Built-in quality audit** — every response passes a 17-rule gate before the user sees it. Other frameworks deliver raw LLM output with no verification. ErnOS catches hallucination, sycophancy, and confabulation before delivery |
-| Other agent harnesses can't learn | **Real weight-level training** — not just prompt optimisation or conversation critique. ErnOS trains actual LoRA adapters from its own mistakes using SFT and ORPO, then hot-swaps the improved model. The agent genuinely improves over time |
+| Other agent harnesses can't learn | **Real weight-level training** — not just prompt optimisation or conversation critique. ErnOS trains actual LoRA adapters from its own mistakes using 8 methods: SFT (golden), ORPO (pairwise), SimPO (reference-free), KTO (binary signals), DPO (KL-constrained), GRPO (self-play RL), with EWC regularisation to prevent catastrophic forgetting. The agent genuinely improves over time |
 | Other agent harnesses need Python + Node + Docker | **Single compiled binary** — pure Rust, zero runtime dependencies. No Python environment, no `npm install`, no Docker containers. `cargo build --release` and run |
 | Other agent harnesses use flat conversation logs | **Structured 7-tier memory** — not a flat Markdown file. Scratchpad for working context, distilled lessons with confidence scores, timeline archives, a Neo4j knowledge graph with entity decay, learned procedures, semantic embeddings, and cross-tier consolidation |
 | Other agent harnesses rely on cloud LLMs | **Hardware-native performance** — compiled Rust with Metal GPU acceleration on Apple Silicon, CUDA on Linux/Windows. No API round-trips, no token billing, no rate limits. Your hardware, your speed |
@@ -141,9 +141,14 @@ Every subsystem listed here is implemented, tested, and integrated. No stubs. No
 | **Mobile Engine** | UniFFI-exported Rust core → Android (Compose) + iOS (SwiftUI) shells, 4 inference modes, desktop relay | 90 |
 | **TUI** | Full ratatui interactive terminal with chat, sidebar, model picker, steering panel | 7 |
 | **LoRA Training Engine** | Architecture-agnostic Candle engine — auto-detects model dimensions from safetensors headers, per-layer LoRA weight initialization, Metal GPU accelerated | 12 E2E |
-| **Training Buffers** | JSONL crash-safe data capture — golden examples + preference pairs from Observer signals | 8 |
-| **Teacher Orchestrator** | State machine: Idle→Drain→Train→Convert→Promote with training locks | 6 |
-| **ORPO Loss** | Mathematically correct odds-ratio preference optimization (log-sigmoid formulation) | 15 |
+| **Training Buffers** | JSONL crash-safe data capture — golden examples, preference pairs, and rejection records from Observer signals | 12 |
+| **Teacher Orchestrator** | State machine: Idle→Drain→Train→Convert→Promote with 8 training method dispatch | 6 |
+| **SimPO Loss** | Reference-free preference optimization with length-normalised average log-probability reward | 5 |
+| **KTO Loss** | Binary signal training using prospect theory — loss aversion weighting, every Observer signal is training data | 6 |
+| **DPO Loss** | Direct preference optimization with explicit KL-divergence constraint against reference policy | 3 |
+| **ORPO Loss** | Odds-ratio preference optimization (log-sigmoid formulation) | 15 |
+| **GRPO Engine** | Self-play RL — generate N candidates, score with composable rewards, train on normalised advantages | 12 |
+| **EWC Regularisation** | Fisher Information diagonal for anti-catastrophic forgetting across training cycles | 4 |
 | **Adapter Manifest** | Version tracking, promote/rollback, pruning, health checks, PEFT-compatible safetensors export | 11 |
 | **Distillation** | Auto-generate persistent lessons from repeated Observer failure patterns | 7 |
 | **Divergence Detection** | Detects when internal emotional state contradicts output text (safety-refusal aware) | 7 |
@@ -218,33 +223,50 @@ Every response passes through a 17-rule quality gate before delivery:
 | 16 | Persona Violation | Breaking character from active persona |
 | 17 | Explicit Tool Ignorance | Refusing to use available tools when they would help |
 
-Blocked responses become preference pairs: the rejected response + the corrected response form a training signal for ORPO.
+Blocked responses become preference pairs: the rejected response + the corrected response form a training signal for ORPO/SimPO/DPO. Standalone rejections feed into KTO as undesirable examples.
 
 ---
 
 ## 🧬 Self-Improvement Pipeline
 
 ```
-Observer PASS           Observer FAIL → retry → PASS
-     │                          │
-     ▼                          ▼
-Golden Buffer              Preference Buffer
-(good examples)            (rejected + corrected pairs)
-     │                          │
-     └─────── Teacher ──────────┘
-              │
-   ┌──────── │ ────────┐
-   ▼         ▼         ▼
-  SFT      ORPO    Combined
-   │         │         │
-   └──── LoRA Training ──┘
-              │
-         Adapter Files
-              │
-         Manifest Promote
-              │
-         Model Hot-Swap
+Observer PASS              Observer FAIL → retry → PASS       Observer FAIL (standalone)
+     │                              │                                │
+     ▼                              ▼                                ▼
+ Golden Buffer              Preference Buffer                 Rejection Buffer
+ (good examples)            (rejected + corrected pairs)      (undesirable examples)
+     │                              │                                │
+     ├── SFT (supervised)           ├── ORPO (odds-ratio)            ├── KTO(-) (undesirable)
+     ├── KTO(+) (desirable)         ├── SimPO (reference-free)       │
+     │                              ├── DPO (KL-constrained)         │
+     │                              │                                │
+     └──────────────────── Teacher (8 methods) ──────────────────────┘
+                                    │
+                           ┌────────┴────────┐
+                           ▼                 ▼
+                    LoRA Training      GRPO Self-Play
+                    (SFT/ORPO/SimPO/   (generate N candidates,
+                     KTO/DPO + EWC)     score, train on advantages)
+                           │                 │
+                           └─── Adapter ─────┘
+                                  │
+                           Manifest Promote
+                                  │
+                            Model Hot-Swap
 ```
+
+### 8 Training Methods
+
+| Method | Data Source | Key Benefit |
+|--------|------------|-------------|
+| **SFT** | Golden examples | Supervised fine-tuning from successful responses |
+| **ORPO** | Preference pairs | Odds-ratio preference optimization |
+| **SimPO** | Preference pairs | Reference-free — no second model needed, 50% GPU savings |
+| **KTO** | Golden + rejections | Binary signal — every Observer PASS/FAIL is training data |
+| **DPO** | Preference pairs | KL-constrained safety brake against catastrophic drift |
+| **GRPO** | Self-generated | Self-play RL with composable reward functions |
+| **EWC** | Fisher diagonal | Anti-catastrophic forgetting across training cycles |
+| **Combined** | All buffers | Multi-phase: SFT → alignment (auto-selected) |
 
 The LoRA training engine is fully wired to real model weights:
 - **Architecture auto-detection** — reads `config.json` and safetensors headers to detect hidden_dim, head_dim, num_layers, GQA configuration, and per-layer projection dimensions
@@ -252,6 +274,7 @@ The LoRA training engine is fully wired to real model weights:
 - **Metal GPU accelerated** — uses Apple Silicon Metal for forward pass and gradient computation, falls back to CPU on Linux/Windows
 - **PEFT-compatible output** — saves adapters as safetensors with adapter_config.json for compatibility with HuggingFace tooling
 - **E2E verified** — tested against real Gemma 4 27B weights (30 layers, ~50GB), full forward pass + backprop in ~46 seconds on M3 Ultra
+- **8 training methods** — SFT, ORPO, SimPO, KTO, DPO, GRPO, EWC, Combined — each with native loss functions, no fallbacks or proxy implementations
 
 ---
 
@@ -475,10 +498,10 @@ This creates an audit trail of **why** the agent made every decision, not just w
 ## 🧪 Testing
 
 ```bash
-# Full suite (718+ tests)
+# Full suite (727+ tests)
 cargo test -- --test-threads=1
 
-# Unit tests only (~1.3s, 645 tests)
+# Unit tests only (~1.3s, 727 tests)
 cargo test --lib
 
 # E2E tool tests (47 tests)
@@ -499,13 +522,13 @@ cargo test --test e2e_llama -- --nocapture --test-threads=1
 
 | Suite | Tests | Runtime | Requires |
 |-------|:-----:|--------:|----------|
-| Unit tests (all modules) | 645 | ~1.3s | Nothing |
+| Unit tests (all modules) | 727 | ~1.3s | Nothing |
 | E2E Tools (all 24 tools) | 47 | ~0.3s | Nothing |
 | E2E LoRA | 12 | ~0.4s | Nothing |
 | E2E Learning | 7 | ~46s | Model weights in `models/` |
 | E2E Interpretability | 7 | ~0.03s | Nothing |
 | E2E llama | 4 | ~5s | llama-server + model |
-| **Total** | **718+** | — | — |
+| **Total** | **727+** | — | — |
 
 > **Note:** Some tests that use process-global `set_current_dir` may fail intermittently
 > when run in parallel. Use `--test-threads=1` for deterministic results.
@@ -522,6 +545,19 @@ export LLAMACPP_PORT="8080"
 export LLAMACPP_GPU_LAYERS="-1"     # -1 = all layers on GPU
 export NEO4J_URI="bolt://localhost:7687"
 export ERNOSAGENT_DATA_DIR="./data"  # Default: data/
+
+# Self-improvement training
+export ERNOS_TRAINING_ENABLED="1"     # Enable background training
+export ERNOS_SIMPO_BETA="0.5"        # SimPO reward scale
+export ERNOS_SIMPO_GAMMA="0.5"       # SimPO reward margin
+export ERNOS_KTO_BETA="0.1"          # KTO reward scale
+export ERNOS_KTO_LAMBDA_D="1.0"      # KTO desirable weight
+export ERNOS_KTO_LAMBDA_U="1.5"      # KTO undesirable weight (>1 = loss aversion)
+export ERNOS_DPO_BETA="0.1"          # DPO KL penalty coefficient
+export ERNOS_GRPO_GROUP_SIZE="4"     # GRPO candidates per prompt
+export ERNOS_GRPO_KL_BETA="0.01"     # GRPO KL regularisation
+export ERNOS_GRPO_ENABLED="1"        # Enable GRPO self-play
+export ERNOS_EWC_LAMBDA="1.0"        # EWC consolidation strength
 
 # Cloud provider API keys (optional — accessibility fallbacks, not recommended for primary use)
 # These are untested by the maintainer and provided for users who lack local hardware.
@@ -573,7 +609,7 @@ Reference benchmarks on Apple M3 Ultra (512GB unified memory):
 | Model load time | ~2 minutes (Gemma 4 26B Q4_K_M) |
 | VRAM usage | 17.6 GB (of 475 GB available) |
 | LoRA forward pass (27B, 30 layers) | ~46s on Metal GPU |
-| Full test suite | 718+ tests, unit tests in ~1.3s |
+| Full test suite | 727+ tests, unit tests in ~1.3s |
 
 > These are reference benchmarks from the primary development machine. ErnOSAgent runs on any platform that supports llama.cpp — performance scales with your hardware.
 
@@ -630,8 +666,8 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 | Metric | Value |
 |--------|-------|
 | Source files | 173 `.rs` files |
-| Lines of code | ~35,000 |
-| Test count | 718+ (645 unit + 73 E2E) |
+| Lines of code | ~37,000 |
+| Test count | 727+ (727 unit + E2E) |
 | Modules | 20 top-level subsystems |
 | Tools | 24 integrated |
 | Memory tiers | 7 |
@@ -645,7 +681,7 @@ The kernel encodes the HIVE lineage protocols — these are not suggestions, the
 
 ### v1.0 (Current Release)
 
-Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration. The Observer audit catches 17 categories of failure. All 24 tools are wired and tested. 718+ tests pass.
+Everything listed above is implemented, tested, and functional. The LoRA training engine runs on real model weights with Metal GPU acceleration using 8 training methods (SFT, ORPO, SimPO, KTO, DPO, GRPO + EWC regularisation). The Observer audit catches 17 categories of failure. All 24 tools are wired and tested. 727+ tests pass.
 
 ### Coming Soon (v1.1+)
 

@@ -639,6 +639,47 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                 "required": ["action"]
             }),
         ),
+
+        // ── Self-Supervised Learning ─────────────────────────────
+        def("distill_knowledge",
+            "Generate synthetic training data by having an expert model create \
+             domain-specific Q&A pairs. These are added to the golden buffer \
+             for future LoRA training. Requires ERNOS_TRAINING_ENABLED=1.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "The domain or topic to generate training data for \
+                                        (e.g. 'Rust async programming', 'distributed systems')."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of Q&A pairs to generate (default: 5)."
+                    }
+                },
+                "required": ["domain"]
+            }),
+        ),
+
+        def("performance_review",
+            "Self-introspection tool — reviews training data, failure patterns, \
+             success patterns, and learned lessons. Use to understand what needs \
+             improvement and what is working well.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "scope": {
+                        "type": "string",
+                        "enum": ["full", "failures", "successes"],
+                        "description": "Review scope: 'full' for everything, \
+                                        'failures' for failure patterns only, \
+                                        'successes' for golden examples only."
+                    }
+                },
+                "required": []
+            }),
+        ),
     ]
 }
 
@@ -657,8 +698,8 @@ mod tests {
     #[test]
     fn test_all_tool_definitions_count() {
         let defs = all_tool_definitions();
-        // 23 tools (excluding reply_request which is added separately)
-        assert!(defs.len() >= 23, "Expected at least 23 tools, got {}", defs.len());
+        // 25 tools (excluding reply_request which is added separately)
+        assert!(defs.len() >= 25, "Expected at least 25 tools, got {}", defs.len());
     }
 
     #[test]

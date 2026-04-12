@@ -36,6 +36,9 @@ pub struct DiscordAdapter {
     rx: Option<mpsc::Receiver<PlatformMessage>>,
     http: Option<std::sync::Arc<serenity::http::Http>>,
     shutdown: Option<std::sync::Arc<tokio::sync::RwLock<bool>>>,
+    /// Handle to the spawned Serenity gateway task.
+    /// Aborted on `disconnect()` to prevent duplicate gateway clients.
+    gateway_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 #[cfg(feature = "discord")]
@@ -49,6 +52,7 @@ impl DiscordAdapter {
             rx: Some(rx),
             http: None,
             shutdown: None,
+            gateway_handle: None,
         }
     }
 
@@ -68,6 +72,7 @@ impl PlatformAdapter for DiscordAdapter {
     }
 
     async fn connect(&mut self) -> Result<()> {
+        if self.connected { return Ok(()); }
         if self.config.token.is_empty() {
             anyhow::bail!("Discord token not configured — set it in the Platforms tab");
         }
@@ -92,11 +97,12 @@ impl PlatformAdapter for DiscordAdapter {
         let shutdown_flag = std::sync::Arc::new(tokio::sync::RwLock::new(false));
         self.shutdown = Some(shutdown_flag.clone());
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             if let Err(e) = client.start().await {
                 tracing::error!(error = %e, "Discord gateway error");
             }
         });
+        self.gateway_handle = Some(handle);
 
         self.connected = true;
         tracing::info!("Discord adapter connected");
@@ -104,6 +110,13 @@ impl PlatformAdapter for DiscordAdapter {
     }
 
     async fn disconnect(&mut self) -> Result<()> {
+        // Abort the Serenity gateway task to prevent duplicate clients.
+        // This drops the old DiscordHandler and its tx clone, which closes
+        // the channel and naturally terminates any router consuming the rx.
+        if let Some(handle) = self.gateway_handle.take() {
+            handle.abort();
+            tracing::info!("Discord gateway task aborted");
+        }
         if let Some(flag) = &self.shutdown {
             *flag.write().await = true;
         }
@@ -192,9 +205,17 @@ pub(crate) fn chunk_message(content: &str, max_len: usize) -> Vec<String> {
         let split_at = if remaining.len() <= max_len {
             remaining.len()
         } else {
-            remaining[..max_len]
+            // Find a valid UTF-8 char boundary at or before max_len
+            let boundary = {
+                let mut b = max_len;
+                while b > 0 && !remaining.is_char_boundary(b) {
+                    b -= 1;
+                }
+                b
+            };
+            remaining[..boundary]
                 .rfind('\n')
-                .unwrap_or(max_len)
+                .unwrap_or(boundary)
         };
         let (chunk, rest) = remaining.split_at(split_at);
         chunks.push(chunk.to_string());

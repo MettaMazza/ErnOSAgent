@@ -10,7 +10,7 @@
 
 use super::loss::{compute_orpo_loss, cross_entropy_loss, learning_rate};
 use super::optimizer::AdamState;
-use super::weights::{build_lora_varmap, load_base_weights};
+use super::weights::{build_lora_varmap, build_lora_varmap_with_resume, load_base_weights};
 use super::{
     tokenize_golden, tokenize_preference, LoraConfig, Tokenizer, TrainingReport, TrainingSample,
 };
@@ -19,9 +19,13 @@ use anyhow::{bail, Context, Result};
 use candle_core::Device;
 
 /// Run a full SFT training cycle on golden examples.
+///
+/// When `resume_from` is `Some`, the LoRA weights are initialised from the
+/// previous adapter (cumulative stacking) instead of fresh random/zero init.
 pub fn train_sft(
     golden_data: &[GoldenExample],
     config: &LoraConfig,
+    resume_from: Option<&std::path::Path>,
 ) -> Result<TrainingReport> {
     let start = std::time::Instant::now();
     validate_config(config)?;
@@ -39,7 +43,13 @@ pub fn train_sft(
 
     let tokenizer = Tokenizer::load(&config.tokenizer_path)?;
     let base_vb = load_base_weights(&config.weights_dir, &device)?;
-    let var_map = build_lora_varmap(config, &device)?;
+    let var_map = match resume_from {
+        Some(adapter_dir) => {
+            tracing::info!(adapter = %adapter_dir.display(), "Stacking on previous adapter");
+            build_lora_varmap_with_resume(config, &device, adapter_dir)?
+        }
+        None => build_lora_varmap(config, &device)?,
+    };
     let mut adam = AdamState::new(0.9, 0.999, 1e-8);
 
     let samples = tokenize_sft_samples(golden_data, &tokenizer, config)?;
@@ -82,10 +92,14 @@ pub fn train_sft(
 }
 
 /// Run a full ORPO training cycle on preference pairs.
+///
+/// When `resume_from` is `Some`, the LoRA weights are initialised from the
+/// previous adapter (cumulative stacking) instead of fresh random/zero init.
 pub fn train_orpo(
     preference_data: &[PreferencePair],
     config: &LoraConfig,
     orpo_beta: f64,
+    resume_from: Option<&std::path::Path>,
 ) -> Result<TrainingReport> {
     let start = std::time::Instant::now();
     validate_config(config)?;
@@ -102,7 +116,13 @@ pub fn train_orpo(
 
     let tokenizer = Tokenizer::load(&config.tokenizer_path)?;
     let base_vb = load_base_weights(&config.weights_dir, &device)?;
-    let var_map = build_lora_varmap(config, &device)?;
+    let var_map = match resume_from {
+        Some(adapter_dir) => {
+            tracing::info!(adapter = %adapter_dir.display(), "Stacking on previous adapter (ORPO)");
+            build_lora_varmap_with_resume(config, &device, adapter_dir)?
+        }
+        None => build_lora_varmap(config, &device)?,
+    };
     let mut adam = AdamState::new(0.9, 0.999, 1e-8);
 
     let pairs = tokenize_orpo_samples(preference_data, &tokenizer, config)?;

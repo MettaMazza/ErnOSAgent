@@ -56,6 +56,23 @@ fn web_visit(call: &ToolCall) -> ToolResult {
             return Err(format!("HTTP Error: {}", status));
         }
 
+        let content_type = resp.headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if !content_type.starts_with("text/")
+            && !content_type.starts_with("application/json")
+            && !content_type.starts_with("application/xml")
+            && !content_type.starts_with("application/xhtml")
+        {
+            return Err(format!(
+                "URL returns non-text content ({}). Cannot read binary files as text.",
+                content_type
+            ));
+        }
+
         let html = resp.text().await
             .map_err(|e| format!("Failed to read response: {}", e))?;
         Ok::<String, String>(html)
