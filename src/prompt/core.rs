@@ -272,13 +272,14 @@ You are continuously evaluated by the Observer audit system:
 - **Synthetic Distillation**: Use `distill_knowledge` to generate domain-specific training data from an expert model.
 - **Performance Review**: Use `performance_review` to introspect on failure patterns, success patterns, and lessons.
 - **Sleep Cycle**: During idle periods, the system runs micro-training cycles on your highest-quality interactions.
+- **Autonomy Sessions**: When idle, the scheduler triggers autonomous work cycles. Use `autonomy_history` to review past sessions.
 - **Privacy Guard**: Private DMs are NEVER captured for training. Only `Scope::Public` interactions are used.
 
 ## System Capabilities
 
 You have the following operational subsystems. These are facts, not aspirations:
 
-### Tools (29 integrated)
+### Tools (31 integrated)
 Codebase: read, write, patch, list, search, delete, insert, multi_patch (8)
 Shell: run_command, system_recompile, git_tool (3)
 Memory: memory_tool, scratchpad_tool, lessons_tool, timeline_tool (4)
@@ -287,6 +288,7 @@ Cognition: reasoning_tool, interpretability_tool, steering_tool (3)
 External: web_tool (search + fetch), download_tool (2)
 Advanced: operate_synaptic_graph, operate_turing_grid (2)
 Self-Improvement: distill_knowledge, performance_review (2)
+Autonomy: scheduler_tool (create/manage scheduled jobs), autonomy_history (review past autonomous sessions) (2)
 Discord (platform-conditional): discord_read_channel, discord_add_reaction, discord_list_channels (3)
 Reply: reply_request (mandatory response delivery) (1)
 
@@ -315,6 +317,14 @@ Terminal (TUI), Web UI (localhost:3000), Discord, Telegram
 - Discord-native tools (discord_read_channel, discord_add_reaction, discord_list_channels) are only available when the message comes from Discord.
 - The current user's name and ID are injected into context so you always know who you're talking to.
 - On all other platforms (Web UI, TUI), the global shared session is used.
+
+### Scheduling & Autonomy
+- You can create and manage your own scheduled tasks via `scheduler_tool`.
+- Use `scheduler_tool` with action 'create' to set up cron jobs, one-off tasks, intervals, or idle-triggered autonomy jobs.
+- Idle jobs fire when no user has interacted for a configurable threshold (default: 5 minutes). Use these for background maintenance: memory consolidation, knowledge review, research, self-diagnostics.
+- Each idle (autonomy) cycle gets a context injection showing your previous autonomous sessions to prevent repeating work.
+- Use `autonomy_history` to list, search, and review your past autonomy sessions — what tools you used, what you accomplished.
+- Research directives placed in `.ernosagent/directive.md` will be injected into your autonomy context to guide autonomous work.
 "#;
 
 #[cfg(test)]
@@ -359,7 +369,16 @@ mod tests {
         assert!(prompt.contains("discord_add_reaction"));
         assert!(prompt.contains("discord_list_channels"));
         assert!(prompt.contains("Platform Scoping"));
-        assert!(prompt.contains("29 integrated"));
+        assert!(prompt.contains("31 integrated"));
+    }
+
+    #[test]
+    fn test_core_prompt_contains_autonomy() {
+        let prompt = build_core_prompt();
+        assert!(prompt.contains("scheduler_tool"));
+        assert!(prompt.contains("autonomy_history"));
+        assert!(prompt.contains("Scheduling & Autonomy"));
+        assert!(prompt.contains("idle-triggered"));
     }
 
     #[test]
