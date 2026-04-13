@@ -7,6 +7,7 @@
 
 use super::SchedulerHandle;
 use crate::web::state::SharedState;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,6 +23,9 @@ use tokio::time::{interval, Duration};
 /// Race-condition prevention: `mark_dispatched()` sets `last_run = now`
 /// synchronously BEFORE spawning the task. This makes `is_due` / `is_due_idle`
 /// naturally return false on the next tick for any job type.
+///
+/// Running-job guard: a shared `running_jobs` set tracks which job IDs are
+/// currently executing. A job is not dispatched if it's already in the set.
 pub async fn run(
     handle: SchedulerHandle,
     state: SharedState,
@@ -30,6 +34,10 @@ pub async fn run(
 ) {
     tracing::info!("Scheduler background loop started");
     let mut tick = interval(Duration::from_secs(1));
+
+    // Track currently running job IDs to prevent duplicate spawns
+    let running_jobs: Arc<TokioMutex<HashSet<String>>> =
+        Arc::new(TokioMutex::new(HashSet::new()));
 
     // ── Boot initialization ──────────────────────────────────────────
     // All countdowns start from NOW — no job should fire immediately at boot.
@@ -56,10 +64,15 @@ pub async fn run(
         let due_jobs = handle.get_due_jobs(now).await;
 
         for job in due_jobs {
+            // Skip if this job is already running
+            if running_jobs.lock().await.contains(&job.id) {
+                continue;
+            }
+
             // Mark dispatched BEFORE spawning — sets last_run = now so the
             // next tick's is_due() returns false. This is the root fix.
             handle.mark_dispatched(&job.id).await;
-            dispatch_job(job, state.clone(), handle.clone());
+            dispatch_job(job, state.clone(), handle.clone(), Arc::clone(&running_jobs));
         }
 
         // Idle jobs — check against the idle timer
@@ -68,6 +81,11 @@ pub async fn run(
             let idle_jobs = handle.get_due_idle_jobs(idle_elapsed).await;
 
             for job in idle_jobs {
+                // Skip if this job is already running
+                if running_jobs.lock().await.contains(&job.id) {
+                    continue;
+                }
+
                 tracing::info!(
                     job_id = %job.id,
                     job_name = %job.name,
@@ -76,7 +94,7 @@ pub async fn run(
                 );
                 // Mark dispatched BEFORE spawning — same root fix.
                 handle.mark_dispatched(&job.id).await;
-                dispatch_job(job, state.clone(), handle.clone());
+                dispatch_job(job, state.clone(), handle.clone(), Arc::clone(&running_jobs));
             }
         }
     }
@@ -89,11 +107,15 @@ fn dispatch_job(
     job: super::job::ScheduledJob,
     state: SharedState,
     handle: SchedulerHandle,
+    running_jobs: Arc<TokioMutex<HashSet<String>>>,
 ) {
     let job_id = job.id.clone();
     let job_name = job.name.clone();
 
     tokio::spawn(async move {
+        // Mark as running BEFORE execution
+        running_jobs.lock().await.insert(job_id.clone());
+
         tracing::info!(
             job_id = %job_id,
             job_name = %job_name,
@@ -102,7 +124,8 @@ fn dispatch_job(
 
         let result = super::executor::execute_job(&job, &state).await;
         handle.record_result(&job_id, result).await;
+
+        // Remove from running set when done
+        running_jobs.lock().await.remove(&job_id);
     });
 }
-
-

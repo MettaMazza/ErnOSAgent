@@ -475,11 +475,13 @@ async fn init_web_state(
                 while let Some(msg) = merged_rx.recv().await {
                     let state = state_for_router.clone();
                     tokio::spawn(async move {
-                        // Signal autonomy cancellation — preempt running autonomy jobs
-                        // NOTE: idle timer is NOT reset here — it resets when the turn ENDS
+                        // Signal autonomy cancellation AND reset idle timer immediately
+                        // The timer must reset NOW (not at turn completion) to prevent
+                        // the scheduler from respawning idle jobs during processing.
                         {
                             let st = state.read().await;
                             st.autonomy_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                            *st.idle_timer.lock().await = std::time::Instant::now();
                         }
                         tracing::info!(
                             platform = %msg.platform,

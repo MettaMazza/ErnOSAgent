@@ -27,6 +27,8 @@ pub struct PeerConnection {
     pub addr: SocketAddr,
     /// When this connection was established.
     pub connected_at: String,
+    /// Last measured RTT in milliseconds.
+    pub last_rtt: Option<u64>,
 }
 
 /// QUIC transport — manages all mesh connections.
@@ -104,6 +106,7 @@ impl MeshTransport {
                 connection,
                 addr,
                 connected_at: chrono::Utc::now().to_rfc3339(),
+                last_rtt: None,
             },
         );
         tracing::debug!(peer = %peer_id, addr = %addr, "Connection registered");
@@ -183,6 +186,12 @@ impl MeshTransport {
     /// Check if a peer is currently connected.
     pub async fn is_connected(&self, peer_id: &PeerId) -> bool {
         self.connections.read().await.contains_key(&peer_id.0)
+    }
+
+    /// Get the number of active connections.
+    pub async fn get_peer_rtt(&self, peer_id: &PeerId) -> Option<u64> {
+        let connections = self.connections.read().await;
+        connections.get(&peer_id.0).and_then(|c| c.last_rtt)
     }
 
     /// Get the number of active connections.
