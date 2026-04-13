@@ -38,15 +38,15 @@ pub struct FeatureActivation {
 #[derive(Debug)]
 pub struct SparseAutoencoder {
     /// Encoder weights: num_features × model_dim
-    w_enc: Vec<f32>,
+    pub(crate) w_enc: Vec<f32>,
     /// Encoder bias: num_features
-    b_enc: Vec<f32>,
+    pub(crate) b_enc: Vec<f32>,
     /// Decoder weights: model_dim × num_features (column-major for fast feature lookup)
-    w_dec: Vec<f32>,
+    pub(crate) w_dec: Vec<f32>,
     /// Decoder bias: model_dim
-    b_dec: Vec<f32>,
+    pub(crate) b_dec: Vec<f32>,
     /// Architecture variant
-    architecture: SaeArchitecture,
+    pub(crate) architecture: SaeArchitecture,
     /// Number of learned features
     pub num_features: usize,
     /// Model dimension (residual stream width)

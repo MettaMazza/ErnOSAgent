@@ -24,3 +24,5 @@ pub mod extractor;
 pub mod trainer;
 pub mod steering_bridge;
 pub mod divergence;
+pub mod collector;
+pub mod train_runner;
