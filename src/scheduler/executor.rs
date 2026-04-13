@@ -32,7 +32,8 @@ pub async fn execute_job(
     );
 
     // Extract everything we need from state
-    let (provider, model, system_prompt, identity_prompt, tools, data_dir, context_length) = {
+    let (provider, model, system_prompt, identity_prompt, tools, data_dir, context_length,
+         cancel_token, autonomy_cancel) = {
         let st = state.read().await;
         // Get all tool definitions, then filter by autonomy toggles
         let mut tool_defs = tool_schemas::all_tool_definitions();
@@ -48,8 +49,14 @@ pub async fn execute_job(
             tool_defs,
             st.config.general.data_dir.clone(),
             st.model_spec.context_length,
+            Arc::clone(&st.cancel_token),
+            Arc::clone(&st.autonomy_cancel),
         )
     };
+
+    // Reset cancellation tokens before starting
+    cancel_token.store(false, std::sync::atomic::Ordering::SeqCst);
+    autonomy_cancel.store(false, std::sync::atomic::Ordering::SeqCst);
 
     // For idle-type jobs, inject autonomy context so the agent doesn't repeat work
     let autonomy_context = if matches!(job.schedule, JobSchedule::Idle(_)) {
@@ -122,10 +129,34 @@ pub async fn execute_job(
         .await
     });
 
-    // Drain events (we don't display them, but the channel must be consumed)
+    // Live transcript path for this autonomy session
+    let transcript_dir = data_dir.join("memory/autonomy");
+    let _ = std::fs::create_dir_all(&transcript_dir);
+    let transcript_path = transcript_dir.join("live_transcript.jsonl");
+    let is_idle = matches!(job.schedule, JobSchedule::Idle(_));
+
+    // Drain events — log live to transcript AND check for preemption
+    let cancel_for_drain = Arc::clone(&cancel_token);
+    let autonomy_cancel_for_drain = autonomy_cancel.clone();
+    let job_name_drain = job.name.clone();
     let drain_handle = tokio::spawn(async move {
         let mut response = String::new();
         while let Some(event) = event_rx.recv().await {
+            // Check preemption — if user sent a message, abort the autonomy job
+            if autonomy_cancel_for_drain.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::info!(
+                    job_name = %job_name_drain,
+                    "Autonomy job preempted by user input — aborting"
+                );
+                cancel_for_drain.store(true, std::sync::atomic::Ordering::SeqCst);
+                break;
+            }
+
+            // Log event live to transcript file
+            if is_idle {
+                log_live_event(&transcript_path, &job_name_drain, &event);
+            }
+
             if let crate::react::r#loop::ReactEvent::ResponseReady { text } = event {
                 response = text;
             }
@@ -163,6 +194,17 @@ pub async fn execute_job(
 
     // Ensure drain task completes
     let _ = drain_handle.await;
+
+    // Reset cancel tokens after job completes
+    cancel_token.store(false, std::sync::atomic::Ordering::SeqCst);
+    autonomy_cancel.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    // Reset idle timer — the system's turn is now complete.
+    // Autonomy idle countdown restarts from HERE, not from when the job started.
+    {
+        let st = state.read().await;
+        *st.idle_timer.lock().await = std::time::Instant::now();
+    }
 
     tracing::info!(
         job_id = %job.id,
@@ -326,6 +368,85 @@ async fn forward_to_autonomy_channel(
                 );
             }
             break;
+        }
+    }
+}
+
+/// Log a live event to the autonomy transcript file as it happens.
+/// This enables the dashboard to show real-time autonomy activity
+/// instead of only updating at the end of the turn.
+fn log_live_event(
+    transcript_path: &std::path::Path,
+    job_name: &str,
+    event: &crate::react::r#loop::ReactEvent,
+) {
+    use crate::react::r#loop::ReactEvent;
+
+    let entry = match event {
+        ReactEvent::TurnStarted { turn } => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "turn_started",
+            "turn": turn,
+        }),
+        ReactEvent::Thinking(text) => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "thinking",
+            "text": text.chars().take(500).collect::<String>(),
+        }),
+        ReactEvent::ToolExecuting { name, id, arguments } => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "tool_executing",
+            "tool": name,
+            "tool_call_id": id,
+            "arguments": arguments.chars().take(200).collect::<String>(),
+        }),
+        ReactEvent::ToolCompleted { name, result } => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "tool_completed",
+            "tool": name,
+            "success": result.error.is_none(),
+            "output_preview": result.output.chars().take(200).collect::<String>(),
+        }),
+        ReactEvent::AuditRunning => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "audit_running",
+        }),
+        ReactEvent::AuditCompleted { verdict, reason, confidence } => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "audit_completed",
+            "verdict": format!("{:?}", verdict),
+            "reason": reason,
+            "confidence": confidence,
+        }),
+        ReactEvent::ResponseReady { text } => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "response_ready",
+            "text_preview": text.chars().take(300).collect::<String>(),
+        }),
+        ReactEvent::Error(msg) => serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "job": job_name,
+            "event": "error",
+            "message": msg,
+        }),
+        _ => return, // Token events are too noisy for the log
+    };
+
+    if let Ok(json) = serde_json::to_string(&entry) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(transcript_path)
+        {
+            let _ = writeln!(f, "{}", json);
         }
     }
 }

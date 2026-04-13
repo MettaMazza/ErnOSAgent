@@ -76,4 +76,8 @@ pub struct WebAppState {
     /// Idle timer — reset every time a user sends a message (WS or platform).
     /// The scheduler runner reads this to determine if idle autonomy should fire.
     pub idle_timer: Arc<tokio::sync::Mutex<std::time::Instant>>,
+    /// Autonomy cancel token — set to true when user input arrives during an
+    /// active autonomy job. The executor checks this to abort the running job
+    /// so the user gets served immediately (preemption).
+    pub autonomy_cancel: Arc<AtomicBool>,
 }

@@ -134,10 +134,11 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
 
         match client_msg {
             ClientMessage::Chat { message, images } => {
-                // Reset idle timer — user is active
+                // Signal autonomy cancellation — user message preempts running autonomy jobs
+                // NOTE: idle timer is NOT reset here — it resets when the turn ENDS
                 {
                     let st = state.read().await;
-                    *st.idle_timer.lock().await = std::time::Instant::now();
+                    st.autonomy_cancel.store(true, Ordering::SeqCst);
                 }
                 chat::handle_chat(&mut socket, &state, &message, images).await
             }

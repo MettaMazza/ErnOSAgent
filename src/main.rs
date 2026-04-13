@@ -424,6 +424,7 @@ async fn init_web_state(
         #[cfg(feature = "mesh")]
         mesh_coordinator: None, // Initialised later if mesh.enabled
         idle_timer: Arc::clone(&last_user_input),
+        autonomy_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     }));
 
 
@@ -474,10 +475,11 @@ async fn init_web_state(
                 while let Some(msg) = merged_rx.recv().await {
                     let state = state_for_router.clone();
                     tokio::spawn(async move {
-                        // Reset idle timer — user is active on a platform
+                        // Signal autonomy cancellation — preempt running autonomy jobs
+                        // NOTE: idle timer is NOT reset here — it resets when the turn ENDS
                         {
                             let st = state.read().await;
-                            *st.idle_timer.lock().await = std::time::Instant::now();
+                            st.autonomy_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
                         }
                         tracing::info!(
                             platform = %msg.platform,
@@ -524,6 +526,8 @@ async fn init_web_state(
                                         break;
                                     }
                                 }
+                                // Reset idle timer — turn is complete
+                                *st.idle_timer.lock().await = std::time::Instant::now();
                             }
                             Err(e) => {
                                 // Stop typing indicator on error too
@@ -533,6 +537,9 @@ async fn init_web_state(
                                 }
 
                                 tracing::error!(platform = %msg.platform, error = %e, "Failed to process platform message");
+                                // Reset idle timer even on error — the turn is done
+                                let st = state.read().await;
+                                *st.idle_timer.lock().await = std::time::Instant::now();
                             }
                         }
                     });

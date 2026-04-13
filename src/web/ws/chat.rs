@@ -290,6 +290,9 @@ async fn finalize_chat_turn(socket: &mut WebSocket, state: &SharedState) {
         let mut st = state.write().await;
         st.is_generating = false;
         st.cancel_token.store(false, Ordering::SeqCst);
+        // Reset idle timer NOW — the system has finished its turn.
+        // Autonomy idle countdown starts from when the turn ENDS, not when user sent a message.
+        *st.idle_timer.lock().await = std::time::Instant::now();
     }
     if let Ok(status) = super::build_status_message(state).await {
         let _ = send_json(socket, &status).await;
