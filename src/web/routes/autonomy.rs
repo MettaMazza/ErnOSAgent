@@ -261,17 +261,6 @@ pub async fn autonomy_live(
 
                 // Non-thinking event: flush any accumulated thinking first
                 if !thinking_buf.is_empty() {
-                    // Trim to a reasonable preview length
-                    let preview = if thinking_buf.len() > 500 {
-                        let end = thinking_buf.char_indices()
-                            .take_while(|(i, _)| *i <= 500)
-                            .last()
-                            .map(|(i, _)| i)
-                            .unwrap_or(500);
-                        format!("{}…", &thinking_buf[..end])
-                    } else {
-                        thinking_buf.clone()
-                    };
                     aggregated.push(LiveEvent {
                         event: "thinking".to_string(),
                         job: thinking_job.clone(),
@@ -282,9 +271,8 @@ pub async fn autonomy_live(
                         output_preview: None,
                         success: None,
                         turn: None,
-                        text: Some(preview),
+                        text: Some(std::mem::take(&mut thinking_buf)),
                     });
-                    thinking_buf.clear();
                 }
 
                 // Add the structural event
@@ -294,12 +282,8 @@ pub async fn autonomy_live(
                     timestamp,
                     tool: entry.get("tool").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     tool_call_id: entry.get("tool_call_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    arguments: entry.get("arguments").and_then(|v| v.as_str()).map(|s| {
-                        if s.len() > 200 { format!("{}…", &s[..200]) } else { s.to_string() }
-                    }),
-                    output_preview: entry.get("output_preview").and_then(|v| v.as_str()).map(|s| {
-                        if s.len() > 300 { format!("{}…", &s[..300]) } else { s.to_string() }
-                    }),
+                    arguments: entry.get("arguments").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    output_preview: entry.get("output_preview").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     success: entry.get("success").and_then(|v| v.as_bool()),
                     turn: entry.get("turn").and_then(|v| v.as_u64()),
                     text: None,
@@ -308,16 +292,6 @@ pub async fn autonomy_live(
 
             // Flush any trailing thinking
             if !thinking_buf.is_empty() {
-                let preview = if thinking_buf.len() > 500 {
-                    let end = thinking_buf.char_indices()
-                        .take_while(|(i, _)| *i <= 500)
-                        .last()
-                        .map(|(i, _)| i)
-                        .unwrap_or(500);
-                    format!("{}…", &thinking_buf[..end])
-                } else {
-                    thinking_buf.clone()
-                };
                 aggregated.push(LiveEvent {
                     event: "thinking".to_string(),
                     job: thinking_job,
@@ -328,7 +302,7 @@ pub async fn autonomy_live(
                     output_preview: None,
                     success: None,
                     turn: None,
-                    text: Some(preview),
+                    text: Some(thinking_buf),
                 });
             }
 

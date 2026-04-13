@@ -6,7 +6,7 @@
 
 // ErnOS Agent — Service Worker
 // Caches static assets for offline-first PWA experience
-const CACHE_NAME = 'ernosagent-v5';
+const CACHE_NAME = 'ernosagent-v6';
 const STATIC_ASSETS = [
     '/',
     '/app.js',

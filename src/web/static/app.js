@@ -2677,7 +2677,7 @@
                             }
 
                             if (e.event === 'tool_executing') {
-                                const args = e.arguments ? e.arguments.substring(0, 120) : '';
+                                const args = e.arguments || '';
                                 return `<div class="activity-entry" style="border-left:3px solid var(--warning, #f59e0b);padding-left:8px;margin:4px 0">
                                     <div class="activity-entry-header">
                                         <span class="activity-status-icon">🔧</span>
@@ -2691,7 +2691,7 @@
 
                             if (e.event === 'tool_completed') {
                                 const icon = e.success ? '✅' : '❌';
-                                const preview = e.output_preview ? e.output_preview.substring(0, 200) : '';
+                                const preview = e.output_preview || '';
                                 return `<div class="activity-entry" style="border-left:3px solid ${e.success ? 'var(--success, #22c55e)' : 'var(--error, #ef4444)'};padding-left:8px;margin:4px 0">
                                     <div class="activity-entry-header">
                                         <span class="activity-status-icon">${icon}</span>
@@ -2719,7 +2719,7 @@
                                         <span class="activity-job-name">Thinking</span>
                                         <span class="activity-time">${time}</span>
                                     </div>
-                                    <div class="activity-summary" style="font-size:11px;color:var(--text-secondary);margin-top:4px;max-height:150px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;padding:4px;background:rgba(168,85,247,0.05);border-radius:4px">${Markdown.escapeHtml(e.text)}</div>
+                                    <div class="activity-summary" style="font-size:11px;color:var(--text-secondary);margin-top:4px;max-height:400px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;padding:6px;background:rgba(168,85,247,0.05);border-radius:4px">${Markdown.escapeHtml(e.text)}</div>
                                 </div>`;
                             }
 
