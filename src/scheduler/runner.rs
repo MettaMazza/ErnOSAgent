@@ -31,8 +31,13 @@ pub async fn run(
     tracing::info!("Scheduler background loop started");
     let mut tick = interval(Duration::from_secs(1));
 
-    // Reset idle timer at scheduler start so jobs don't fire immediately on boot.
-    // The system just started — it hasn't been "idle", it's just been booting.
+    // ── Boot initialization ──────────────────────────────────────────
+    // All countdowns start from NOW — no job should fire immediately at boot.
+    // This is the root fix: any job with last_run = None gets initialized to now,
+    // so Interval, Idle, and any future schedule type all start counting from boot.
+    handle.initialize_boot_timestamps().await;
+
+    // Reset idle timer so idle jobs don't think the system has been idle since state creation.
     if let Some(ref timer) = last_user_input {
         *timer.lock().await = Instant::now();
     }

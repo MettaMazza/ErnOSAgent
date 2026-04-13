@@ -80,6 +80,33 @@ impl Scheduler {
             .collect()
     }
 
+    /// Initialize `last_run` for all jobs that have never run.
+    ///
+    /// Called once at scheduler startup. Sets `last_run = now` for any job
+    /// where it's `None`, so every schedule type starts its countdown from
+    /// boot time rather than firing immediately. This is the root fix that
+    /// prevents any job — current or future — from triggering on the first tick.
+    pub async fn initialize_boot_timestamps(&self) {
+        let now = chrono::Utc::now();
+        let mut jobs = self.jobs.write().await;
+        let mut initialized = 0u32;
+        for job in jobs.iter_mut() {
+            if job.enabled && job.last_run.is_none() {
+                job.last_run = Some(now);
+                initialized += 1;
+                tracing::info!(
+                    job_id = %job.id,
+                    job_name = %job.name,
+                    "Scheduler: initialized last_run to boot time (was never-run)"
+                );
+            }
+        }
+        if initialized > 0 {
+            let _ = self.store.save(&jobs);
+        }
+        tracing::info!(initialized, "Scheduler: boot timestamps set");
+    }
+
     /// Mark a job as dispatched — sets `last_run` to NOW before execution begins.
     ///
     /// This is the root fix for the re-dispatch race condition: by setting
