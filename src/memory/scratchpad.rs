@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 pub struct ScratchpadEntry {
     pub key: String,
     pub value: String,
+    #[serde(default)]
     pub pinned: bool,
 }
 

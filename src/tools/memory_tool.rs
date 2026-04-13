@@ -75,7 +75,7 @@ fn memory_store(call: &ToolCall) -> ToolResult {
     for entry in entries.iter_mut() {
         if entry.get("key").and_then(|v| v.as_str()) == Some(key) {
             entry["value"] = serde_json::Value::String(value.to_string());
-            entry["updated_at"] = serde_json::Value::String(chrono::Utc::now().to_rfc3339());
+            entry["pinned"] = serde_json::Value::Bool(true);
             found = true;
             break;
         }
@@ -84,7 +84,7 @@ fn memory_store(call: &ToolCall) -> ToolResult {
         entries.push(serde_json::json!({
             "key": key,
             "value": value,
-            "created_at": chrono::Utc::now().to_rfc3339(),
+            "pinned": true,
         }));
     }
 
