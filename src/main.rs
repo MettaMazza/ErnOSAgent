@@ -49,7 +49,64 @@ async fn main() -> Result<()> {
         "ErnOSAgent starting (web UI)"
     );
 
+    // Check for --train-sae subcommand
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--train-sae") {
+        return run_sae_training(config).await;
+    }
+
     run_web(config).await
+}
+
+/// Run SAE training pipeline (activated via `cargo run -- --train-sae`).
+async fn run_sae_training(config: config::AppConfig) -> Result<()> {
+    use ernosagent::interpretability::train_runner::{TrainingRunConfig, run_sae_training};
+    use ernosagent::interpretability::trainer::TrainConfig;
+
+    tracing::info!("=== SAE Training Mode ===");
+    tracing::info!(
+        model = %config.llamacpp.model_path,
+        "Training JumpReLU SAE on Gemma 4 27B activations"
+    );
+
+    let data_dir = config.general.data_dir.clone();
+    let checkpoint_dir = data_dir.join("sae_training/checkpoints");
+
+    let run_config = TrainingRunConfig {
+        model_path: config.llamacpp.model_path.clone(),
+        server_binary: config.llamacpp.server_binary.clone(),
+        embed_port: 8082,
+        n_gpu_layers: config.llamacpp.n_gpu_layers,
+        data_dir: data_dir.clone(),
+        train_config: TrainConfig {
+            num_features: 131_072,  // 128K — Gemma Scope standard
+            model_dim: 0,          // auto-detected from first activation
+            l1_coefficient: 5e-3,
+            learning_rate: 3e-4,
+            weight_decay: 0.0,
+            num_steps: 100_000,
+            batch_size: 4096,
+            log_interval: 1000,
+            checkpoint_interval: 5000,
+            dead_feature_resample_interval: 25_000,
+            jump_threshold: 0.001,
+            checkpoint_dir,
+        },
+        min_samples: 50,
+        resume_collection: true,
+    };
+
+    let output = run_sae_training(run_config).await?;
+    tracing::info!(
+        output = %output.display(),
+        "SAE training complete — weights saved"
+    );
+    println!("\n✅ SAE training complete!");
+    println!("   Output: {}", output.display());
+    println!("   Format: safetensors (SAELens compatible)");
+    println!("   Ready for open source release.");
+
+    Ok(())
 }
 
 async fn run_web(config: config::AppConfig) -> Result<()> {
