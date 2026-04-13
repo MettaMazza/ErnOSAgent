@@ -220,7 +220,6 @@ pub async fn autonomy_live(
             let mut aggregated: Vec<LiveEvent> = Vec::new();
             let mut thinking_buf = String::new();
             let mut thinking_ts_start = String::new();
-            let mut thinking_ts_end = String::new();
             let mut thinking_job = String::new();
 
             for line in &lines[start..] {
@@ -257,7 +256,6 @@ pub async fn autonomy_live(
                             .to_string();
                     }
                     thinking_buf.push_str(token);
-                    thinking_ts_end = timestamp;
                     continue;
                 }
 
