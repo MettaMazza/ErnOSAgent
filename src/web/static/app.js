@@ -2712,6 +2712,17 @@
                                 </div>`;
                             }
 
+                            if (e.event === 'thinking' && e.text) {
+                                return `<div class="activity-entry" style="border-left:3px solid #a855f7;padding-left:8px;margin:4px 0">
+                                    <div class="activity-entry-header">
+                                        <span class="activity-status-icon">💭</span>
+                                        <span class="activity-job-name">Thinking</span>
+                                        <span class="activity-time">${time}</span>
+                                    </div>
+                                    <div class="activity-summary" style="font-size:11px;color:var(--text-secondary);margin-top:4px;max-height:150px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;padding:4px;background:rgba(168,85,247,0.05);border-radius:4px">${Markdown.escapeHtml(e.text)}</div>
+                                </div>`;
+                            }
+
                             // Generic event
                             return `<div class="activity-entry" style="padding-left:8px;margin:4px 0">
                                 <div class="activity-entry-header">

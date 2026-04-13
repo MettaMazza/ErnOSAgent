@@ -194,8 +194,8 @@ pub struct LiveQuery {
 
 /// GET /api/autonomy/live — real-time autonomy transcript from live_transcript.jsonl.
 ///
-/// Returns tool executions, turn starts, thinking tokens, and completions
-/// as they happen. The dashboard polls this to show live autonomy activity.
+/// Aggregates raw thinking tokens into readable blocks. Returns every step
+/// of the ReAct loop: thinking, tool executions, turn starts, completions.
 pub async fn autonomy_live(
     State(state): State<SharedState>,
     axum::extract::Query(params): axum::extract::Query<LiveQuery>,
@@ -206,23 +206,32 @@ pub async fn autonomy_live(
     };
 
     let path = data_dir.join("memory/autonomy/live_transcript.jsonl");
-    let limit = params.limit.unwrap_or(100);
+    // Read more raw lines since thinking tokens will be aggregated down
+    let raw_limit = params.limit.unwrap_or(100) * 50;
 
     let entries = match std::fs::read_to_string(&path) {
         Ok(content) => {
             let lines: Vec<&str> = content.lines()
                 .filter(|l| !l.trim().is_empty())
                 .collect();
-            let start = lines.len().saturating_sub(limit);
-            lines[start..].iter().filter_map(|line| {
-                let entry: serde_json::Value = serde_json::from_str(line).ok()?;
-                let event_type = entry.get("event")?.as_str()?.to_string();
+            let start = lines.len().saturating_sub(raw_limit);
 
-                // Skip raw thinking token events — they're too noisy for the dashboard.
-                // Group them into a summary instead.
-                if event_type == "thinking" {
-                    return None;
-                }
+            // First pass: aggregate thinking tokens into blocks
+            let mut aggregated: Vec<LiveEvent> = Vec::new();
+            let mut thinking_buf = String::new();
+            let mut thinking_ts_start = String::new();
+            let mut thinking_ts_end = String::new();
+            let mut thinking_job = String::new();
+
+            for line in &lines[start..] {
+                let entry: serde_json::Value = match serde_json::from_str(line) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let event_type = match entry.get("event").and_then(|v| v.as_str()) {
+                    Some(e) => e,
+                    None => continue,
+                };
 
                 let timestamp = entry.get("timestamp")
                     .and_then(|v| v.as_str())
@@ -232,12 +241,57 @@ pub async fn autonomy_live(
                 // Apply after filter
                 if let Some(ref after) = params.after {
                     if timestamp.as_str() <= after.as_str() {
-                        return None;
+                        continue;
                     }
                 }
 
-                Some(LiveEvent {
-                    event: event_type,
+                if event_type == "thinking" {
+                    let token = entry.get("text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if thinking_buf.is_empty() {
+                        thinking_ts_start = timestamp.clone();
+                        thinking_job = entry.get("job")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                    }
+                    thinking_buf.push_str(token);
+                    thinking_ts_end = timestamp;
+                    continue;
+                }
+
+                // Non-thinking event: flush any accumulated thinking first
+                if !thinking_buf.is_empty() {
+                    // Trim to a reasonable preview length
+                    let preview = if thinking_buf.len() > 500 {
+                        let end = thinking_buf.char_indices()
+                            .take_while(|(i, _)| *i <= 500)
+                            .last()
+                            .map(|(i, _)| i)
+                            .unwrap_or(500);
+                        format!("{}…", &thinking_buf[..end])
+                    } else {
+                        thinking_buf.clone()
+                    };
+                    aggregated.push(LiveEvent {
+                        event: "thinking".to_string(),
+                        job: thinking_job.clone(),
+                        timestamp: thinking_ts_start.clone(),
+                        tool: None,
+                        tool_call_id: None,
+                        arguments: None,
+                        output_preview: None,
+                        success: None,
+                        turn: None,
+                        text: Some(preview),
+                    });
+                    thinking_buf.clear();
+                }
+
+                // Add the structural event
+                aggregated.push(LiveEvent {
+                    event: event_type.to_string(),
                     job: entry.get("job").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                     timestamp,
                     tool: entry.get("tool").and_then(|v| v.as_str()).map(|s| s.to_string()),
@@ -251,8 +305,39 @@ pub async fn autonomy_live(
                     success: entry.get("success").and_then(|v| v.as_bool()),
                     turn: entry.get("turn").and_then(|v| v.as_u64()),
                     text: None,
-                })
-            }).collect()
+                });
+            }
+
+            // Flush any trailing thinking
+            if !thinking_buf.is_empty() {
+                let preview = if thinking_buf.len() > 500 {
+                    let end = thinking_buf.char_indices()
+                        .take_while(|(i, _)| *i <= 500)
+                        .last()
+                        .map(|(i, _)| i)
+                        .unwrap_or(500);
+                    format!("{}…", &thinking_buf[..end])
+                } else {
+                    thinking_buf.clone()
+                };
+                aggregated.push(LiveEvent {
+                    event: "thinking".to_string(),
+                    job: thinking_job,
+                    timestamp: thinking_ts_start,
+                    tool: None,
+                    tool_call_id: None,
+                    arguments: None,
+                    output_preview: None,
+                    success: None,
+                    turn: None,
+                    text: Some(preview),
+                });
+            }
+
+            // Return the last N aggregated events
+            let limit = params.limit.unwrap_or(100);
+            let agg_start = aggregated.len().saturating_sub(limit);
+            aggregated.split_off(agg_start)
         }
         Err(_) => Vec::new(),
     };
