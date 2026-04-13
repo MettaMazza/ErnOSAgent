@@ -13,7 +13,7 @@
 //! 5. Can resume from checkpoint if interrupted
 
 use crate::interpretability::collector::{self, ActivationCollector, format_eta};
-use crate::interpretability::trainer::{SaeTrainer, TrainConfig, TrainStats};
+use crate::interpretability::trainer::{SaeTrainer, TrainConfig};
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::time::Instant;

@@ -10,7 +10,7 @@
 //! Gemma 4 GGUF model (NOT the separate embedding model).
 
 use anyhow::{bail, Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 /// Manages activation collection from the Gemma 4 model.

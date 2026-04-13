@@ -212,7 +212,7 @@ fn test_tool_loop_counter_logic() {
 
     // Different call resets
     let sig4 = "timeline_tool:{\"action\":\"search\",\"query\":\"spark\"}".to_string();
-    if Some(&sig4) == last_sig.as_ref() { count += 1; } else { last_sig = Some(sig4); count = 1; }
+    if Some(&sig4) == last_sig.as_ref() { count += 1; } else { let _last_sig = Some(sig4); count = 1; }
     assert_eq!(count, 1, "Different tool should reset counter");
 }
 
