@@ -109,6 +109,7 @@ pub async fn execute_job(
         let st = state.read().await;
         std::sync::Arc::clone(&st.executor)
     };
+    let cancel_for_react = Arc::clone(&cancel_token);
     let job_id = job.id.clone();
     let react_handle = tokio::spawn(async move {
         crate::react::r#loop::execute_react_loop(
@@ -125,6 +126,7 @@ pub async fn execute_job(
             &job_id,
             #[cfg(feature = "discord")]
             None,
+            Some(cancel_for_react),
         )
         .await
     });

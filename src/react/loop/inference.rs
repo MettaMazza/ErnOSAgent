@@ -22,6 +22,10 @@ pub(super) struct InferenceOutput {
 }
 
 /// Run inference and collect the streamed response into text + tool calls.
+///
+/// If `cancel_token` is `Some` and gets set to `true` during streaming,
+/// the HTTP stream is dropped (aborting llama-server generation) and an
+/// empty result is returned immediately.
 pub(super) async fn collect_inference(
     provider: &Arc<dyn Provider>,
     model: &str,
@@ -29,6 +33,7 @@ pub(super) async fn collect_inference(
     tools: &[ToolDefinition],
     turn: usize,
     event_tx: &mpsc::Sender<ReactEvent>,
+    cancel_token: Option<&Arc<std::sync::atomic::AtomicBool>>,
 ) -> Result<InferenceOutput> {
     let start = std::time::Instant::now();
     tracing::info!(turn = turn, messages = messages.len(), tools = tools.len(), "collect_inference START");
@@ -53,8 +58,25 @@ pub(super) async fn collect_inference(
     let mut response_text = String::new();
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut thought_spiral: Option<String> = None;
+    let mut cancelled = false;
 
     while let Some(event) = rx.recv().await {
+        // Check cancel token on every chunk — abort mid-stream if set
+        if let Some(ct) = cancel_token {
+            if ct.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::info!(
+                    turn = turn,
+                    elapsed_ms = start.elapsed().as_millis(),
+                    "Inference cancelled mid-stream — dropping HTTP connection"
+                );
+                cancelled = true;
+                // Drop rx — this closes the channel, the spawned task's tx.send()
+                // will fail, and the provider will stop reading from the HTTP stream.
+                // The inference_handle will be aborted below.
+                break;
+            }
+        }
+
         match event {
             StreamEvent::Token(token) => {
                 response_text.push_str(&token);
@@ -82,6 +104,17 @@ pub(super) async fn collect_inference(
                 break;
             }
         }
+    }
+
+    if cancelled {
+        // Abort the spawned inference task — this drops the HTTP connection
+        inference_handle.abort();
+        tracing::info!(turn = turn, "Inference task aborted after cancellation");
+        return Ok(InferenceOutput {
+            response_text: String::new(),
+            tool_calls: Vec::new(),
+            thought_spiral: None,
+        });
     }
 
     tracing::info!(turn = turn, response_len = response_text.len(), tool_calls = tool_calls.len(), elapsed_ms = start.elapsed().as_millis(), "collect_inference stream loop ended — awaiting join handle");

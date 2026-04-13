@@ -136,6 +136,7 @@ pub(crate) fn spawn_react_loop(
             training_buffers, &session_id,
             #[cfg(feature = "discord")]
             discord_http,
+            None, // No cancel token for user chat
         ).await
     })
 }

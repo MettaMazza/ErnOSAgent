@@ -288,6 +288,7 @@ async fn handle_relay_chat(
             "mobile-relay",
             #[cfg(feature = "discord")]
             None,
+            None, // No cancel token for mobile relay
         )
         .await
     });

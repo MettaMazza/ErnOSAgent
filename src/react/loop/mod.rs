@@ -78,6 +78,7 @@ pub async fn execute_react_loop(
     session_id: &str,
     #[cfg(feature = "discord")]
     discord_http: Option<std::sync::Arc<serenity::http::Http>>,
+    cancel_token: Option<Arc<std::sync::atomic::AtomicBool>>,
 ) -> Result<ReactResult> {
     let user_message = initial_messages
         .iter()
@@ -106,6 +107,21 @@ pub async fn execute_react_loop(
 
     loop {
         turn += 1;
+
+        // Check cancel token at the top of each turn — bail immediately if cancelled
+        if let Some(ref ct) = cancel_token {
+            if ct.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::info!(turn = turn, "ReAct loop cancelled by cancel_token");
+                return Ok(ReactResult {
+                    response: String::new(),
+                    tool_results: all_tool_results,
+                    turns: turn,
+                    audit_passes,
+                    audit_rejections: total_audit_rejections,
+                });
+            }
+        }
+
         let _ = event_tx.send(ReactEvent::TurnStarted { turn }).await;
         tracing::info!(turn = turn, messages = messages.len(), "ReAct turn starting");
 
@@ -140,6 +156,7 @@ pub async fn execute_react_loop(
 
         let output = collect_inference(
             provider, model, &messages, tools, turn, &event_tx,
+            cancel_token.as_ref(),
         ).await?;
 
         // Handle thought spiral — recovery re-prompting (ported from HIVE)
