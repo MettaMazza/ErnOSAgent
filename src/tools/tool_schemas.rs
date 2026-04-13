@@ -34,17 +34,26 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
     vec![
         // ── Memory ───────────────────────────────────────────────
         def("memory_tool",
-            "Access and manage the 5-tier memory system. Use this to check memory status, \
-             recall information from past interactions, or trigger memory consolidation.",
+            "Access and manage the 5-tier memory system. Use this to store information, \
+             check memory status, recall from past interactions, or trigger consolidation.",
             serde_json::json!({
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["status", "recall", "consolidate"],
-                        "description": "The memory operation: 'status' shows all tier counts, \
+                        "enum": ["store", "status", "recall", "consolidate"],
+                        "description": "The memory operation: 'store' saves a key-value pair to persistent memory, \
+                                        'status' shows all tier counts, \
                                         'recall' searches memory for a query, \
                                         'consolidate' compacts the context."
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Storage key/label for the 'store' action."
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Content to store (for 'store' action)."
                     },
                     "query": {
                         "type": "string",

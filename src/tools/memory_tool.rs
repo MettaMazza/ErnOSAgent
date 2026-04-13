@@ -32,12 +32,79 @@ fn memory_tool(call: &ToolCall) -> ToolResult {
     tracing::info!(action = %action, "memory_tool executing");
 
     match action {
+        "store" => memory_store(call),
         "status" => memory_status(call),
         "recall" => memory_recall(call),
         "consolidate" => memory_consolidate(call),
         other => error_result(call, &format!(
-            "Unknown memory action: '{}'. Valid: status, recall, consolidate", other
+            "Unknown memory action: '{}'. Valid: store, status, recall, consolidate", other
         )),
+    }
+}
+
+/// Store a key-value pair into persistent memory (scratchpad layer).
+fn memory_store(call: &ToolCall) -> ToolResult {
+    let key = call.arguments.get("key")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let value = call.arguments.get("value")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if key.is_empty() {
+        return error_result(call, "Missing required argument: 'key'");
+    }
+    if value.is_empty() {
+        return error_result(call, "Missing required argument: 'value'");
+    }
+
+    let dir = data_dir();
+    let sp_path = dir.join("scratchpad.json");
+
+    // Load existing entries
+    let mut entries: Vec<serde_json::Value> = if sp_path.exists() {
+        std::fs::read_to_string(&sp_path).ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    // Upsert — replace existing key or append
+    let mut found = false;
+    for entry in entries.iter_mut() {
+        if entry.get("key").and_then(|v| v.as_str()) == Some(key) {
+            entry["value"] = serde_json::Value::String(value.to_string());
+            entry["updated_at"] = serde_json::Value::String(chrono::Utc::now().to_rfc3339());
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        entries.push(serde_json::json!({
+            "key": key,
+            "value": value,
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        }));
+    }
+
+    // Save
+    if let Some(parent) = sp_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&entries) {
+        let _ = std::fs::write(&sp_path, json);
+    }
+
+    let action_word = if found { "Updated" } else { "Stored" };
+    tracing::info!(key = %key, action = %action_word, "memory_tool store");
+
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("✅ {} in memory: '{}' ({} chars)", action_word, key, value.len()),
+        success: true,
+        error: None,
     }
 }
 
