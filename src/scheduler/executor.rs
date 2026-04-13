@@ -322,11 +322,9 @@ async fn forward_to_autonomy_channel(
         return;
     }
 
-    // Check if Discord is connected
+    // Check if any Discord adapter is actually connected (don't rely on config.enabled
+    // which may be stale — the adapter itself knows its connection state)
     let st = state.read().await;
-    if !st.config.platform.discord.enabled {
-        return;
-    }
 
     let status = if result.success { "✅" } else { "❌" };
     let duration = if result.duration_ms > 0 {
