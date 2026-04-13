@@ -52,9 +52,9 @@ pub struct TrainConfig {
 impl Default for TrainConfig {
     fn default() -> Self {
         Self {
-            num_features: 1_048_576,  // 1M — maximum quality (2^20)
+            num_features: 131_072,  // 128K — Anthropic-scale, feasible on M3 Ultra Metal
             model_dim: 0,          // auto-detected
-            l1_coefficient: 5e-3,
+            l1_coefficient: 1e-4,
             learning_rate: 3e-4,
             weight_decay: 0.0,
             num_steps: 100_000,
@@ -129,13 +129,16 @@ impl SaeTrainer {
         // Xavier uniform initialization scale
         let scale = (6.0 / (nf + md) as f64).sqrt();
 
+        // IMPORTANT: Generate random tensors on CPU then move to Metal.
+        // Candle's Metal randn produces inf values in large tensors (>100M elements).
+        let cpu = Device::Cpu;
+
         {
             let mut data = var_map.data().lock().unwrap();
 
-            // W_enc: [num_features, model_dim] — Xavier uniform
-            let w_enc = Var::from_tensor(
-                &(Tensor::randn(0.0f32, 1.0, (nf, md), &device)? * scale)?
-            )?;
+            // W_enc: [num_features, model_dim] — Xavier uniform (init on CPU, move to Metal)
+            let w_enc_cpu = (Tensor::randn(0.0f32, 1.0, (nf, md), &cpu)? * scale)?;
+            let w_enc = Var::from_tensor(&w_enc_cpu.to_device(&device)?)?;
             data.insert("W_enc".to_string(), w_enc);
 
             // b_enc: [num_features] — zeros
@@ -144,13 +147,13 @@ impl SaeTrainer {
             )?;
             data.insert("b_enc".to_string(), b_enc);
 
-            // W_dec: [model_dim, num_features] — unit-norm columns
-            let w_dec_raw = Tensor::randn(0.0f32, 1.0, (md, nf), &device)?;
+            // W_dec: [model_dim, num_features] — unit-norm columns (init on CPU, move to Metal)
+            let w_dec_raw = Tensor::randn(0.0f32, 1.0, (md, nf), &cpu)?;
             // Normalize each column to unit norm
             let norms = w_dec_raw.sqr()?.sum(0)?.sqrt()?; // [nf]
             let norms_expanded = norms.unsqueeze(0)?.broadcast_as((md, nf))?; // [md, nf]
             let w_dec_normed = w_dec_raw.div(&norms_expanded)?;
-            let w_dec = Var::from_tensor(&w_dec_normed)?;
+            let w_dec = Var::from_tensor(&w_dec_normed.to_device(&device)?)?;
             data.insert("W_dec".to_string(), w_dec);
 
             // b_dec: [model_dim] — zeros
@@ -187,7 +190,15 @@ impl SaeTrainer {
 
         // Build batch tensor [batch_size, model_dim]
         let flat: Vec<f32> = activations.iter().flatten().copied().collect();
-        let x = Tensor::from_slice(&flat, (batch_size, model_dim), &self.device)?;
+        let x_raw = Tensor::from_slice(&flat, (batch_size, model_dim), &self.device)?;
+
+        // Normalize inputs to zero-mean, unit-variance (prevents f32 overflow in large matmuls)
+        let x_mean = x_raw.mean_all()?;
+        let x_centered = x_raw.broadcast_sub(&x_mean)?;
+        let x_std = x_centered.sqr()?.mean_all()?.sqrt()?;
+        // Clamp std to avoid division by zero
+        let x_std_safe = x_std.clamp(1e-8, f64::INFINITY)?;
+        let x = x_centered.broadcast_div(&x_std_safe)?;
 
         // Get trainable vars
         let vars = self.var_map.data().lock().unwrap();
@@ -199,11 +210,25 @@ impl SaeTrainer {
         // Forward: pre_act = x @ W_enc^T + b_enc  [batch, num_features]
         let pre_act = x.matmul(&w_enc.t()?)?.broadcast_add(b_enc)?;
 
+        if self.current_step == 0 {
+            let x_max = x.abs()?.max_all()?.to_scalar::<f32>()?;
+            let wenc_max = w_enc.abs()?.max_all()?.to_scalar::<f32>()?;
+            let pre_max = pre_act.abs()?.max_all()?.to_scalar::<f32>()?;
+            tracing::info!(x_max, wenc_max, pre_max, "DEBUG step0: input → pre_act");
+        }
+
         // JumpReLU: h = max(0, pre_act) * (pre_act > threshold)
         let threshold = self.config.jump_threshold as f32;
         let h = pre_act.relu()?;
         let mask = pre_act.ge(threshold)?.to_dtype(DType::F32)?;
         let h = h.mul(&mask)?;
+
+        if self.current_step == 0 {
+            let h_max = h.abs()?.max_all()?.to_scalar::<f32>()?;
+            let h_mean = h.abs()?.mean_all()?.to_scalar::<f32>()?;
+            let active = mask.sum_all()?.to_scalar::<f32>()?;
+            tracing::info!(h_max, h_mean, active, "DEBUG step0: h stats");
+        }
 
         // Track feature usage (which features fired)
         let h_sum = h.sum(0)?; // [num_features]
@@ -217,14 +242,19 @@ impl SaeTrainer {
         // Reconstruction: x̂ = h @ W_dec^T + b_dec  [batch, model_dim]
         let x_hat = h.matmul(&w_dec.t()?)?.broadcast_add(b_dec)?;
 
-        // Reconstruction loss: ||x - x̂||² / batch_size (stay in f32 for Metal)
-        let residual = (&x - &x_hat)?;
-        let recon_loss = residual.sqr()?.sum_all()?
-            .affine(1.0 / batch_size as f64, 0.0)?;
+        if self.current_step == 0 {
+            let xhat_max = x_hat.abs()?.max_all()?.to_scalar::<f32>()?;
+            let xhat_mean = x_hat.abs()?.mean_all()?.to_scalar::<f32>()?;
+            tracing::info!(xhat_max, xhat_mean, "DEBUG step0: x_hat stats");
+        }
 
-        // L1 sparsity loss: λ * Σ|h| / batch_size
-        let l1_loss = h.abs()?.sum_all()?
-            .affine(self.config.l1_coefficient / batch_size as f64, 0.0)?;
+        // Reconstruction loss: mean(||x - x̂||²) — use mean to avoid f32 overflow
+        let residual = (&x - &x_hat)?;
+        let recon_loss = residual.sqr()?.mean_all()?;
+
+        // L1 sparsity loss: λ * mean(|h|)
+        let l1_loss = h.abs()?.mean_all()?
+            .affine(self.config.l1_coefficient, 0.0)?;
 
         // Total loss
         let total_loss = (&recon_loss + &l1_loss)?;

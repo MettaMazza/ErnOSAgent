@@ -245,8 +245,15 @@ async fn train_sae(
 
         let stats = trainer.train_step(&batch)?;
 
-        // Log progress
-        if (step_idx + 1) % config.log_interval == 0 || step_idx + 1 == remaining_steps {
+        // Log progress — early steps (1, 10, 100) for immediate proof of life,
+        // then every log_interval (1000) after that
+        let step_num = step_idx + 1;
+        let should_log = step_num == 1
+            || step_num == 10
+            || step_num == 100
+            || step_num % config.log_interval == 0
+            || step_num == remaining_steps;
+        if should_log {
             let elapsed = total_start.elapsed();
             let rate = (step_idx + 1) as f64 / elapsed.as_secs_f64();
             let remaining = (remaining_steps - step_idx - 1) as f64 / rate;

@@ -79,9 +79,9 @@ async fn run_sae_training(config: config::AppConfig) -> Result<()> {
         n_gpu_layers: config.llamacpp.n_gpu_layers,
         data_dir: data_dir.clone(),
         train_config: TrainConfig {
-            num_features: 1_048_576,  // 1M — maximum quality on 512GB M3 Ultra
+            num_features: 131_072,  // 128K — Anthropic-scale, ~16hr on M3 Ultra
             model_dim: 0,          // auto-detected from first activation
-            l1_coefficient: 5e-3,
+            l1_coefficient: 1e-4,
             learning_rate: 3e-4,
             weight_decay: 0.0,
             num_steps: 100_000,
