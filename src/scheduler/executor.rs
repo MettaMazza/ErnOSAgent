@@ -295,7 +295,12 @@ async fn forward_to_autonomy_channel(
 
     // Truncate output for Discord (max ~1900 chars to stay under 2000 limit)
     let output_preview = if result.output.len() > 1800 {
-        format!("{}…", &result.output[..1800])
+        let end = result.output.char_indices()
+            .take_while(|(i, _)| *i <= 1800)
+            .last()
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        format!("{}…", &result.output[..end])
     } else {
         result.output.clone()
     };

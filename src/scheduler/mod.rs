@@ -29,9 +29,27 @@ pub struct Scheduler {
 
 impl Scheduler {
     /// Create a new scheduler, loading persisted jobs from disk.
+    /// If no jobs exist, creates the default autonomy idle job.
     pub fn new(data_dir: &std::path::Path) -> anyhow::Result<Arc<Self>> {
         let store = store::JobStore::new(data_dir)?;
-        let jobs = store.load().unwrap_or_default();
+        let mut jobs = store.load().unwrap_or_default();
+
+        // Create default autonomy job on first boot
+        if jobs.is_empty() {
+            let autonomy_job = job::ScheduledJob::new(
+                "Autonomy".to_string(),
+                "This is your autonomous time. Act freely, making your own choices. \
+                 You may use all available tools. Review your memory, consolidate lessons, \
+                 run diagnostics, organise knowledge, explore your capabilities, \
+                 or work on any goals you have set for yourself. \
+                 Report what you accomplished.".to_string(),
+                job::JobSchedule::Idle(300), // Fire after 5 minutes idle
+            );
+            tracing::info!(job_id = %autonomy_job.id, "Created default autonomy idle job (300s threshold)");
+            jobs.push(autonomy_job);
+            let _ = store.save(&jobs);
+        }
+
         let enabled = jobs.iter().filter(|j| j.enabled).count();
         tracing::info!(
             total = jobs.len(),
@@ -163,6 +181,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let scheduler = Scheduler::new(tmp.path()).unwrap();
 
+        // Should start with the default autonomy job
+        let initial = scheduler.list_jobs().await;
+        assert_eq!(initial.len(), 1);
+        assert_eq!(initial[0].name, "Autonomy");
+
         // Create
         let job = ScheduledJob::new(
             "Test".into(),
@@ -172,17 +195,17 @@ mod tests {
         let created = scheduler.add_job(job).await.unwrap();
         assert_eq!(created.name, "Test");
 
-        // List
+        // List — default + created = 2
         let jobs = scheduler.list_jobs().await;
-        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs.len(), 2);
 
         // Toggle
         let enabled = scheduler.toggle_job(&created.id).await.unwrap();
         assert!(!enabled);
 
-        // Delete
+        // Delete — only the created job, autonomy remains
         scheduler.delete_job(&created.id).await.unwrap();
-        assert!(scheduler.list_jobs().await.is_empty());
+        assert_eq!(scheduler.list_jobs().await.len(), 1);
     }
 
     #[tokio::test]
@@ -197,11 +220,11 @@ mod tests {
             scheduler.add_job(job).await.unwrap();
         }
 
-        // Reload from disk
+        // Reload from disk — default autonomy + persisted = 2
         let scheduler = Scheduler::new(tmp.path()).unwrap();
         let jobs = scheduler.list_jobs().await;
-        assert_eq!(jobs.len(), 1);
-        assert_eq!(jobs[0].id, id);
+        assert_eq!(jobs.len(), 2);
+        assert!(jobs.iter().any(|j| j.id == id));
     }
 
     #[test]

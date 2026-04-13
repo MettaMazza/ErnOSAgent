@@ -73,4 +73,7 @@ pub struct WebAppState {
     /// Mesh network coordinator — all mesh subsystems.
     #[cfg(feature = "mesh")]
     pub mesh_coordinator: Option<Arc<RwLock<crate::network::mesh_loop::MeshCoordinator>>>,
+    /// Idle timer — reset every time a user sends a message (WS or platform).
+    /// The scheduler runner reads this to determine if idle autonomy should fire.
+    pub idle_timer: Arc<tokio::sync::Mutex<std::time::Instant>>,
 }

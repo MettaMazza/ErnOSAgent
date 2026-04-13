@@ -133,7 +133,14 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         };
 
         match client_msg {
-            ClientMessage::Chat { message, images } => chat::handle_chat(&mut socket, &state, &message, images).await,
+            ClientMessage::Chat { message, images } => {
+                // Reset idle timer — user is active
+                {
+                    let st = state.read().await;
+                    *st.idle_timer.lock().await = std::time::Instant::now();
+                }
+                chat::handle_chat(&mut socket, &state, &message, images).await
+            }
             ClientMessage::Cancel => {
                 tracing::info!("Cancel requested — signalling abort");
                 let st = state.read().await;

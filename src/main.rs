@@ -366,6 +366,7 @@ async fn init_web_state(
         discord_http: discord_http_handle,
         #[cfg(feature = "mesh")]
         mesh_coordinator: None, // Initialised later if mesh.enabled
+        idle_timer: Arc::clone(&last_user_input),
     }));
 
 
@@ -416,6 +417,11 @@ async fn init_web_state(
                 while let Some(msg) = merged_rx.recv().await {
                     let state = state_for_router.clone();
                     tokio::spawn(async move {
+                        // Reset idle timer — user is active on a platform
+                        {
+                            let st = state.read().await;
+                            *st.idle_timer.lock().await = std::time::Instant::now();
+                        }
                         tracing::info!(
                             platform = %msg.platform,
                             user = %msg.user_name,
