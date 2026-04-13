@@ -2643,47 +2643,127 @@
 
         async _loadActivityLog() {
             try {
-                const res = await fetch('/api/autonomy/log?limit=50');
-                if (!res.ok) return;
-                const entries = await res.json();
+                // Fetch LIVE transcript (real-time tool calls, turns) and completed sessions
+                const [liveRes, logRes] = await Promise.all([
+                    fetch('/api/autonomy/live?limit=100'),
+                    fetch('/api/autonomy/log?limit=20'),
+                ]);
+
                 const container = document.getElementById('autonomy-activity-log');
                 const countBadge = document.getElementById('activity-count');
                 if (!container) return;
 
-                if (countBadge) countBadge.textContent = entries.length;
+                // ── Live transcript (real-time events) ──
+                let liveHtml = '';
+                if (liveRes.ok) {
+                    const liveEvents = await liveRes.json();
+                    if (countBadge) countBadge.textContent = liveEvents.length;
 
-                if (entries.length === 0) {
-                    container.innerHTML = '<div class="empty-state">No autonomous activity recorded yet. Activity appears when the scheduler runs idle or scheduled jobs.</div>';
-                    return;
+                    if (liveEvents.length > 0) {
+                        const reversed = [...liveEvents].reverse();
+                        liveHtml = `<div class="activity-section-title" style="margin-bottom:8px;color:var(--accent);font-weight:600;font-size:13px">🔴 Live Transcript</div>`;
+                        liveHtml += reversed.map(e => {
+                            const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '';
+                            const turnLabel = e.turn ? `<span class="activity-cycle">Turn ${e.turn}</span>` : '';
+
+                            if (e.event === 'turn_started') {
+                                return `<div class="activity-entry" style="border-left:3px solid var(--accent);padding-left:8px;margin:4px 0">
+                                    <div class="activity-entry-header">
+                                        <span class="activity-status-icon">⚡</span>
+                                        <span class="activity-job-name">Turn ${e.turn || '?'} started</span>
+                                        <span class="activity-time">${time}</span>
+                                    </div>
+                                </div>`;
+                            }
+
+                            if (e.event === 'tool_executing') {
+                                const args = e.arguments ? e.arguments.substring(0, 120) : '';
+                                return `<div class="activity-entry" style="border-left:3px solid var(--warning, #f59e0b);padding-left:8px;margin:4px 0">
+                                    <div class="activity-entry-header">
+                                        <span class="activity-status-icon">🔧</span>
+                                        <span class="activity-job-name">${Markdown.escapeHtml(e.tool || '?')}</span>
+                                        ${turnLabel}
+                                        <span class="activity-time">${time}</span>
+                                    </div>
+                                    ${args ? `<div class="activity-summary" style="font-size:11px;color:var(--text-tertiary);margin-top:2px;font-family:var(--font-mono)">${Markdown.escapeHtml(args)}</div>` : ''}
+                                </div>`;
+                            }
+
+                            if (e.event === 'tool_completed') {
+                                const icon = e.success ? '✅' : '❌';
+                                const preview = e.output_preview ? e.output_preview.substring(0, 200) : '';
+                                return `<div class="activity-entry" style="border-left:3px solid ${e.success ? 'var(--success, #22c55e)' : 'var(--error, #ef4444)'};padding-left:8px;margin:4px 0">
+                                    <div class="activity-entry-header">
+                                        <span class="activity-status-icon">${icon}</span>
+                                        <span class="activity-job-name">${Markdown.escapeHtml(e.tool || '?')}</span>
+                                        <span class="activity-time">${time}</span>
+                                    </div>
+                                    ${preview ? `<div class="activity-summary" style="font-size:11px;color:var(--text-secondary);margin-top:2px">${Markdown.escapeHtml(preview)}</div>` : ''}
+                                </div>`;
+                            }
+
+                            if (e.event === 'response_ready') {
+                                return `<div class="activity-entry activity-success" style="border-left:3px solid var(--success, #22c55e);padding-left:8px;margin:4px 0">
+                                    <div class="activity-entry-header">
+                                        <span class="activity-status-icon">💬</span>
+                                        <span class="activity-job-name">Response delivered</span>
+                                        <span class="activity-time">${time}</span>
+                                    </div>
+                                </div>`;
+                            }
+
+                            // Generic event
+                            return `<div class="activity-entry" style="padding-left:8px;margin:4px 0">
+                                <div class="activity-entry-header">
+                                    <span class="activity-status-icon">•</span>
+                                    <span class="activity-job-name">${Markdown.escapeHtml(e.event)}</span>
+                                    <span class="activity-time">${time}</span>
+                                </div>
+                            </div>`;
+                        }).join('');
+                    }
                 }
 
-                // Render newest-first
-                const reversed = [...entries].reverse();
-                container.innerHTML = reversed.map(e => {
-                    const statusClass = e.success ? 'activity-success' : 'activity-fail';
-                    const statusIcon = e.success ? '✓' : '✗';
-                    const tools = e.tools_used.length > 0
-                        ? e.tools_used.map(t => `<span class="activity-tool-badge">${Markdown.escapeHtml(t)}</span>`).join(' ')
-                        : '<span style="color:var(--text-tertiary)">no tools</span>';
-                    const duration = e.duration_ms > 0 ? `${(e.duration_ms / 1000).toFixed(1)}s` : '—';
-                    const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
-                    const jobName = e.job_name || e.job_id || `Cycle #${e.cycle}`;
-                    const summary = e.summary
-                        ? (e.summary.length > 300 ? e.summary.substring(0, 300) + '…' : e.summary)
-                        : '(no summary)';
+                // ── Completed sessions (historical log) ──
+                let logHtml = '';
+                if (logRes.ok) {
+                    const entries = await logRes.json();
+                    if (entries.length > 0) {
+                        const reversed = [...entries].reverse();
+                        logHtml = `<div class="activity-section-title" style="margin:16px 0 8px;color:var(--text-secondary);font-weight:600;font-size:13px">📋 Completed Sessions</div>`;
+                        logHtml += reversed.map(e => {
+                            const statusClass = e.success ? 'activity-success' : 'activity-fail';
+                            const statusIcon = e.success ? '✓' : '✗';
+                            const tools = e.tools_used.length > 0
+                                ? e.tools_used.map(t => `<span class="activity-tool-badge">${Markdown.escapeHtml(t)}</span>`).join(' ')
+                                : '<span style="color:var(--text-tertiary)">no tools</span>';
+                            const duration = e.duration_ms > 0 ? `${(e.duration_ms / 1000).toFixed(1)}s` : '—';
+                            const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+                            const jobName = e.job_name || e.job_id || `Cycle #${e.cycle}`;
+                            const summary = e.summary
+                                ? (e.summary.length > 300 ? e.summary.substring(0, 300) + '…' : e.summary)
+                                : '(no summary)';
 
-                    return `<div class="activity-entry ${statusClass}">
-                        <div class="activity-entry-header">
-                            <span class="activity-status-icon">${statusIcon}</span>
-                            <span class="activity-job-name">${Markdown.escapeHtml(jobName)}</span>
-                            <span class="activity-cycle">#${e.cycle}</span>
-                            <span class="activity-duration">${duration}</span>
-                            <span class="activity-time">${time}</span>
-                        </div>
-                        <div class="activity-tools">${tools}</div>
-                        <div class="activity-summary">${Markdown.escapeHtml(summary)}</div>
-                    </div>`;
-                }).join('');
+                            return `<div class="activity-entry ${statusClass}">
+                                <div class="activity-entry-header">
+                                    <span class="activity-status-icon">${statusIcon}</span>
+                                    <span class="activity-job-name">${Markdown.escapeHtml(jobName)}</span>
+                                    <span class="activity-cycle">#${e.cycle}</span>
+                                    <span class="activity-duration">${duration}</span>
+                                    <span class="activity-time">${time}</span>
+                                </div>
+                                <div class="activity-tools">${tools}</div>
+                                <div class="activity-summary">${Markdown.escapeHtml(summary)}</div>
+                            </div>`;
+                        }).join('');
+                    }
+                }
+
+                if (!liveHtml && !logHtml) {
+                    container.innerHTML = '<div class="empty-state">No autonomous activity recorded yet. Activity appears when the scheduler runs idle or scheduled jobs.</div>';
+                } else {
+                    container.innerHTML = liveHtml + logHtml;
+                }
             } catch (e) {
                 console.warn('Activity log load failed:', e);
             }

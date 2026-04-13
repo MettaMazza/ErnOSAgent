@@ -142,6 +142,7 @@ fn build_router(state: SharedState) -> Router {
         // Autonomy transparency
         .route("/api/autonomy/status", get(routes::autonomy::autonomy_status))
         .route("/api/autonomy/log", get(routes::autonomy::autonomy_log))
+        .route("/api/autonomy/live", get(routes::autonomy::autonomy_live))
         .with_state(state)
 }
 

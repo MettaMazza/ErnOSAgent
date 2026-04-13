@@ -162,6 +162,104 @@ pub async fn autonomy_log(
     Json(entries)
 }
 
+// ── Live Transcript ──────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct LiveEvent {
+    pub event: String,
+    pub job: String,
+    pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct LiveQuery {
+    limit: Option<usize>,
+    /// If set, only return events AFTER this timestamp (ISO 8601)
+    after: Option<String>,
+}
+
+/// GET /api/autonomy/live — real-time autonomy transcript from live_transcript.jsonl.
+///
+/// Returns tool executions, turn starts, thinking tokens, and completions
+/// as they happen. The dashboard polls this to show live autonomy activity.
+pub async fn autonomy_live(
+    State(state): State<SharedState>,
+    axum::extract::Query(params): axum::extract::Query<LiveQuery>,
+) -> Json<Vec<LiveEvent>> {
+    let data_dir = {
+        let st = state.read().await;
+        st.config.general.data_dir.clone()
+    };
+
+    let path = data_dir.join("memory/autonomy/live_transcript.jsonl");
+    let limit = params.limit.unwrap_or(100);
+
+    let entries = match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            let lines: Vec<&str> = content.lines()
+                .filter(|l| !l.trim().is_empty())
+                .collect();
+            let start = lines.len().saturating_sub(limit);
+            lines[start..].iter().filter_map(|line| {
+                let entry: serde_json::Value = serde_json::from_str(line).ok()?;
+                let event_type = entry.get("event")?.as_str()?.to_string();
+
+                // Skip raw thinking token events — they're too noisy for the dashboard.
+                // Group them into a summary instead.
+                if event_type == "thinking" {
+                    return None;
+                }
+
+                let timestamp = entry.get("timestamp")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                // Apply after filter
+                if let Some(ref after) = params.after {
+                    if timestamp.as_str() <= after.as_str() {
+                        return None;
+                    }
+                }
+
+                Some(LiveEvent {
+                    event: event_type,
+                    job: entry.get("job").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    timestamp,
+                    tool: entry.get("tool").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    tool_call_id: entry.get("tool_call_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    arguments: entry.get("arguments").and_then(|v| v.as_str()).map(|s| {
+                        if s.len() > 200 { format!("{}…", &s[..200]) } else { s.to_string() }
+                    }),
+                    output_preview: entry.get("output_preview").and_then(|v| v.as_str()).map(|s| {
+                        if s.len() > 300 { format!("{}…", &s[..300]) } else { s.to_string() }
+                    }),
+                    success: entry.get("success").and_then(|v| v.as_bool()),
+                    turn: entry.get("turn").and_then(|v| v.as_u64()),
+                    text: None,
+                })
+            }).collect()
+        }
+        Err(_) => Vec::new(),
+    };
+
+    Json(entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
