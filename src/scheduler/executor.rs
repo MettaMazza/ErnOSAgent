@@ -135,12 +135,21 @@ pub async fn execute_job(
     let transcript_path = transcript_dir.join("live_transcript.jsonl");
     let is_idle = matches!(job.schedule, JobSchedule::Idle(_));
 
-    // Drain events — log live to transcript AND check for preemption
+    // Drain events — log live to transcript, forward to Discord, AND check for preemption
     let cancel_for_drain = Arc::clone(&cancel_token);
     let autonomy_cancel_for_drain = autonomy_cancel.clone();
     let job_name_drain = job.name.clone();
+    let state_for_drain = state.clone();
     let drain_handle = tokio::spawn(async move {
         let mut response = String::new();
+        let mut thinking_buf = String::new();
+
+        // Get Discord channel ID once
+        let autonomy_channel = {
+            let st = state_for_drain.read().await;
+            st.config.platform.discord.autonomy_channel_id.clone()
+        };
+
         while let Some(event) = event_rx.recv().await {
             // Check preemption — if user sent a message, abort the autonomy job
             if autonomy_cancel_for_drain.load(std::sync::atomic::Ordering::SeqCst) {
@@ -155,6 +164,76 @@ pub async fn execute_job(
             // Log event live to transcript file
             if is_idle {
                 log_live_event(&transcript_path, &job_name_drain, &event);
+            }
+
+            // Build Discord message for this event (if applicable)
+            let discord_msg = match &event {
+                crate::react::r#loop::ReactEvent::TurnStarted { turn } => {
+                    // Flush thinking buffer before new turn
+                    let mut msg = String::new();
+                    if !thinking_buf.is_empty() {
+                        let thought = std::mem::take(&mut thinking_buf);
+                        msg.push_str(&format!("💭 **Thinking**\n```\n{}\n```\n", thought));
+                    }
+                    msg.push_str(&format!("⚡ **Turn {}** started", turn));
+                    Some(msg)
+                }
+                crate::react::r#loop::ReactEvent::Thinking(text) => {
+                    thinking_buf.push_str(text);
+                    None // Aggregate, don't send individual tokens
+                }
+                crate::react::r#loop::ReactEvent::ToolExecuting { name, arguments, .. } => {
+                    // Flush thinking before tool call
+                    let mut msg = String::new();
+                    if !thinking_buf.is_empty() {
+                        let thought = std::mem::take(&mut thinking_buf);
+                        msg.push_str(&format!("💭 **Thinking**\n```\n{}\n```\n", thought));
+                    }
+                    msg.push_str(&format!("🔧 **Calling**: `{}`\n```json\n{}\n```", name, arguments));
+                    Some(msg)
+                }
+                crate::react::r#loop::ReactEvent::ToolCompleted { name, result } => {
+                    let icon = if result.error.is_none() { "✅" } else { "❌" };
+                    let output = if result.output.len() > 1800 {
+                        format!("{}…", &result.output[..1800])
+                    } else {
+                        result.output.clone()
+                    };
+                    Some(format!("{} **{}** completed\n```\n{}\n```", icon, name, output))
+                }
+                crate::react::r#loop::ReactEvent::ResponseReady { text } => {
+                    let mut msg = String::new();
+                    if !thinking_buf.is_empty() {
+                        let thought = std::mem::take(&mut thinking_buf);
+                        msg.push_str(&format!("💭 **Thinking**\n```\n{}\n```\n", thought));
+                    }
+                    let preview = if text.len() > 1800 {
+                        format!("{}…", &text[..1800])
+                    } else {
+                        text.clone()
+                    };
+                    msg.push_str(&format!("💬 **Response**\n{}", preview));
+                    Some(msg)
+                }
+                crate::react::r#loop::ReactEvent::Error(msg) => {
+                    Some(format!("❌ **Error**: {}", msg))
+                }
+                _ => None,
+            };
+
+            // Forward to Discord
+            if let Some(msg) = discord_msg {
+                if !autonomy_channel.is_empty() {
+                    let st = state_for_drain.read().await;
+                    for adapter in st.platform_registry.adapters_iter() {
+                        if adapter.name().eq_ignore_ascii_case("discord") {
+                            if let Err(e) = adapter.send_message(&autonomy_channel, &msg).await {
+                                tracing::warn!(error = %e, "Failed to forward live event to Discord");
+                            }
+                            break;
+                        }
+                    }
+                }
             }
 
             if let crate::react::r#loop::ReactEvent::ResponseReady { text } = event {
@@ -391,7 +470,7 @@ fn log_live_event(
             "timestamp": Utc::now().to_rfc3339(),
             "job": job_name,
             "event": "thinking",
-            "text": text.chars().take(500).collect::<String>(),
+            "text": text,
         }),
         ReactEvent::ToolExecuting { name, id, arguments } => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
@@ -399,7 +478,7 @@ fn log_live_event(
             "event": "tool_executing",
             "tool": name,
             "tool_call_id": id,
-            "arguments": arguments.chars().take(200).collect::<String>(),
+            "arguments": arguments,
         }),
         ReactEvent::ToolCompleted { name, result } => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
@@ -407,7 +486,7 @@ fn log_live_event(
             "event": "tool_completed",
             "tool": name,
             "success": result.error.is_none(),
-            "output_preview": result.output.chars().take(200).collect::<String>(),
+            "output_preview": result.output,
         }),
         ReactEvent::AuditRunning => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
@@ -426,7 +505,7 @@ fn log_live_event(
             "timestamp": Utc::now().to_rfc3339(),
             "job": job_name,
             "event": "response_ready",
-            "text_preview": text.chars().take(300).collect::<String>(),
+            "text_preview": text,
         }),
         ReactEvent::Error(msg) => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
