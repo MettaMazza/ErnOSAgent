@@ -79,16 +79,16 @@ async fn run_sae_training(config: config::AppConfig) -> Result<()> {
         n_gpu_layers: config.llamacpp.n_gpu_layers,
         data_dir: data_dir.clone(),
         train_config: TrainConfig {
-            num_features: 131_072,  // 128K — Gemma Scope standard
+            num_features: 1_048_576,  // 1M — maximum quality on 512GB M3 Ultra
             model_dim: 0,          // auto-detected from first activation
             l1_coefficient: 5e-3,
             learning_rate: 3e-4,
             weight_decay: 0.0,
             num_steps: 100_000,
-            batch_size: 4096,
+            batch_size: 1024,
             log_interval: 1000,
             checkpoint_interval: 5000,
-            dead_feature_resample_interval: 25_000,
+            dead_feature_resample_interval: 10_000,
             jump_threshold: 0.001,
             checkpoint_dir,
         },

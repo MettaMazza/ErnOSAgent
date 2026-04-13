@@ -86,7 +86,7 @@ pub async fn run_sae_training(config: TrainingRunConfig) -> Result<PathBuf> {
     let sae_dir = config.data_dir.join("sae_training");
     let activations_path = sae_dir.join("activations.bin");
     let checkpoint_dir = sae_dir.join("checkpoints");
-    let output_path = sae_dir.join("gemma4_sae_131k.safetensors");
+    let output_path = sae_dir.join("gemma4_sae_1m.safetensors");
     let progress_path = sae_dir.join("progress.jsonl");
     std::fs::create_dir_all(&sae_dir)?;
     std::fs::create_dir_all(&checkpoint_dir)?;
