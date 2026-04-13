@@ -80,6 +80,20 @@ impl Scheduler {
             .collect()
     }
 
+    /// Mark a job as dispatched — sets `last_run` to NOW before execution begins.
+    ///
+    /// This is the root fix for the re-dispatch race condition: by setting
+    /// `last_run` at dispatch time (not completion time), `is_due` / `is_due_idle`
+    /// naturally return false on the next tick for ANY job type. No separate
+    /// tracking structure is needed — the existing schedule logic handles it.
+    pub async fn mark_dispatched(&self, job_id: &str) {
+        let mut jobs = self.jobs.write().await;
+        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
+            job.last_run = Some(chrono::Utc::now());
+        }
+        let _ = self.store.save(&jobs);
+    }
+
     /// Record the result of a job execution and save to disk.
     pub async fn record_result(&self, job_id: &str, result: JobResult) {
         let mut jobs = self.jobs.write().await;

@@ -7,7 +7,6 @@
 
 use super::SchedulerHandle;
 use crate::web::state::SharedState;
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -20,8 +19,9 @@ use tokio::time::{interval, Duration};
 /// Idle-type jobs additionally check the shared `last_user_input` timer.
 /// Due jobs are spawned as independent tasks to prevent blocking the loop.
 ///
-/// A concurrency guard prevents the same job from being dispatched while
-/// a previous instance is still running.
+/// Race-condition prevention: `mark_dispatched()` sets `last_run = now`
+/// synchronously BEFORE spawning the task. This makes `is_due` / `is_due_idle`
+/// naturally return false on the next tick for any job type.
 pub async fn run(
     handle: SchedulerHandle,
     state: SharedState,
@@ -37,11 +37,6 @@ pub async fn run(
         *timer.lock().await = Instant::now();
     }
 
-    // Concurrency guard: track which jobs are currently executing.
-    // Prevents re-dispatch of a job that's still running from a previous tick.
-    let running: Arc<TokioMutex<HashSet<String>>> =
-        Arc::new(TokioMutex::new(HashSet::new()));
-
     loop {
         tick.tick().await;
 
@@ -56,11 +51,10 @@ pub async fn run(
         let due_jobs = handle.get_due_jobs(now).await;
 
         for job in due_jobs {
-            let already_running = running.lock().await.contains(&job.id);
-            if already_running {
-                continue; // Skip — previous instance still running
-            }
-            dispatch_job(job, state.clone(), handle.clone(), running.clone());
+            // Mark dispatched BEFORE spawning — sets last_run = now so the
+            // next tick's is_due() returns false. This is the root fix.
+            handle.mark_dispatched(&job.id).await;
+            dispatch_job(job, state.clone(), handle.clone());
         }
 
         // Idle jobs — check against the idle timer
@@ -69,17 +63,15 @@ pub async fn run(
             let idle_jobs = handle.get_due_idle_jobs(idle_elapsed).await;
 
             for job in idle_jobs {
-                let already_running = running.lock().await.contains(&job.id);
-                if already_running {
-                    continue; // Skip — previous instance still running
-                }
                 tracing::info!(
                     job_id = %job.id,
                     job_name = %job.name,
                     idle_secs = idle_elapsed.as_secs(),
                     "Scheduler: idle job triggered"
                 );
-                dispatch_job(job, state.clone(), handle.clone(), running.clone());
+                // Mark dispatched BEFORE spawning — same root fix.
+                handle.mark_dispatched(&job.id).await;
+                dispatch_job(job, state.clone(), handle.clone());
             }
         }
     }
@@ -88,45 +80,24 @@ pub async fn run(
 }
 
 /// Spawn a job as an independent task.
-///
-/// Registers the job ID in the `running` set before dispatch and
-/// removes it when the task completes, ensuring no concurrent re-dispatch.
 fn dispatch_job(
     job: super::job::ScheduledJob,
     state: SharedState,
     handle: SchedulerHandle,
-    running: Arc<TokioMutex<HashSet<String>>>,
 ) {
     let job_id = job.id.clone();
     let job_name = job.name.clone();
 
-    // Mark as running BEFORE spawning to prevent race with next tick
-    {
-        let running_clone = running.clone();
-        let id_clone = job_id.clone();
-        tokio::spawn(async move {
-            {
-                running_clone.lock().await.insert(id_clone.clone());
-            }
+    tokio::spawn(async move {
+        tracing::info!(
+            job_id = %job_id,
+            job_name = %job_name,
+            "Scheduler: dispatching job"
+        );
 
-            tracing::info!(
-                job_id = %job_id,
-                job_name = %job_name,
-                "Scheduler: dispatching job"
-            );
-
-            let result = super::executor::execute_job(&job, &state).await;
-            handle.record_result(&job_id, result).await;
-
-            // Remove from running set when done
-            {
-                running_clone.lock().await.remove(&id_clone);
-            }
-            tracing::debug!(
-                job_id = %id_clone,
-                "Scheduler: job completed, removed from running set"
-            );
-        });
-    }
+        let result = super::executor::execute_job(&job, &state).await;
+        handle.record_result(&job_id, result).await;
+    });
 }
+
 
