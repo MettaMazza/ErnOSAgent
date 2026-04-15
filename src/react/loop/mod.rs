@@ -154,6 +154,17 @@ pub async fn execute_react_loop(
             }
         }
 
+        // ── HUD: inject live neural state before inference ──
+        let hud_snapshot = generate_snapshot(&messages, turn).await;
+        let _ = event_tx.send(ReactEvent::NeuralSnapshot(hud_snapshot.clone())).await;
+        // Remove previous HUD message if present, then inject fresh one
+        messages.retain(|m| !m.content.starts_with("[HUD — Neural State"));
+        messages.push(Message {
+            role: "system".to_string(),
+            content: format_hud_message(&hud_snapshot),
+            images: Vec::new(),
+        });
+
         let output = collect_inference(
             provider, model, &messages, tools, turn, &event_tx,
             cancel_token.as_ref(),
@@ -187,7 +198,7 @@ pub async fn execute_react_loop(
             "collect_inference returned"
         );
 
-        emit_neural_snapshot(&messages, turn, &event_tx).await;
+        // Neural snapshot already emitted above (pre-inference HUD)
 
         let has_reply = output.tool_calls.iter().any(schema::is_loop_terminator);
         let has_refuse = output.tool_calls.iter().any(schema::is_refuse_request);
@@ -314,22 +325,84 @@ pub async fn execute_react_loop(
             }
         }
 
-        if has_none && !has_reply {
-            tracing::warn!(turn = turn, response_len = output.response_text.len(), "No tool calls and no reply_request — injecting error");
+        if has_none && !has_reply && !output.response_text.trim().is_empty() {
+            // Model emitted plain text without calling reply_request.
+            // Auto-wrap it instead of wasting a turn on retry.
+            tracing::warn!(turn = turn, response_len = output.response_text.len(), "No tool calls — auto-wrapping response as reply_request");
+
+            let reply_text = output.response_text.clone();
+
+            match handle_reply(
+                &reply_text, provider, model, &mut messages, config,
+                system_prompt, identity_prompt, executor, &all_tool_results,
+                turn, &mut audit_passes, &mut total_audit_rejections,
+                &mut consecutive_audit_rejections, &event_tx, &mut learning_ctx,
+            ).await {
+                ReplyOutcome::Deliver(result) => {
+                    tracing::info!(turn = turn, "ReAct loop — delivering auto-wrapped response");
+                    return Ok(result);
+                }
+                ReplyOutcome::Retry => {
+                    tracing::info!(turn = turn, "ReAct loop — observer rejected auto-wrapped response, retrying");
+                    continue;
+                }
+            }
+        } else if has_none && !has_reply {
+            tracing::warn!(turn = turn, "No tool calls and empty response — injecting error");
             inject_no_reply_error(&output.response_text, &mut messages, turn);
         }
     }
 }
 
-async fn emit_neural_snapshot(messages: &[Message], turn: usize, event_tx: &mpsc::Sender<ReactEvent>) {
+async fn generate_snapshot(
+    messages: &[Message],
+    turn: usize,
+) -> crate::interpretability::snapshot::NeuralSnapshot {
     let prompt_text = messages
         .iter()
         .rev()
         .find(|m| m.role == "user")
         .map(|m| m.content.as_str())
         .unwrap_or("");
-    let snapshot = crate::interpretability::live::snapshot_for_turn(turn, prompt_text, None).await;
-    let _ = event_tx.send(ReactEvent::NeuralSnapshot(snapshot)).await;
+    crate::interpretability::live::snapshot_for_turn(turn, prompt_text, None).await
+}
+
+fn format_hud_message(snap: &crate::interpretability::snapshot::NeuralSnapshot) -> String {
+    let source = if snap.is_live { "LIVE SAE" } else { "SIMULATED" };
+
+    let features: String = snap.top_features.iter()
+        .take(6)
+        .map(|f| format!("{} {:.2}", f.name, f.activation))
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    let alerts: String = if snap.safety_alerts.is_empty() {
+        "clear".to_string()
+    } else {
+        snap.safety_alerts.iter()
+            .map(|a| format!("{} ({:.1})", a.feature_name, a.activation))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    let p = &snap.cognitive_profile;
+    format!(
+        "[HUD — Neural State | {source} | turn {turn}]\n\
+         Top: {features}\n\
+         Valence: {v:+.2} | Arousal: {a:.2}\n\
+         Cognitive: reasoning {r:.0}% creativity {c:.0}% recall {rc:.0}% safety {s:.0}%\n\
+         Safety: {alerts}",
+        source = source,
+        turn = snap.turn,
+        features = features,
+        v = snap.emotional_state.valence,
+        a = snap.emotional_state.arousal,
+        r = p.reasoning * 100.0,
+        c = p.creativity * 100.0,
+        rc = p.recall * 100.0,
+        s = p.safety_vigilance * 100.0,
+        alerts = alerts,
+    )
 }
 
 fn inject_empty_reply_error(messages: &mut Vec<Message>) {
