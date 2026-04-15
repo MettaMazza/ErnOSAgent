@@ -242,8 +242,36 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
+    // If the server saved to a different directory than our output dir, copy it
+    // locally so the web UI /api/images/ route can serve it.
+    let serve_path = {
+        let saved = std::path::Path::new(saved_path);
+        let local_path = out_dir.join(saved.file_name().unwrap_or_default());
+        if saved.parent() != Some(out_dir.as_path()) {
+            if let Err(e) = std::fs::copy(saved, &local_path) {
+                tracing::warn!(
+                    src = %saved_path,
+                    dst = %local_path.display(),
+                    error = %e,
+                    "Failed to copy generated image to local output dir"
+                );
+                // Still use the original path — at least the MEDIA marker will have it
+                saved_path.to_string()
+            } else {
+                tracing::info!(
+                    src = %saved_path,
+                    dst = %local_path.display(),
+                    "Copied generated image to local output dir"
+                );
+                local_path.to_string_lossy().to_string()
+            }
+        } else {
+            saved_path.to_string()
+        }
+    };
+
     tracing::info!(
-        path = %saved_path,
+        path = %serve_path,
         elapsed_s = elapsed,
         "Image generation complete"
     );
@@ -259,7 +287,7 @@ fn image_tool(call: &ToolCall) -> ToolResult {
              Saved: {}\n\
              Generation time: {:.1}s\n\
              MEDIA: {}",
-            prompt, width, height, steps, guidance, saved_path, elapsed, saved_path
+            prompt, width, height, steps, guidance, serve_path, elapsed, serve_path
         ),
         success: true,
         error: None,
