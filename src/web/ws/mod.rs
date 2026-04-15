@@ -228,17 +228,29 @@ async fn build_status_message(state: &SharedState) -> Result<ServerMessage, ()> 
 /// Check for a post-recompile resume state file.
 /// If found, reads it, deletes it (one-shot), and returns a contextual prompt
 /// for the agent to generate its own post-upgrade notification.
-fn consume_resume_state() -> Option<String> {
+/// Only consumes files with platform="" or platform="web" — Discord resumes
+/// are handled by the Discord adapter on startup.
+pub(crate) fn consume_resume_state() -> Option<String> {
     let resume_path = std::path::Path::new("memory/core/resume.json");
     if !resume_path.exists() {
         return None;
     }
 
     let content = std::fs::read_to_string(resume_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+    // Check platform — if it's a Discord recompile, don't consume here
+    let platform = parsed.get("platform")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if platform == "discord" || platform == "telegram" {
+        tracing::info!(platform = platform, "Resume state is for platform adapter — skipping web UI consumption");
+        return None;
+    }
+
     // Consume the file so it doesn't fire again
     let _ = std::fs::remove_file(resume_path);
 
-    let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
     let compiled_at = parsed.get("compiled_at")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");

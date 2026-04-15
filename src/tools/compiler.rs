@@ -231,6 +231,8 @@ async fn run_recompile_pipeline(project_root: &PathBuf) -> Result<String, String
         let resume = serde_json::json!({
             "message": "System recompile completed successfully. I have been upgraded and restarted. Resuming operations.",
             "compiled_at": chrono::Utc::now().to_rfc3339(),
+            "platform": std::env::var("ERNOSAGENT_RECOMPILE_PLATFORM").unwrap_or_default(),
+            "channel_id": std::env::var("ERNOSAGENT_RECOMPILE_CHANNEL").unwrap_or_default(),
         });
         let core_dir = project_root.join("memory/core");
         let _ = std::fs::create_dir_all(&core_dir);

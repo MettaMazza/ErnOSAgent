@@ -236,6 +236,10 @@ pub async fn run_react_pipeline(
         tracing::debug!(user_data_dir = %user_data_dir.display(), "Set ERNOSAGENT_DATA_DIR for tool isolation");
     }
 
+    // Set platform context so system_recompile knows where to route post-restart messages
+    std::env::set_var("ERNOSAGENT_RECOMPILE_PLATFORM", &ctx.platform);
+    std::env::set_var("ERNOSAGENT_RECOMPILE_CHANNEL", &ctx.channel_id);
+
     // ── 6. Spawn the FULL ReAct loop ─────────────────────────────────
 
     // Get Discord HTTP handle for Discord tool execution
