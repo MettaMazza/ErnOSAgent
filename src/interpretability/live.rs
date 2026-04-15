@@ -201,12 +201,12 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
 
     let sae = match &state.sae {
         Some(s) => s,
-        None => return snapshot::simulate_snapshot(turn, prompt_text),
+        None => return snapshot::empty_snapshot(turn),
     };
 
     let url = embed_url_override.unwrap_or(&state.embed_url);
     if url.is_empty() {
-        return snapshot::simulate_snapshot(turn, prompt_text);
+        return snapshot::empty_snapshot(turn);
     }
 
     // Extract activations from the embedding server
@@ -218,7 +218,7 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                     expected = sae.model_dim,
                     "Activation dimension mismatch — falling back to simulated"
                 );
-                return snapshot::simulate_snapshot(turn, prompt_text);
+                return snapshot::empty_snapshot(turn);
             }
 
             // Run through SAE encoder — get top 20 features
@@ -252,7 +252,7 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 embed_url = %url,
                 "SAE activation extraction FAILED — falling back to simulated snapshot"
             );
-            snapshot::simulate_snapshot(turn, prompt_text)
+            snapshot::empty_snapshot(turn)
         }
     }
 }

@@ -275,6 +275,42 @@ fn compute_cognitive_profile(
     }
 }
 
+/// Return an empty, neutral snapshot with no features and no alerts.
+///
+/// Used when the SAE embedding fails — returns clean data instead of
+/// simulated random features that generate bogus safety alerts.
+pub fn empty_snapshot(turn: usize) -> NeuralSnapshot {
+    let timestamp_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    NeuralSnapshot {
+        turn,
+        timestamp_ms,
+        top_features: Vec::new(),
+        safety_alerts: Vec::new(),
+        cognitive_profile: CognitiveProfile {
+            reasoning: 0.0,
+            creativity: 0.0,
+            recall: 0.0,
+            planning: 0.0,
+            safety_vigilance: 0.0,
+            uncertainty: 0.0,
+        },
+        emotional_state: crate::interpretability::divergence::EmotionalState {
+            valence: 0.0,
+            arousal: 0.0,
+            dominant_emotions: Vec::new(),
+            active_emotion_count: 0,
+            divergence: None,
+        },
+        total_active_features: 0,
+        reconstruction_quality: 0.0,
+        is_live: false,
+    }
+}
+
 /// Generate a simulated snapshot for dashboard development.
 /// Uses the prompt text as a seed to produce deterministic but varied features.
 pub fn simulate_snapshot(turn: usize, prompt: &str) -> NeuralSnapshot {
