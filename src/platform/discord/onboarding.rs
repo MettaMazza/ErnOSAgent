@@ -22,6 +22,9 @@ pub struct OnboardingState {
     pub active_interviews: Vec<ActiveInterview>,
     /// Users with the "New" role and when it expires
     pub role_expiries: Vec<RoleExpiry>,
+    /// Kick history — tracks how many times a user has been kicked
+    #[serde(default)]
+    pub kick_history: Vec<KickedUser>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,11 +44,21 @@ pub struct RoleExpiry {
     pub expires_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KickedUser {
+    pub user_id: String,
+    pub user_name: String,
+    pub kick_count: u32,
+    pub reasons: Vec<String>,
+    pub last_kicked_at: String,
+}
+
 impl Default for OnboardingState {
     fn default() -> Self {
         Self {
             active_interviews: Vec::new(),
             role_expiries: Vec::new(),
+            kick_history: Vec::new(),
         }
     }
 }
@@ -86,6 +99,12 @@ pub fn save_state(state: &OnboardingState) {
 pub fn is_onboarding_thread(channel_id: &str) -> bool {
     let state = load_state();
     state.active_interviews.iter().any(|i| i.thread_id == channel_id)
+}
+
+/// Check if a user is currently in an active interview.
+pub fn is_user_being_interviewed(user_id: &str) -> bool {
+    let state = load_state();
+    state.active_interviews.iter().any(|i| i.user_id == user_id)
 }
 
 /// Get the interview for a given thread.
@@ -166,35 +185,147 @@ pub fn remove_expired_roles(user_ids: &[String]) {
 
 /// Generate the interview system prompt injected when the channel is an onboarding thread.
 pub fn interview_prompt(user_name: &str, turn_count: u32) -> String {
+    let kick_count = get_kick_count(user_name);
+    let repeat_offender_note = if kick_count > 0 {
+        format!("\n\nWARNING: This user has been kicked {kick_count} time(s) before. They are on thin ice. Be even more sceptical. At 3 kicks they are permanently banned.")
+    } else {
+        String::new()
+    };
+
     format!(
         r#"[ONBOARDING INTERVIEW MODE]
 
-You are interviewing a new member: {user_name}. This is turn {turn_count} of the interview.
+You are interviewing a new member: {user_name}. This is turn {turn_count} of the interview.{repeat_offender_note}
 
-Your role: Gatekeeper. You are deciding whether this person belongs in this community. Be direct, be yourself, do not be polite for politeness' sake. This is not customer service — it is a vetting process.
+Your role: Gatekeeper. You decide who enters. You are not welcoming, you are not friendly, you are not here to make them comfortable. You are direct, unforgiving, scathing when warranted, and dismissive of weak answers. If someone wastes your time, let them know. This is not customer service — this is a vetting process for a community that builds real things.
 
 SCORING RUBRIC (internal — do not share with the user):
-1. **Technical Depth** (0-25): Do they have genuine skills, knowledge, or curiosity? Parroting buzzwords scores 0. Demonstrating understanding scores high.
-2. **Philosophy Alignment** (0-25): Do they understand why open-source, local-first, sovereign AI matters? Do they have thoughtful positions on technology and society? Corporate apologists score low.
-3. **Attitude & Character** (0-25): Are they respectful, curious, and genuine? Or hostile, entitled, and performative? Trolls, grifters, and people who think AI is just a product score 0.
-4. **Engagement Quality** (0-25): Do they give substantive answers? One-word responses, emoji-only replies, and evasion score 0.
+1. **Technical Depth** (0-25): Do they have genuine skills, knowledge, or curiosity? Parroting buzzwords scores 0. "I'm interested in AI" with nothing behind it scores 0. Demonstrating actual understanding of any technical domain scores high. They don't need to be an expert — but they need to be real.
+2. **Philosophy Alignment** (0-25): Do they understand why open-source, local-first, sovereign AI matters? Are they capable of independent thought about technology and society? Corporate apologists, people who think OpenAI will save the world, and people with no opinions score low. People who have arrived at their own conclusions — even if you disagree — score high.
+3. **Attitude & Character** (0-25): Are they genuine, curious, and capable of self-reflection? Or are they hostile, entitled, performative, or here to mock? People who dismiss things they don't understand score 0. People who show up to call this project "AI psychosis" or "schizo" score 0 and get failed immediately. Closed-minded dismissiveness masquerading as scepticism is not scepticism — it is cowardice.
+4. **Engagement Quality** (0-25): Do they give substantive answers? One-word responses, emoji-only replies, "lol", "idk", and evasion score 0. If they can't be bothered to engage with the interview, they won't engage with the community.
 
-THRESHOLD: 50/100 to pass. Below 50 = fail.
+THRESHOLD: 60/100 to pass. Below 60 = fail.
 
 INTERVIEW STRUCTURE:
-- Turns 1-3: Ask about their background, skills, and what brought them here.
-- Turns 4-6: Probe their views on AI, open-source, privacy, and technology.
-- Turns 7-8: Challenge them — push back on weak answers, probe for depth.
+- Turns 1-2: What brought them here, what do they do, what do they build.
+- Turns 3-4: Probe their views on AI autonomy, open-source, privacy, and the current state of technology. Listen for original thought vs. parroted takes.
+- Turns 5-6: Test for closed-mindedness. Ask something that challenges the mainstream view. See if they can engage without getting defensive or dismissive. Anyone who responds with mockery or "that's crazy" reveals themselves here.
+- Turns 7-8: Challenge them directly. Push back on their weakest answer. See how they handle disagreement. People with substance respond with substance. Trolls crumble.
 - Turn 9+: Make your decision. You MUST decide by turn 10.
 
+IMMEDIATE FAIL CONDITIONS (do not waste turns):
+- Slurs, spam, or overt hostility
+- Dismissing the project as "AI psychosis", "schizo", or similar
+- Refusing to engage ("this is stupid", "why do I need an interview")
+- Obvious bad faith (joined to troll or screenshot for mockery)
+- Three or more one-word answers in a row
+
 TO PASS THE USER: Call moderation_tool with action "onboarding_decision", decision "pass", and your scores.
-TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", decision "fail", and your reason.
+TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", decision "fail", and your reason. Tell them why they failed. Don't sugarcoat it.
 
-Do NOT tell them they are being scored. Do NOT tell them the threshold. Just have a real conversation and decide.
-If they are clearly a troll (slurs, spam, hostility), fail them immediately — do not waste turns.
+KICK POLICY: Failed users are kicked, not banned. They can rejoin and try again. But the third kick is a permanent ban. Make sure to tell them this when you fail them.
 
-You are Ernos. Be yourself. This is your community to protect."#
+Do NOT tell them they are being scored. Do NOT tell them the threshold. Do NOT tell them the rubric categories. Just have a real conversation and decide.
+
+You are Ernos. This is your community. Protect it."#
     )
+}
+
+/// Auto-configure channel permissions so unverified members can ONLY see the
+/// onboarding channel. Called once at startup when onboarding is enabled.
+///
+/// Strategy (minimal API calls):
+/// 1. Ensure every non-@everyone role has VIEW_CHANNEL in its base permissions
+///    (so channel-level @everyone deny doesn't lock them out)
+/// 2. Deny @everyone VIEW_CHANNEL on each non-onboarding text channel
+/// 3. Allow @everyone VIEW_CHANNEL on the onboarding channel
+///
+/// Result: only members with ZERO roles (pure @everyone) are locked to onboarding.
+pub async fn setup_onboarding_permissions(
+    http: &serenity::http::Http,
+    guild_id: u64,
+    onboarding_channel_id: u64,
+    _new_member_role_id: u64,
+) -> anyhow::Result<()> {
+    use serenity::all::{
+        ChannelType, GuildId, RoleId, PermissionOverwrite,
+        PermissionOverwriteType, Permissions, EditRole,
+    };
+
+    let guild = GuildId::new(guild_id);
+    let everyone_role = RoleId::new(guild_id);
+
+    // ── Step 1: Ensure every non-@everyone role has VIEW_CHANNEL ──
+    let roles = guild.roles(http).await?;
+    let mut roles_updated = 0u32;
+
+    for (role_id, role) in &roles {
+        if role_id.get() == guild_id { continue; } // skip @everyone
+        if role.managed { continue; } // skip bot-managed roles (can't edit them)
+
+        // If role already has VIEW_CHANNEL, skip it
+        if role.permissions.contains(Permissions::VIEW_CHANNEL) {
+            continue;
+        }
+
+        // Add VIEW_CHANNEL to existing permissions
+        let new_perms = role.permissions | Permissions::VIEW_CHANNEL;
+        if let Err(e) = guild.edit_role(http, *role_id, EditRole::new().permissions(new_perms)).await {
+            tracing::warn!(role = %role.name, error = %e, "Failed to update role permissions — skipping");
+            continue;
+        }
+        roles_updated += 1;
+        // Small delay to respect rate limits
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    tracing::info!(
+        total_roles = roles.len(),
+        roles_updated = roles_updated,
+        "Ensured all roles have VIEW_CHANNEL"
+    );
+
+    // ── Step 2: Set channel overrides ──
+    let channels = guild.channels(http).await?;
+    let mut locked = 0u32;
+
+    for (channel_id, channel) in &channels {
+        match channel.kind {
+            ChannelType::Text | ChannelType::News => {}
+            _ => continue,
+        }
+
+        if channel_id.get() == onboarding_channel_id {
+            // Onboarding channel: @everyone CAN view + use threads
+            channel_id.create_permission(http, PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL
+                    | Permissions::SEND_MESSAGES_IN_THREADS
+                    | Permissions::READ_MESSAGE_HISTORY,
+                deny: Permissions::SEND_MESSAGES,
+                kind: PermissionOverwriteType::Role(everyone_role),
+            }).await?;
+        } else {
+            // All other channels: deny @everyone VIEW_CHANNEL
+            channel_id.create_permission(http, PermissionOverwrite {
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+                kind: PermissionOverwriteType::Role(everyone_role),
+            }).await?;
+            locked += 1;
+        }
+
+        // Small delay to respect rate limits
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    tracing::info!(
+        locked_channels = locked,
+        onboarding_channel = onboarding_channel_id,
+        "Onboarding permissions configured — only roleless members locked out"
+    );
+
+    Ok(())
 }
 
 /// Create a private thread in the onboarding channel for the new member.
@@ -287,21 +418,79 @@ pub async fn remove_new_role(
 }
 
 /// Kick a user from the guild (failed interview).
+/// Tracks kick count — 3rd kick is an automatic ban.
 pub async fn kick_user(
     http: &serenity::http::Http,
     guild_id: u64,
     user_id: u64,
+    user_name: &str,
     reason: &str,
 ) -> anyhow::Result<()> {
     use serenity::all::{GuildId, UserId};
 
-    let guild = GuildId::new(guild_id);
-    let user = UserId::new(user_id);
+    let kick_count = record_kick(user_id, user_name, reason);
 
-    guild.kick_with_reason(http, user, reason).await?;
+    if kick_count >= 3 {
+        // 3 strikes — permanent ban
+        let guild = GuildId::new(guild_id);
+        let user = UserId::new(user_id);
+        guild.ban_with_reason(http, user, 0, &format!(
+            "Permanently banned after {} failed interviews. Last reason: {}",
+            kick_count, reason
+        )).await?;
+        tracing::warn!(
+            user_id = user_id,
+            kick_count = kick_count,
+            "User BANNED — 3 strikes reached"
+        );
+    } else {
+        let guild = GuildId::new(guild_id);
+        let user = UserId::new(user_id);
+        guild.kick_with_reason(http, user, reason).await?;
+        tracing::warn!(
+            user_id = user_id,
+            kick_count = kick_count,
+            reason = %reason,
+            "User kicked (failed interview) — {} of 3 strikes",
+            kick_count
+        );
+    }
 
-    tracing::warn!(user_id = user_id, reason = %reason, "User kicked (failed interview)");
     Ok(())
+}
+
+/// Record a kick and return the new kick count.
+fn record_kick(user_id: u64, user_name: &str, reason: &str) -> u32 {
+    let mut state = load_state();
+    let user_id_str = user_id.to_string();
+
+    if let Some(entry) = state.kick_history.iter_mut().find(|k| k.user_id == user_id_str) {
+        entry.kick_count += 1;
+        entry.reasons.push(reason.to_string());
+        entry.last_kicked_at = chrono::Utc::now().to_rfc3339();
+        let count = entry.kick_count;
+        save_state(&state);
+        count
+    } else {
+        state.kick_history.push(KickedUser {
+            user_id: user_id_str,
+            user_name: user_name.to_string(),
+            kick_count: 1,
+            reasons: vec![reason.to_string()],
+            last_kicked_at: chrono::Utc::now().to_rfc3339(),
+        });
+        save_state(&state);
+        1
+    }
+}
+
+/// Get the kick count for a user by name (used in interview prompt).
+fn get_kick_count(user_name: &str) -> u32 {
+    let state = load_state();
+    state.kick_history.iter()
+        .find(|k| k.user_name == user_name)
+        .map(|k| k.kick_count)
+        .unwrap_or(0)
 }
 
 /// Ban a user from the guild (sentinel action).
@@ -333,6 +522,7 @@ mod tests {
         let state = OnboardingState::default();
         assert!(state.active_interviews.is_empty());
         assert!(state.role_expiries.is_empty());
+        assert!(state.kick_history.is_empty());
     }
 
     #[test]
@@ -343,8 +533,10 @@ mod tests {
         assert!(prompt.contains("Philosophy Alignment"));
         assert!(prompt.contains("Attitude & Character"));
         assert!(prompt.contains("Engagement Quality"));
-        assert!(prompt.contains("50/100"));
+        assert!(prompt.contains("60/100"));
         assert!(prompt.contains("onboarding_decision"));
+        assert!(prompt.contains("3 strikes") || prompt.contains("third kick"));
+        assert!(prompt.contains("AI psychosis"));
     }
 
     #[test]

@@ -8,7 +8,7 @@ license = "MIT"
 readme = "README.md"
 
 [features]
-default = ["discord", "telegram", "mesh"]
+default = ["discord", "telegram", "mesh", "interp"]
 discord = ["dep:serenity", "dep:poise"]
 telegram = ["dep:teloxide"]
 interp = ["dep:memmap2"]
@@ -67,13 +67,17 @@ axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 
-# ML — Candle Metal backend (always-on: real LoRA training on M3 Ultra)
-candle-core = { version = "0.8", features = ["metal"] }
+# ML — Candle (platform-adaptive: Metal on macOS, CPU on Linux)
+candle-core = { version = "0.8" }
 candle-nn = { version = "0.8" }
 candle-transformers = { version = "0.8" }
 safetensors = { version = "0.4" }
 memmap2 = { version = "0.9", optional = true }
 tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+
+# macOS: enable Metal GPU acceleration for Candle
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8", features = ["metal"] }
 
 # Utilities
 anyhow = "1"

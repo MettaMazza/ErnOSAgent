@@ -10,5 +10,6 @@
 
 pub mod vectors;
 pub mod server;
+pub mod identity_vector;
 
 pub use vectors::{LoadedVector, SteeringConfig};

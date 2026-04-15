@@ -55,6 +55,24 @@ async fn main() -> Result<()> {
         return run_sae_training(config).await;
     }
 
+    // Check for --probe-sae subcommand (feature identification)
+    if args.iter().any(|a| a == "--probe-sae") {
+        return run_sae_probe(config).await;
+    }
+
+    // Initialize live SAE for real-time interpretability
+    // Uses the MAIN inference server (Gemma 4) for activation extraction,
+    // not the dedicated embedding server (nomic-embed-text) — the SAE was
+    // trained on Gemma 4's 2816-dim residual stream.
+    {
+        let embed_url = if !config.llamacpp.model_path.is_empty() {
+            format!("http://localhost:{}", config.llamacpp.port)
+        } else {
+            String::new()
+        };
+        ernosagent::interpretability::live::init(&config.general.data_dir, &embed_url);
+    }
+
     run_web(config).await
 }
 
@@ -105,6 +123,106 @@ async fn run_sae_training(config: config::AppConfig) -> Result<()> {
     println!("   Output: {}", output.display());
     println!("   Format: safetensors (SAELens compatible)");
     println!("   Ready for open source release.");
+
+    Ok(())
+}
+
+/// Run SAE feature probe (activated via `cargo run -- --probe-sae`).
+///
+/// Loads the trained SAE, runs the probe corpus through the embedding server,
+/// identifies which features correspond to which concepts, and saves the
+/// feature_map.json for use during live inference.
+async fn run_sae_probe(config: config::AppConfig) -> Result<()> {
+    tracing::info!("=== SAE Feature Probe Mode ===");
+
+    let data_dir = config.general.data_dir.clone();
+    let sae_path = data_dir.join("sae_training/gemma4_sae_1m.safetensors");
+    let output_dir = data_dir.join("sae_training");
+
+    if !sae_path.exists() {
+        anyhow::bail!(
+            "No trained SAE found at {}. Run --train-sae first.",
+            sae_path.display()
+        );
+    }
+
+    // Load SAE
+    #[cfg(feature = "interp")]
+    let sae = {
+        use ernosagent::interpretability::sae::SparseAutoencoder;
+        SparseAutoencoder::load_safetensors(&sae_path)
+            .with_context(|| format!("Failed to load SAE from {}", sae_path.display()))?
+    };
+
+    #[cfg(not(feature = "interp"))]
+    {
+        anyhow::bail!("Feature probe requires --features interp");
+    }
+
+    tracing::info!(
+        num_features = sae.num_features,
+        model_dim = sae.model_dim,
+        "SAE loaded for probing"
+    );
+
+    // Start the embedding server for activation extraction
+    // Use the same approach as training: Gemma 4 model with --embeddings on port 8082
+    let embed_port: u16 = 8082;
+    let embed_url = format!("http://localhost:{}", embed_port);
+
+    tracing::info!(
+        binary = %config.llamacpp.server_binary,
+        model = %config.llamacpp.model_path,
+        port = embed_port,
+        "Starting Gemma 4 embedding server for probe"
+    );
+
+    let embed_child = tokio::process::Command::new(&config.llamacpp.server_binary)
+        .args([
+            "--model", &config.llamacpp.model_path,
+            "--port", &embed_port.to_string(),
+            "--n-gpu-layers", &config.llamacpp.n_gpu_layers.to_string(),
+            "--embeddings",
+            "--pooling", "mean",
+            "--batch-size", "8192",
+            "--ubatch-size", "8192",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("Failed to start embedding server for probe")?;
+
+    // Wait for server health
+    let client = reqwest::Client::new();
+    let health_url = format!("{}/health", embed_url);
+    let start = std::time::Instant::now();
+    loop {
+        if start.elapsed().as_secs() > 120 {
+            anyhow::bail!("Embedding server failed to start within 120s");
+        }
+        if let Ok(resp) = client.get(&health_url).send().await {
+            if resp.status().is_success() {
+                break;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    }
+    tracing::info!("Embedding server healthy — starting probe");
+
+    // Run the probe
+    let feature_map = ernosagent::interpretability::probe::run_probe(
+        &sae,
+        &embed_url,
+        &output_dir,
+    ).await?;
+
+    println!("\n✅ Feature probe complete!");
+    println!("   Mapped features: {}/{}", feature_map.mapped_count, sae.num_features);
+    println!("   Output: {}", output_dir.join("feature_map.json").display());
+    println!("   The system will now use these labels at startup.");
+
+    // Kill the embedding server
+    drop(embed_child);
 
     Ok(())
 }
@@ -209,10 +327,44 @@ async fn init_web_state(
 
     // Steering vectors
     let vectors_dir = config.vectors_dir();
-    ensure_mock_vectors(&vectors_dir);
+    let _ = std::fs::create_dir_all(&vectors_dir);
+
+    // Generate identity vector if it doesn't exist yet (one-time operation).
+    // This embeds ErnOS's persona + kernel through the SAE to create a
+    // persistent control vector that biases every inference toward self-concept.
+    if ernosagent::interpretability::live::is_live()
+        && steering::identity_vector::needs_generation(&vectors_dir)
+    {
+        let embed_url = format!("http://localhost:{}", config.llamacpp.port);
+        if let Some(sae) = ernosagent::interpretability::live::sae() {
+            tracing::info!("Generating identity vector (first run) — this takes ~10s");
+            match steering::identity_vector::generate_identity_vector(
+                sae, &embed_url, &vectors_dir
+            ).await {
+                Ok(path) => tracing::info!(path = %path.display(), "✅ Identity vector generated"),
+                Err(e) => tracing::warn!(error = %e, "Identity vector generation failed — will retry next startup"),
+            }
+        }
+    }
+
     let mut steering_config = steering::vectors::SteeringConfig::default();
     if let Ok(vectors) = steering::vectors::SteeringConfig::scan_directory(&vectors_dir) {
         steering_config.vectors = vectors;
+    }
+
+    // Auto-activate the identity vector if it exists
+    let identity_path = steering::identity_vector::identity_vector_path(&vectors_dir);
+    if identity_path.exists() {
+        let scale = steering::identity_vector::identity_scale();
+        if let Err(e) = steering_config.load_vector(identity_path.clone(), scale) {
+            tracing::warn!(error = %e, "Failed to load identity vector");
+        } else {
+            tracing::info!(
+                scale = scale,
+                path = %identity_path.display(),
+                "✅ Identity vector active — self-concept injected into residual stream"
+            );
+        }
     }
 
     // Memory
@@ -554,15 +706,3 @@ async fn init_web_state(
     Ok(state)
 }
 
-/// Create mock steering vectors for the dashboard UI if none exist.
-fn ensure_mock_vectors(vectors_dir: &std::path::Path) {
-    if let Ok(entries) = std::fs::read_dir(vectors_dir) {
-        if entries.count() == 0 {
-            let _ = std::fs::write(vectors_dir.join("honesty.gguf"), b"mock_vector");
-            let _ = std::fs::write(vectors_dir.join("creativity.gguf"), b"mock_vector");
-            let _ = std::fs::write(vectors_dir.join("detail_oriented.gguf"), b"mock_vector");
-            let _ = std::fs::write(vectors_dir.join("cynicism.gguf"), b"mock_vector");
-            tracing::info!("Created mock steering vectors for dashboard UI");
-        }
-    }
-}

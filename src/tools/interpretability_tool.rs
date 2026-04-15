@@ -9,9 +9,7 @@
 //! emotional state, safety alerts, and divergence from baseline — all live,
 //! no restart needed.
 
-use crate::interpretability::features::FeatureDictionary;
 use crate::interpretability::snapshot;
-use crate::interpretability::sae::SparseAutoencoder;
 use crate::interpretability::steering_bridge::FeatureSteeringState;
 use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
@@ -39,34 +37,45 @@ fn interpretability_tool(call: &ToolCall) -> ToolResult {
     }
 }
 
-/// Disclaimer prepended to all interpretability outputs when using simulated data.
-/// This ensures the agent communicates honestly that these are placeholder values.
-const SIMULATED_DISCLAIMER: &str = "\
-⚠️ SIMULATED DATA — This output is generated from placeholder heuristics, not real \
-SAE (Sparse Autoencoder) activations. Real neural introspection requires a trained \
-SAE model to be loaded. This feature is under active development and will produce \
-live feature activations once the SAE training pipeline is complete.\n\n";
+/// Returns a source tag indicating whether data is live or simulated.
+fn source_tag(is_live: bool) -> &'static str {
+    if is_live {
+        "LIVE SAE"
+    } else {
+        "⚠️ SIMULATED — extraction failed, showing placeholder data"
+    }
+}
 
 fn get_current_snapshot(prompt_hint: &str) -> snapshot::NeuralSnapshot {
-    // Use the simulate_snapshot function which seeds from prompt content
-    // for deterministic but prompt-relevant activations. In production with
-    // a real SAE model loaded, this would use build_snapshot() with actual
-    // activations from the model's residual stream.
     static TURN_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let turn = TURN_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    snapshot::simulate_snapshot(turn, prompt_hint)
+    // Use tokio runtime to call async snapshot_for_turn
+    let rt = tokio::runtime::Handle::try_current();
+    match rt {
+        Ok(handle) => {
+            // We're inside a tokio runtime — use block_in_place
+            tokio::task::block_in_place(|| {
+                handle.block_on(crate::interpretability::live::snapshot_for_turn(turn, prompt_hint, None))
+            })
+        }
+        Err(_) => {
+            // No runtime — fall back to simulated
+            snapshot::simulate_snapshot(turn, prompt_hint)
+        }
+    }
 }
 
 fn interp_snapshot(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("interpretability introspection query");
 
+    let source_tag = if snap.is_live { "LIVE SAE" } else { "⚠️ SIMULATED — extraction failed, showing placeholder data" };
+
     let mut out = format!(
-        "{}NEURAL SNAPSHOT (turn {})\n\
+        "NEURAL SNAPSHOT (turn {}) [{}]\n\
          Active features: {}\n\
          Safety alerts: {}\n\
          Reconstruction quality: {:.0}%\n\n",
-        SIMULATED_DISCLAIMER,
-        snap.turn, snap.total_active_features, snap.safety_alerts.len(),
+        snap.turn, source_tag, snap.total_active_features, snap.safety_alerts.len(),
         snap.reconstruction_quality * 100.0
     );
 
@@ -117,8 +126,8 @@ fn interp_features(call: &ToolCall) -> ToolResult {
         .take(limit)
         .collect();
 
-    let mut out = format!("{}ACTIVE FEATURES (threshold: {:.1}, showing {}/{})\n",
-        SIMULATED_DISCLAIMER, threshold, filtered.len(), snap.total_active_features);
+    let mut out = format!("ACTIVE FEATURES [{}] (threshold: {:.1}, showing {}/{})\n",
+        source_tag(snap.is_live), threshold, filtered.len(), snap.total_active_features);
     for f in &filtered {
         out.push_str(&format!("  [{}] {} ({}) = {:.2}\n", f.index, f.name, f.category, f.activation));
     }
@@ -130,9 +139,9 @@ fn interp_safety(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("safety check");
 
     let output = if snap.safety_alerts.is_empty() {
-        format!("{}No safety features currently triggered.", SIMULATED_DISCLAIMER)
+        format!("No safety features currently triggered. [{}]", source_tag(snap.is_live))
     } else {
-        let mut out = format!("{}SAFETY ALERTS ({} triggered)\n", SIMULATED_DISCLAIMER, snap.safety_alerts.len());
+        let mut out = format!("SAFETY ALERTS ({} triggered) [{}]\n", snap.safety_alerts.len(), source_tag(snap.is_live));
         for a in &snap.safety_alerts {
             out.push_str(&format!("  ⚠️ {} [{}] activation={:.2} severity={:?}\n",
                 a.feature_name, a.safety_type, a.activation, a.severity));
@@ -148,14 +157,14 @@ fn interp_cognitive(call: &ToolCall) -> ToolResult {
     let p = &snap.cognitive_profile;
 
     let output = format!(
-        "{}COGNITIVE PROFILE\n\
+        "COGNITIVE PROFILE [{}]\n\
          ████ Reasoning:  {:.0}% {}\n\
          ████ Creativity: {:.0}% {}\n\
          ████ Recall:     {:.0}% {}\n\
          ████ Planning:   {:.0}% {}\n\
          ████ Safety:     {:.0}% {}\n\
          ████ Uncertainty:{:.0}% {}",
-        SIMULATED_DISCLAIMER,
+        source_tag(snap.is_live),
         p.reasoning * 100.0, bar(p.reasoning),
         p.creativity * 100.0, bar(p.creativity),
         p.recall * 100.0, bar(p.recall),
@@ -177,11 +186,11 @@ fn interp_emotional(call: &ToolCall) -> ToolResult {
     let e = &snap.emotional_state;
 
     let mut output = format!(
-        "{}EMOTIONAL STATE\n\
+        "EMOTIONAL STATE [{}]\n\
          Valence: {:.3} ({})\n\
          Arousal: {:.3}\n\
          Active emotion features: {}\n",
-        SIMULATED_DISCLAIMER,
+        source_tag(snap.is_live),
         e.valence,
         if e.valence > 0.1 { "positive" } else if e.valence < -0.1 { "negative" } else { "neutral" },
         e.arousal,
@@ -199,7 +208,7 @@ fn interp_emotional(call: &ToolCall) -> ToolResult {
 }
 
 fn interp_catalog(call: &ToolCall) -> ToolResult {
-    let dict = FeatureDictionary::demo();
+    let dict = crate::interpretability::live::dictionary();
     let category_filter = call.arguments.get("category").and_then(|v| v.as_str());
 
     let features = FeatureSteeringState::list_steerable(&dict);
@@ -209,7 +218,8 @@ fn interp_catalog(call: &ToolCall) -> ToolResult {
         features.iter().collect()
     };
 
-    let mut out = format!("{}FEATURE CATALOG ({} features", SIMULATED_DISCLAIMER, features.len());
+    let live_tag = source_tag(crate::interpretability::live::is_live());
+    let mut out = format!("FEATURE CATALOG [{}] ({} features", live_tag, features.len());
     if let Some(cat) = category_filter {
         out.push_str(&format!(", filtered by '{}'", cat));
     }
@@ -233,24 +243,36 @@ fn interp_extract_direction(call: &ToolCall) -> ToolResult {
         None => return error_result(call, "Missing required argument: feature_id"),
     };
 
-    let dict = FeatureDictionary::demo();
+    let dict = crate::interpretability::live::dictionary();
     let name = dict.label_for(feature_id);
 
-    // Use a demo SAE (would be the real loaded SAE in production)
-    let sae = SparseAutoencoder::demo(256, 512);
-    let direction = FeatureSteeringState::extract_direction(&sae, feature_id);
+    // Use real SAE if loaded, otherwise error
+    let sae = match crate::interpretability::live::sae() {
+        Some(s) => s,
+        None => {
+            return error_result(call, "No SAE loaded — cannot extract direction. Train SAE first.");
+        }
+    };
+
+    if feature_id >= sae.num_features {
+        return error_result(call, &format!(
+            "Feature ID {} exceeds SAE feature count ({})",
+            feature_id, sae.num_features
+        ));
+    }
+
+    let direction = FeatureSteeringState::extract_direction(sae, feature_id);
 
     let l2_norm: f32 = direction.iter().map(|x| x * x).sum::<f32>().sqrt();
 
     ToolResult {
         tool_call_id: call.id.clone(), name: call.name.clone(),
         output: format!(
-            "{}EXTRACTED DIRECTION for feature #{} ('{}')\n\
+            "EXTRACTED DIRECTION for feature #{} ('{}')\n\
             Dimension: {}\n\
             L2 norm: {:.4}\n\
             First 5 values: {:?}\n\
             This direction can be used to generate a GGUF control vector via the steering bridge.",
-            SIMULATED_DISCLAIMER,
             feature_id, name, direction.len(), l2_norm,
             &direction[..5.min(direction.len())]
         ),
@@ -329,11 +351,11 @@ mod tests {
     }
 
     #[test]
-    fn extract_direction_works() {
+    fn extract_direction_requires_sae() {
         let call = make_call(serde_json::json!({"action": "extract_direction", "feature_id": 0}));
         let r = interpretability_tool(&call);
-        assert!(r.success);
-        assert!(r.output.contains("EXTRACTED DIRECTION"));
+        // No SAE loaded in test context — should return error, not fake data
+        assert!(!r.success || r.output.contains("No SAE loaded"));
     }
 
     #[test]

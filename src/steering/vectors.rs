@@ -100,8 +100,8 @@ impl SteeringConfig {
         if !path.exists() {
             anyhow::bail!("Vector file does not exist: {}", path.display());
         }
-        if path.extension().map_or(true, |ext| ext != "gguf") {
-            anyhow::bail!("Vector file must be a .gguf file: {}", path.display());
+        if path.extension().map_or(true, |ext| ext != "gguf" && ext != "bin") {
+            anyhow::bail!("Vector file must be a .gguf or .bin file: {}", path.display());
         }
 
         let name = path

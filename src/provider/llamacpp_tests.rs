@@ -34,8 +34,8 @@ fn test_build_server_args_basic() {
     assert!(args.contains(&"8080".to_string()));
     assert!(args.contains(&"--n-gpu-layers".to_string()));
     assert!(args.contains(&"-1".to_string()));
-    // --embeddings should NOT be on the main server (dedicated embedding server handles it)
-    assert!(!args.contains(&"--embeddings".to_string()), "Main server must not have --embeddings");
+    // --embeddings MUST be on the main server for SAE activation extraction
+    assert!(args.contains(&"--embeddings".to_string()), "Main server must have --embeddings for SAE");
 }
 
 #[test]

@@ -186,7 +186,12 @@ impl EventHandler for DiscordHandler {
                 handle_button_click(&ctx, &component).await;
             }
             Interaction::Command(command) => {
-                super::commands::handle_command(&ctx, &command, &self.admin_user_ids).await;
+                let onboarding_cfg = super::commands::OnboardingConfig {
+                    channel_id: self.onboarding_channel_id.clone(),
+                    role_id: self.new_member_role_id.clone(),
+                    guild_id: self.guild_id.clone(),
+                };
+                super::commands::handle_command(&ctx, &command, &self.admin_user_ids, &onboarding_cfg).await;
             }
             _ => {}
         }
@@ -202,6 +207,37 @@ impl EventHandler for DiscordHandler {
         // Register slash commands per-guild
         for guild in &ready.guilds {
             super::commands::register_guild_commands(&ctx.http, guild.id).await;
+        }
+
+        // Configure onboarding channel permissions (lock server until interview pass)
+        if self.onboarding_enabled() {
+            let guild_id: u64 = match self.guild_id.parse() {
+                Ok(id) => id,
+                Err(_) => {
+                    tracing::error!(guild_id = %self.guild_id, "Invalid guild_id — skipping permission setup");
+                    return;
+                }
+            };
+            let onboarding_ch: u64 = match self.onboarding_channel_id.parse() {
+                Ok(id) => id,
+                Err(_) => {
+                    tracing::error!("Invalid onboarding_channel_id — skipping permission setup");
+                    return;
+                }
+            };
+            let role_id: u64 = match self.new_member_role_id.parse() {
+                Ok(id) => id,
+                Err(_) => {
+                    tracing::error!("Invalid new_member_role_id — skipping permission setup");
+                    return;
+                }
+            };
+
+            if let Err(e) = super::onboarding::setup_onboarding_permissions(
+                &ctx.http, guild_id, onboarding_ch, role_id,
+            ).await {
+                tracing::error!(error = %e, "Failed to configure onboarding permissions");
+            }
         }
     }
 

@@ -101,6 +101,9 @@ impl LlamaCppProvider {
         args.push("--n-gpu-layers".to_string());
         args.push(self.n_gpu_layers.to_string());
 
+        // Enable embedding endpoint on main server (needed for SAE activation extraction)
+        args.push("--embeddings".to_string());
+
         // Control vectors
         args.extend(steering_args.iter().cloned());
 

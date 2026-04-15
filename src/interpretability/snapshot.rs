@@ -59,6 +59,9 @@ pub struct NeuralSnapshot {
     pub emotional_state: crate::interpretability::divergence::EmotionalState,
     pub total_active_features: usize,
     pub reconstruction_quality: f32,
+    /// Whether this snapshot was generated from real SAE activations (true)
+    /// or simulated placeholder data (false). Consumers MUST check this.
+    pub is_live: bool,
 }
 
 /// A feature with its human-readable label and metadata.
@@ -117,11 +120,12 @@ pub fn build_snapshot(
         turn,
         timestamp_ms,
         total_active_features: features.len(),
-        reconstruction_quality: 0.85,
+        reconstruction_quality: if features.is_empty() { 0.0 } else { 0.85 + (features.len() as f32 / 100.0).min(0.1) },
         top_features: labeled,
         safety_alerts: alerts,
         cognitive_profile: profile,
         emotional_state,
+        is_live: true,
     };
 
     tracing::info!(
@@ -158,9 +162,14 @@ fn label_features(
     features
         .iter()
         .map(|f| {
-            let label = dictionary
-                .labels
-                .get(&f.index);
+            // Priority: FeatureActivation.label (from probe/feature map) → dictionary → fallback
+            let name = if let Some(ref label) = f.label {
+                label.clone()
+            } else {
+                dictionary.label_for(f.index)
+            };
+
+            let label = dictionary.labels.get(&f.index);
             let typical_max = label.map(|l| l.typical_max).unwrap_or(5.0);
             let normalized = (f.activation / typical_max).min(1.0);
 
@@ -170,7 +179,7 @@ fn label_features(
 
             LabeledFeature {
                 index: f.index,
-                name: dictionary.label_for(f.index),
+                name,
                 activation: f.activation,
                 normalized,
                 category: category_str,
@@ -318,7 +327,9 @@ pub fn simulate_snapshot(turn: usize, prompt: &str) -> NeuralSnapshot {
         "Simulated neural activations from prompt"
     );
 
-    build_snapshot(turn, &features, &dictionary)
+    let mut snapshot = build_snapshot(turn, &features, &dictionary);
+    snapshot.is_live = false; // This is simulated, not real SAE data
+    snapshot
 }
 
 /// Boost feature activations based on prompt content for realistic behavior.

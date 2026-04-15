@@ -443,8 +443,9 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
                 name: call.name.clone(),
                 output: format!(
                     "❌ FAIL — User {} rejected. Reason: {}\n\
-                    [SYSTEM: The user will be kicked. Reply with your rejection message \
-                    before they are removed.]",
+                    [SYSTEM: The user will be kicked. This counts as a strike — 3 strikes \
+                    is a permanent ban. Tell them why they failed and warn them about \
+                    the 3-strike policy before they are removed.]",
                     user_id, reason
                 ),
                 success: true,

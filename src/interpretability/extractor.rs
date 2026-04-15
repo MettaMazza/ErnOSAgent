@@ -10,7 +10,6 @@
 //! mid-layer extraction via hook points.
 
 use anyhow::{Context, Result};
-use serde::Deserialize;
 
 /// Activation extraction backend.
 pub enum ExtractorBackend {
@@ -36,15 +35,6 @@ pub struct ActivationResult {
     pub dim: usize,
 }
 
-#[derive(Deserialize)]
-struct EmbeddingResponse {
-    data: Vec<EmbeddingData>,
-}
-
-#[derive(Deserialize)]
-struct EmbeddingData {
-    embedding: Vec<f32>,
-}
 
 /// Extract activations via llama.cpp's /v1/embeddings endpoint.
 ///
@@ -56,18 +46,18 @@ pub async fn extract_via_embeddings(
     text: &str,
 ) -> Result<ActivationResult> {
     let start = std::time::Instant::now();
-    let url = format!("{}/v1/embeddings", base_url);
+    // Use native llama.cpp endpoint (not /v1/embeddings which requires pooling)
+    let url = format!("{}/embedding", base_url);
 
     tracing::info!(
         url = url.as_str(),
         text_len = text.len(),
         text_preview = %text.chars().take(80).collect::<String>(),
-        "Extracting activations via embeddings endpoint"
+        "Extracting activations via native embedding endpoint"
     );
 
     let body = serde_json::json!({
-        "input": text,
-        "encoding_format": "float",
+        "content": text,
     });
 
     let resp = client
@@ -75,7 +65,7 @@ pub async fn extract_via_embeddings(
         .json(&body)
         .send()
         .await
-        .with_context(|| "Failed to call /v1/embeddings")?;
+        .with_context(|| "Failed to call /embedding")?;
 
     if !resp.status().is_success() {
         let status = resp.status();
@@ -86,30 +76,42 @@ pub async fn extract_via_embeddings(
             error_body
         );
     }
+    // Parse native endpoint response: [{"index":0,"embedding":[[f32...]]}]
+    // Embedding can be nested [[f32...]] or flat [f32...]
+    let parsed: serde_json::Value = resp.json().await
+        .context("Failed to parse embedding response")?;
 
-    let embedding_resp: EmbeddingResponse = resp
-        .json()
-        .await
-        .context("Failed to parse embeddings response")?;
+    let emb_field = parsed
+        .as_array()
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("embedding"))
+        .or_else(|| parsed.get("embedding"))
+        .context("No embedding field in response")?;
 
-    let embedding = embedding_resp
-        .data
-        .into_iter()
-        .next()
-        .context("No embedding data returned")?;
+    let values: Vec<f32> = if let Some(outer) = emb_field.as_array() {
+        if let Some(inner) = outer.first().and_then(|v| v.as_array()) {
+            // Nested: [[f32...]]
+            inner.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+        } else {
+            // Flat: [f32...]
+            outer.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+        }
+    } else {
+        anyhow::bail!("Embedding field is not an array");
+    };
 
-    let dim = embedding.embedding.len();
+    let dim = values.len();
 
     tracing::info!(
         dim = dim,
         text_len = text.len(),
         elapsed_ms = start.elapsed().as_millis(),
-        l2_norm = format!("{:.4}", embedding.embedding.iter().map(|x| x * x).sum::<f32>().sqrt()),
+        l2_norm = format!("{:.4}", values.iter().map(|x| x * x).sum::<f32>().sqrt()),
         "Activation extraction complete"
     );
 
     Ok(ActivationResult {
-        values: embedding.embedding,
+        values,
         layer: 0,
         dim,
     })

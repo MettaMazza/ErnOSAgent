@@ -63,27 +63,28 @@ pub async fn neural_snapshot(
     State(state): State<SharedState>,
 ) -> Json<serde_json::Value> {
     let st = state.read().await;
-    let last_prompt = st
+    let last_prompt: String = st
         .session_mgr
         .active()
         .messages
         .iter()
         .rev()
         .find(|m| m.role == "user")
-        .map(|m| m.content.as_str())
-        .unwrap_or("idle");
+        .map(|m| m.content.clone())
+        .unwrap_or_else(|| "idle".to_string());
 
     let turn = st.session_mgr.active().messages.len() / 2;
-    let snapshot = crate::interpretability::snapshot::simulate_snapshot(turn, last_prompt);
+    // Drop the read lock before the async call
+    drop(st);
+    let snapshot = crate::interpretability::live::snapshot_for_turn(turn, &last_prompt, None).await;
     Json(serde_json::to_value(&snapshot).unwrap_or_default())
 }
 
 pub async fn list_steerable_features() -> Json<serde_json::Value> {
-    use crate::interpretability::features::FeatureDictionary;
     use crate::interpretability::steering_bridge::FeatureSteeringState;
 
-    let dict = FeatureDictionary::demo();
-    let features = FeatureSteeringState::list_steerable(&dict);
+    let dict = crate::interpretability::live::dictionary();
+    let features = FeatureSteeringState::list_steerable(dict);
     Json(serde_json::to_value(&features).unwrap_or_default())
 }
 
@@ -97,9 +98,7 @@ pub async fn steer_feature(
     State(state): State<SharedState>,
     Json(req): Json<SteerFeatureRequest>,
 ) -> StatusCode {
-    use crate::interpretability::features::FeatureDictionary;
-
-    let dict = FeatureDictionary::demo();
+    let dict = crate::interpretability::live::dictionary();
     let name = dict.label_for(req.feature_index);
     let category = dict
         .labels

@@ -328,7 +328,7 @@ async fn emit_neural_snapshot(messages: &[Message], turn: usize, event_tx: &mpsc
         .find(|m| m.role == "user")
         .map(|m| m.content.as_str())
         .unwrap_or("");
-    let snapshot = crate::interpretability::snapshot::simulate_snapshot(turn, prompt_text);
+    let snapshot = crate::interpretability::live::snapshot_for_turn(turn, prompt_text, None).await;
     let _ = event_tx.send(ReactEvent::NeuralSnapshot(snapshot)).await;
 }
 

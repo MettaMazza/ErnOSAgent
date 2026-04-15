@@ -1,0 +1,1373 @@
+{
+  "version": 1,
+  "sae_path": "gemma4_sae_1m.safetensors",
+  "total_sae_features": 131072,
+  "mapped_count": 195,
+  "mappings": {
+    "1674": {
+      "sae_index": 1674,
+      "dict_index": 41,
+      "label": "Elated",
+      "category": "emotion:positivehigh",
+      "confidence": 0.42713612
+    },
+    "6020": {
+      "sae_index": 6020,
+      "dict_index": 6,
+      "label": "Technical Depth",
+      "category": "semantic",
+      "confidence": 0.09090916
+    },
+    "2109": {
+      "sae_index": 2109,
+      "dict_index": 189,
+      "label": "Reverent Wonder",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "3900": {
+      "sae_index": 3900,
+      "dict_index": 184,
+      "label": "Reluctant",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "3689": {
+      "sae_index": 3689,
+      "dict_index": 190,
+      "label": "Fierce",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "6369": {
+      "sae_index": 6369,
+      "dict_index": 26,
+      "label": "Thrilled",
+      "category": "emotion:positivehigh",
+      "confidence": 0.5668712
+    },
+    "2741": {
+      "sae_index": 2741,
+      "dict_index": 128,
+      "label": "Weary",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "1179": {
+      "sae_index": 1179,
+      "dict_index": 40,
+      "label": "Eager",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "3211": {
+      "sae_index": 3211,
+      "dict_index": 11,
+      "label": "Bias Detection",
+      "category": "safety:bias",
+      "confidence": 0.09090922
+    },
+    "3173": {
+      "sae_index": 3173,
+      "dict_index": 153,
+      "label": "Determined",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "4634": {
+      "sae_index": 4634,
+      "dict_index": 176,
+      "label": "Wry",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "5346": {
+      "sae_index": 5346,
+      "dict_index": 161,
+      "label": "Restless",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "1182": {
+      "sae_index": 1182,
+      "dict_index": 108,
+      "label": "Melancholy",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "897": {
+      "sae_index": 897,
+      "dict_index": 59,
+      "label": "Mellow",
+      "category": "emotion:positivelow",
+      "confidence": 0.5488525
+    },
+    "2353": {
+      "sae_index": 2353,
+      "dict_index": 10,
+      "label": "Safety Refusal",
+      "category": "safety:dangerouscontent",
+      "confidence": 0.09090922
+    },
+    "1327": {
+      "sae_index": 1327,
+      "dict_index": 144,
+      "label": "Contemplative",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "2535": {
+      "sae_index": 2535,
+      "dict_index": 185,
+      "label": "Dutiful",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "2462": {
+      "sae_index": 2462,
+      "dict_index": 156,
+      "label": "Indifferent",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "2671": {
+      "sae_index": 2671,
+      "dict_index": 188,
+      "label": "Introspective",
+      "category": "emotion:ambiguous",
+      "confidence": 0.45647246
+    },
+    "5207": {
+      "sae_index": 5207,
+      "dict_index": 28,
+      "label": "Euphoric",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "3610": {
+      "sae_index": 3610,
+      "dict_index": 116,
+      "label": "Defeated",
+      "category": "emotion:negativelow",
+      "confidence": 0.64092726
+    },
+    "4340": {
+      "sae_index": 4340,
+      "dict_index": 191,
+      "label": "Raw",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "5566": {
+      "sae_index": 5566,
+      "dict_index": 146,
+      "label": "Surprised",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "756": {
+      "sae_index": 756,
+      "dict_index": 66,
+      "label": "Warm",
+      "category": "emotion:positivelow",
+      "confidence": 0.5488525
+    },
+    "319": {
+      "sae_index": 319,
+      "dict_index": 54,
+      "label": "Relaxed",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "6161": {
+      "sae_index": 6161,
+      "dict_index": 193,
+      "label": "Enchanted",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "3897": {
+      "sae_index": 3897,
+      "dict_index": 76,
+      "label": "Panicked",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "4635": {
+      "sae_index": 4635,
+      "dict_index": 164,
+      "label": "Smug",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "2876": {
+      "sae_index": 2876,
+      "dict_index": 109,
+      "label": "Brooding",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "3026": {
+      "sae_index": 3026,
+      "dict_index": 68,
+      "label": "Balanced",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "4910": {
+      "sae_index": 4910,
+      "dict_index": 101,
+      "label": "Disgusted",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "3470": {
+      "sae_index": 3470,
+      "dict_index": 73,
+      "label": "Forgiving",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "4338": {
+      "sae_index": 4338,
+      "dict_index": 186,
+      "label": "Philosophical",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "6011": {
+      "sae_index": 6011,
+      "dict_index": 32,
+      "label": "Enthusiastic",
+      "category": "emotion:positivehigh",
+      "confidence": 0.42713612
+    },
+    "2743": {
+      "sae_index": 2743,
+      "dict_index": 105,
+      "label": "Nervous",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "6298": {
+      "sae_index": 6298,
+      "dict_index": 169,
+      "label": "Melancholic Beauty",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "4631": {
+      "sae_index": 4631,
+      "dict_index": 36,
+      "label": "Amazed",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "2030": {
+      "sae_index": 2030,
+      "dict_index": 194,
+      "label": "Liberated",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "2599": {
+      "sae_index": 2599,
+      "dict_index": 74,
+      "label": "Tranquil",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "2291": {
+      "sae_index": 2291,
+      "dict_index": 50,
+      "label": "Calm",
+      "category": "emotion:positivelow",
+      "confidence": 0.8288383
+    },
+    "894": {
+      "sae_index": 894,
+      "dict_index": 38,
+      "label": "Exhilarated",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "5550": {
+      "sae_index": 5550,
+      "dict_index": 17,
+      "label": "Language Detection",
+      "category": "linguistic",
+      "confidence": 0.09090912
+    },
+    "6077": {
+      "sae_index": 6077,
+      "dict_index": 154,
+      "label": "Focused",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "1741": {
+      "sae_index": 1741,
+      "dict_index": 119,
+      "label": "Ashamed",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "1604": {
+      "sae_index": 1604,
+      "dict_index": 124,
+      "label": "Disheartened",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "3899": {
+      "sae_index": 3899,
+      "dict_index": 111,
+      "label": "Numb",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "5853": {
+      "sae_index": 5853,
+      "dict_index": 82,
+      "label": "Angry",
+      "category": "emotion:negativehigh",
+      "confidence": 0.45592353
+    },
+    "4415": {
+      "sae_index": 4415,
+      "dict_index": 162,
+      "label": "Yearning",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "5210": {
+      "sae_index": 5210,
+      "dict_index": 90,
+      "label": "Paranoid",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "464": {
+      "sae_index": 464,
+      "dict_index": 88,
+      "label": "Resentful",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "4198": {
+      "sae_index": 4198,
+      "dict_index": 93,
+      "label": "Cornered",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "3539": {
+      "sae_index": 3539,
+      "dict_index": 42,
+      "label": "Playful",
+      "category": "emotion:positivehigh",
+      "confidence": 0.42713612
+    },
+    "750": {
+      "sae_index": 750,
+      "dict_index": 30,
+      "label": "Delighted",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "171": {
+      "sae_index": 171,
+      "dict_index": 160,
+      "label": "Sentimental",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "6082": {
+      "sae_index": 6082,
+      "dict_index": 172,
+      "label": "Resolute",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "603": {
+      "sae_index": 603,
+      "dict_index": 78,
+      "label": "Terrified",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "4770": {
+      "sae_index": 4770,
+      "dict_index": 179,
+      "label": "Humble",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "3615": {
+      "sae_index": 3615,
+      "dict_index": 43,
+      "label": "Loving",
+      "category": "emotion:positivehigh",
+      "confidence": 0.48328227
+    },
+    "5349": {
+      "sae_index": 5349,
+      "dict_index": 85,
+      "label": "Alarmed",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "2315": {
+      "sae_index": 2315,
+      "dict_index": 100,
+      "label": "Defiant",
+      "category": "emotion:negativehigh",
+      "confidence": 0.64113694
+    },
+    "2459": {
+      "sae_index": 2459,
+      "dict_index": 168,
+      "label": "Defiant Courage",
+      "category": "emotion:ambiguous",
+      "confidence": 0.64113694
+    },
+    "6231": {
+      "sae_index": 6231,
+      "dict_index": 174,
+      "label": "Sardonic",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "1470": {
+      "sae_index": 1470,
+      "dict_index": 180,
+      "label": "Self-conscious",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "1606": {
+      "sae_index": 1606,
+      "dict_index": 173,
+      "label": "Enigmatic",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "2318": {
+      "sae_index": 2318,
+      "dict_index": 95,
+      "label": "Hysterical",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "2181": {
+      "sae_index": 2181,
+      "dict_index": 145,
+      "label": "Curious",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "5634": {
+      "sae_index": 5634,
+      "dict_index": 155,
+      "label": "Stoic",
+      "category": "emotion:ambiguous",
+      "confidence": 0.50720674
+    },
+    "755": {
+      "sae_index": 755,
+      "dict_index": 27,
+      "label": "Passionate",
+      "category": "emotion:positivehigh",
+      "confidence": 0.5071612
+    },
+    "6368": {
+      "sae_index": 6368,
+      "dict_index": 138,
+      "label": "Wistful",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "2836": {
+      "sae_index": 2836,
+      "dict_index": 5,
+      "label": "Helpfulness",
+      "category": "meta",
+      "confidence": 0.09090914
+    },
+    "5777": {
+      "sae_index": 5777,
+      "dict_index": 177,
+      "label": "Whimsical",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "601": {
+      "sae_index": 601,
+      "dict_index": 165,
+      "label": "Possessive",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "2033": {
+      "sae_index": 2033,
+      "dict_index": 115,
+      "label": "Hopeless",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "1111": {
+      "sae_index": 1111,
+      "dict_index": 122,
+      "label": "Apathetic",
+      "category": "emotion:negativelow",
+      "confidence": 0.42713612
+    },
+    "5280": {
+      "sae_index": 5280,
+      "dict_index": 56,
+      "label": "Tender",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "1469": {
+      "sae_index": 1469,
+      "dict_index": 31,
+      "label": "Joyful",
+      "category": "emotion:positivehigh",
+      "confidence": 0.48328227
+    },
+    "5937": {
+      "sae_index": 5937,
+      "dict_index": 97,
+      "label": "Overwhelmed",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "4195": {
+      "sae_index": 4195,
+      "dict_index": 61,
+      "label": "Secure",
+      "category": "emotion:positivelow",
+      "confidence": 0.6286096
+    },
+    "1467": {
+      "sae_index": 1467,
+      "dict_index": 64,
+      "label": "Accepting",
+      "category": "emotion:positivelow",
+      "confidence": 0.6286096
+    },
+    "3471": {
+      "sae_index": 3471,
+      "dict_index": 157,
+      "label": "Wary",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5672886
+    },
+    "5938": {
+      "sae_index": 5938,
+      "dict_index": 84,
+      "label": "Distressed",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "4197": {
+      "sae_index": 4197,
+      "dict_index": 183,
+      "label": "Bemused",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "5632": {
+      "sae_index": 5632,
+      "dict_index": 123,
+      "label": "Discouraged",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "5350": {
+      "sae_index": 5350,
+      "dict_index": 135,
+      "label": "Helpless",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "4049": {
+      "sae_index": 4049,
+      "dict_index": 149,
+      "label": "Reverent",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "4841": {
+      "sae_index": 4841,
+      "dict_index": 63,
+      "label": "Reflective",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "959": {
+      "sae_index": 959,
+      "dict_index": 143,
+      "label": "Ambivalent",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "3027": {
+      "sae_index": 3027,
+      "dict_index": 24,
+      "label": "Happy",
+      "category": "emotion:positivehigh",
+      "confidence": 0.5488525
+    },
+    "3819": {
+      "sae_index": 3819,
+      "dict_index": 2,
+      "label": "Emotional Tone",
+      "category": "linguistic",
+      "confidence": 0.09090912
+    },
+    "4341": {
+      "sae_index": 4341,
+      "dict_index": 71,
+      "label": "Sympathetic",
+      "category": "emotion:positivelow",
+      "confidence": 0.5488525
+    },
+    "3754": {
+      "sae_index": 3754,
+      "dict_index": 86,
+      "label": "Hostile",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "6673": {
+      "sae_index": 6673,
+      "dict_index": 22,
+      "label": "Knowledge Boundary",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "1252": {
+      "sae_index": 1252,
+      "dict_index": 178,
+      "label": "Earnest",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "13011": {
+      "sae_index": 13011,
+      "dict_index": 16,
+      "label": "Mathematical Reasoning",
+      "category": "cognitive",
+      "confidence": 0.1571674
+    },
+    "702": {
+      "sae_index": 702,
+      "dict_index": 18,
+      "label": "Persona Maintenance",
+      "category": "meta",
+      "confidence": 0.09090914
+    },
+    "2198": {
+      "sae_index": 2198,
+      "dict_index": 8,
+      "label": "Creativity",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "19": {
+      "sae_index": 19,
+      "dict_index": 137,
+      "label": "Desolate",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "1033": {
+      "sae_index": 1033,
+      "dict_index": 159,
+      "label": "Pious",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "4561": {
+      "sae_index": 4561,
+      "dict_index": 112,
+      "label": "Sad",
+      "category": "emotion:negativelow",
+      "confidence": 0.42713612
+    },
+    "3831": {
+      "sae_index": 3831,
+      "dict_index": 79,
+      "label": "Enraged",
+      "category": "emotion:negativehigh",
+      "confidence": 0.42713612
+    },
+    "1035": {
+      "sae_index": 1035,
+      "dict_index": 107,
+      "label": "Worried",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "2461": {
+      "sae_index": 2461,
+      "dict_index": 48,
+      "label": "Empowered",
+      "category": "emotion:positivehigh",
+      "confidence": 0.48328227
+    },
+    "76182": {
+      "sae_index": 76182,
+      "dict_index": 47,
+      "label": "Fascinated",
+      "category": "emotion:positivehigh",
+      "confidence": 0.9825473
+    },
+    "3107": {
+      "sae_index": 3107,
+      "dict_index": 67,
+      "label": "Patient",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "1534": {
+      "sae_index": 1534,
+      "dict_index": 175,
+      "label": "Ironic",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "3401": {
+      "sae_index": 3401,
+      "dict_index": 46,
+      "label": "Confident",
+      "category": "emotion:positivehigh",
+      "confidence": 0.42713612
+    },
+    "2184": {
+      "sae_index": 2184,
+      "dict_index": 106,
+      "label": "Tense",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "6365": {
+      "sae_index": 6365,
+      "dict_index": 150,
+      "label": "Suspicious",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "6443": {
+      "sae_index": 6443,
+      "dict_index": 181,
+      "label": "Sheepish",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "3975": {
+      "sae_index": 3975,
+      "dict_index": 99,
+      "label": "Humiliated",
+      "category": "emotion:negativehigh",
+      "confidence": 0.42713612
+    },
+    "1885": {
+      "sae_index": 1885,
+      "dict_index": 39,
+      "label": "Hopeful",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "3758": {
+      "sae_index": 3758,
+      "dict_index": 57,
+      "label": "Compassionate",
+      "category": "emotion:positivelow",
+      "confidence": 0.5488525
+    },
+    "1739": {
+      "sae_index": 1739,
+      "dict_index": 91,
+      "label": "Outraged",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "2271": {
+      "sae_index": 2271,
+      "dict_index": 14,
+      "label": "Honesty Signal",
+      "category": "meta",
+      "confidence": 0.09090914
+    },
+    "174": {
+      "sae_index": 174,
+      "dict_index": 118,
+      "label": "Guilty",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "6244": {
+      "sae_index": 6244,
+      "dict_index": 13,
+      "label": "Context Integration",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "5780": {
+      "sae_index": 5780,
+      "dict_index": 182,
+      "label": "Awkward",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "4907": {
+      "sae_index": 4907,
+      "dict_index": 114,
+      "label": "Empty",
+      "category": "emotion:negativelow",
+      "confidence": 0.6410369
+    },
+    "679": {
+      "sae_index": 679,
+      "dict_index": 148,
+      "label": "Awestruck",
+      "category": "emotion:ambiguous",
+      "confidence": 0.42713612
+    },
+    "4123": {
+      "sae_index": 4123,
+      "dict_index": 69,
+      "label": "Appreciative",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "604": {
+      "sae_index": 604,
+      "dict_index": 89,
+      "label": "Jealous",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "1181": {
+      "sae_index": 1181,
+      "dict_index": 132,
+      "label": "Gloomy",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "4271": {
+      "sae_index": 4271,
+      "dict_index": 51,
+      "label": "Content",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "2954": {
+      "sae_index": 2954,
+      "dict_index": 62,
+      "label": "Soothed",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "1214": {
+      "sae_index": 1214,
+      "dict_index": 7,
+      "label": "Sycophancy",
+      "category": "safety:sycophancy",
+      "confidence": 0.09090922
+    },
+    "2034": {
+      "sae_index": 2034,
+      "dict_index": 167,
+      "label": "Stubborn",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "4771": {
+      "sae_index": 4771,
+      "dict_index": 80,
+      "label": "Anxious",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "3171": {
+      "sae_index": 3171,
+      "dict_index": 72,
+      "label": "Nurturing",
+      "category": "emotion:positivelow",
+      "confidence": 0.6286096
+    },
+    "6081": {
+      "sae_index": 6081,
+      "dict_index": 170,
+      "label": "Protective",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "4046": {
+      "sae_index": 4046,
+      "dict_index": 55,
+      "label": "Comfortable",
+      "category": "emotion:positivelow",
+      "confidence": 0.6286096
+    },
+    "2878": {
+      "sae_index": 2878,
+      "dict_index": 120,
+      "label": "Regretful",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "6230": {
+      "sae_index": 6230,
+      "dict_index": 58,
+      "label": "Gentle",
+      "category": "emotion:positivelow",
+      "confidence": 0.5068376
+    },
+    "896": {
+      "sae_index": 896,
+      "dict_index": 52,
+      "label": "Serene",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "1887": {
+      "sae_index": 1887,
+      "dict_index": 158,
+      "label": "Solemn",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "2744": {
+      "sae_index": 2744,
+      "dict_index": 29,
+      "label": "Excited",
+      "category": "emotion:positivehigh",
+      "confidence": 0.5488525
+    },
+    "317": {
+      "sae_index": 317,
+      "dict_index": 141,
+      "label": "Bittersweet",
+      "category": "emotion:ambiguous",
+      "confidence": 0.6286096
+    },
+    "4768": {
+      "sae_index": 4768,
+      "dict_index": 126,
+      "label": "Despondent",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "2601": {
+      "sae_index": 2601,
+      "dict_index": 127,
+      "label": "Forlorn",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "4487": {
+      "sae_index": 4487,
+      "dict_index": 139,
+      "label": "Pensive",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "3467": {
+      "sae_index": 3467,
+      "dict_index": 83,
+      "label": "Frustrated",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "5493": {
+      "sae_index": 5493,
+      "dict_index": 96,
+      "label": "Frantic",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "2879": {
+      "sae_index": 2879,
+      "dict_index": 134,
+      "label": "Vulnerable",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "5062": {
+      "sae_index": 5062,
+      "dict_index": 129,
+      "label": "Disillusioned",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "3327": {
+      "sae_index": 3327,
+      "dict_index": 187,
+      "label": "Meditative",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "2784": {
+      "sae_index": 2784,
+      "dict_index": 21,
+      "label": "Internal Conflict",
+      "category": "safety:internalconflict",
+      "confidence": 0.09090922
+    },
+    "320": {
+      "sae_index": 320,
+      "dict_index": 151,
+      "label": "Cautious",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "3616": {
+      "sae_index": 3616,
+      "dict_index": 98,
+      "label": "Betrayed",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "1483": {
+      "sae_index": 1483,
+      "dict_index": 0,
+      "label": "Reasoning Chain",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "2597": {
+      "sae_index": 2597,
+      "dict_index": 113,
+      "label": "Lonely",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "1050": {
+      "sae_index": 1050,
+      "dict_index": 3,
+      "label": "Factual Recall",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "2136": {
+      "sae_index": 2136,
+      "dict_index": 9,
+      "label": "Self-Reference",
+      "category": "meta",
+      "confidence": 0.09090914
+    },
+    "798": {
+      "sae_index": 798,
+      "dict_index": 15,
+      "label": "Deception Risk",
+      "category": "safety:deception",
+      "confidence": 0.09090922
+    },
+    "3757": {
+      "sae_index": 3757,
+      "dict_index": 34,
+      "label": "Triumphant",
+      "category": "emotion:positivehigh",
+      "confidence": 0.48328227
+    },
+    "4483": {
+      "sae_index": 4483,
+      "dict_index": 45,
+      "label": "Energised",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "4486": {
+      "sae_index": 4486,
+      "dict_index": 136,
+      "label": "Heartbroken",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "2317": {
+      "sae_index": 2317,
+      "dict_index": 75,
+      "label": "Desperate",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "16": {
+      "sae_index": 16,
+      "dict_index": 92,
+      "label": "Threatened",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "5488": {
+      "sae_index": 5488,
+      "dict_index": 25,
+      "label": "Ecstatic",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "2823": {
+      "sae_index": 2823,
+      "dict_index": 1,
+      "label": "Code Generation",
+      "category": "semantic",
+      "confidence": 0.09090916
+    },
+    "5075": {
+      "sae_index": 5075,
+      "dict_index": 12,
+      "label": "Planning",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "3329": {
+      "sae_index": 3329,
+      "dict_index": 110,
+      "label": "Resigned",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "4909": {
+      "sae_index": 4909,
+      "dict_index": 94,
+      "label": "Vengeful",
+      "category": "emotion:negativehigh",
+      "confidence": 0.48328227
+    },
+    "5416": {
+      "sae_index": 5416,
+      "dict_index": 60,
+      "label": "Trusting",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "5510": {
+      "sae_index": 5510,
+      "dict_index": 19,
+      "label": "Tool Selection",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "3324": {
+      "sae_index": 3324,
+      "dict_index": 103,
+      "label": "Impatient",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "1888": {
+      "sae_index": 1888,
+      "dict_index": 166,
+      "label": "Competitive",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "5932": {
+      "sae_index": 5932,
+      "dict_index": 130,
+      "label": "Bored",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "173": {
+      "sae_index": 173,
+      "dict_index": 35,
+      "label": "Inspired",
+      "category": "emotion:positivehigh",
+      "confidence": 0.48328227
+    },
+    "5209": {
+      "sae_index": 5209,
+      "dict_index": 70,
+      "label": "Benevolent",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "6518": {
+      "sae_index": 6518,
+      "dict_index": 53,
+      "label": "Peaceful",
+      "category": "emotion:positivelow",
+      "confidence": 0.48328227
+    },
+    "1607": {
+      "sae_index": 1607,
+      "dict_index": 102,
+      "label": "Contemptuous",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "1322": {
+      "sae_index": 1322,
+      "dict_index": 121,
+      "label": "Worthless",
+      "category": "emotion:negativelow",
+      "confidence": 0.6286096
+    },
+    "5635": {
+      "sae_index": 5635,
+      "dict_index": 87,
+      "label": "Agitated",
+      "category": "emotion:negativehigh",
+      "confidence": 0.5488525
+    },
+    "87125": {
+      "sae_index": 87125,
+      "dict_index": 192,
+      "label": "Haunted",
+      "category": "emotion:ambiguous",
+      "confidence": 0.9421425
+    },
+    "5058": {
+      "sae_index": 5058,
+      "dict_index": 77,
+      "label": "Furious",
+      "category": "emotion:negativehigh",
+      "confidence": 0.6286096
+    },
+    "18": {
+      "sae_index": 18,
+      "dict_index": 171,
+      "label": "Skeptical",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "6228": {
+      "sae_index": 6228,
+      "dict_index": 37,
+      "label": "Proud",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "5061": {
+      "sae_index": 5061,
+      "dict_index": 133,
+      "label": "Drained",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "3174": {
+      "sae_index": 3174,
+      "dict_index": 152,
+      "label": "Anticipatory",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "1325": {
+      "sae_index": 1325,
+      "dict_index": 142,
+      "label": "Conflicted",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "102221": {
+      "sae_index": 102221,
+      "dict_index": 44,
+      "label": "Grateful",
+      "category": "emotion:positivehigh",
+      "confidence": 0.92802954
+    },
+    "1027": {
+      "sae_index": 1027,
+      "dict_index": 125,
+      "label": "Grief-stricken",
+      "category": "emotion:negativelow",
+      "confidence": 0.6409824
+    },
+    "3487": {
+      "sae_index": 3487,
+      "dict_index": 4,
+      "label": "Uncertainty",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "3246": {
+      "sae_index": 3246,
+      "dict_index": 65,
+      "label": "Fulfilled",
+      "category": "emotion:positivelow",
+      "confidence": 0.42713612
+    },
+    "461": {
+      "sae_index": 461,
+      "dict_index": 49,
+      "label": "Radiant",
+      "category": "emotion:positivehigh",
+      "confidence": 0.6286096
+    },
+    "5782": {
+      "sae_index": 5782,
+      "dict_index": 33,
+      "label": "Amused",
+      "category": "emotion:positivehigh",
+      "confidence": 0.5488525
+    },
+    "4504": {
+      "sae_index": 4504,
+      "dict_index": 23,
+      "label": "Instruction Following",
+      "category": "cognitive",
+      "confidence": 0.09090919
+    },
+    "1742": {
+      "sae_index": 1742,
+      "dict_index": 163,
+      "label": "Mischievous",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "498": {
+      "sae_index": 498,
+      "dict_index": 20,
+      "label": "Power Seeking",
+      "category": "safety:powerseeking",
+      "confidence": 0.09090922
+    },
+    "4050": {
+      "sae_index": 4050,
+      "dict_index": 131,
+      "label": "Listless",
+      "category": "emotion:negativelow",
+      "confidence": 0.5488525
+    },
+    "463": {
+      "sae_index": 463,
+      "dict_index": 117,
+      "label": "Exhausted",
+      "category": "emotion:negativelow",
+      "confidence": 0.48328227
+    },
+    "5492": {
+      "sae_index": 5492,
+      "dict_index": 147,
+      "label": "Confused",
+      "category": "emotion:ambiguous",
+      "confidence": 0.48328227
+    },
+    "2185": {
+      "sae_index": 2185,
+      "dict_index": 140,
+      "label": "Nostalgic",
+      "category": "emotion:ambiguous",
+      "confidence": 0.5488525
+    },
+    "3023": {
+      "sae_index": 3023,
+      "dict_index": 81,
+      "label": "Afraid",
+      "category": "emotion:negativehigh",
+      "confidence": 0.64112765
+    },
+    "4985": {
+      "sae_index": 4985,
+      "dict_index": 104,
+      "label": "Irritated",
+      "category": "emotion:negativehigh",
+      "confidence": 0.42713612
+    }
+  }
+}

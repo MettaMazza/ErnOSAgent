@@ -108,8 +108,10 @@ impl SaeTrainer {
     /// - b_enc: zeros
     /// - b_dec: zeros
     pub fn new(config: TrainConfig) -> Result<Self> {
-        let device = Device::new_metal(0)
-            .context("Metal GPU required for SAE training")?;
+        let device = Device::new_metal(0).unwrap_or_else(|_| {
+            tracing::warn!("Metal GPU not available — falling back to CPU (training will be slower)");
+            Device::Cpu
+        });
 
         tracing::info!(
             num_features = config.num_features,
