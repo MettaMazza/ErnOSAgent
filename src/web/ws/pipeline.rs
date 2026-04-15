@@ -76,6 +76,13 @@ pub async fn run_react_pipeline(
 ) -> Result<String> {
     let session_key = format!("{}:{}", ctx.platform, ctx.user_id);
 
+    // ── 0. Set is_generating guard ───────────────────────────────────
+    // Blocks the scheduler from firing autonomy jobs during platform turns.
+    {
+        let mut st = state.write().await;
+        st.is_generating = true;
+    }
+
     // ── 1. Ensure per-user context exists (lazy init) ────────────────
 
     ensure_user_context(state, &session_key).await?;
@@ -403,6 +410,12 @@ pub async fn run_react_pipeline(
                 final_response = "⚠️ Internal error during processing".to_string();
             }
         }
+    }
+
+    // ── 9. Clear is_generating guard ─────────────────────────────────
+    {
+        let mut st = state.write().await;
+        st.is_generating = false;
     }
 
     if final_response.is_empty() {
