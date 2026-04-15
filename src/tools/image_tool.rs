@@ -205,9 +205,39 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         }
     };
 
-    let saved_path = result.get("path")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+    let saved_path = match result.get("path").and_then(|v| v.as_str()) {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            tracing::error!("Flux server response missing 'path' field: {:?}", result);
+            return ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: format!(
+                    "Image generation failed — server did not return a file path.\n\
+                     Response: {}",
+                    serde_json::to_string_pretty(&result).unwrap_or_default()
+                ),
+                success: false,
+                error: Some("No path in server response".to_string()),
+            };
+        }
+    };
+
+    // Verify the file actually exists on disk
+    if !std::path::Path::new(saved_path).exists() {
+        tracing::error!(path = %saved_path, "Flux server claimed success but file does not exist");
+        return ToolResult {
+            tool_call_id: call.id.clone(),
+            name: call.name.clone(),
+            output: format!(
+                "Image generation failed — server reported path '{}' but the file does not exist on disk.",
+                saved_path
+            ),
+            success: false,
+            error: Some("Generated file not found".to_string()),
+        };
+    }
+
     let elapsed = result.get("elapsed_s")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
