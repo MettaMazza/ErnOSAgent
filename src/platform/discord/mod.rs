@@ -99,11 +99,13 @@ impl PlatformAdapter for DiscordAdapter {
             event_handler = event_handler.with_onboarding(
                 &self.config.onboarding_channel_id,
                 &self.config.new_member_role_id,
+                &self.config.member_role_id,
                 &self.config.guild_id,
             );
             tracing::info!(
                 onboarding_channel = %self.config.onboarding_channel_id,
                 new_role = %self.config.new_member_role_id,
+                member_role = %self.config.member_role_id,
                 "Onboarding interview system enabled"
             );
         }

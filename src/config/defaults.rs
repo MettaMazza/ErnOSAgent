@@ -174,6 +174,7 @@ fn default_platform_config() -> PlatformConfig {
                 .collect(),
             onboarding_channel_id: std::env::var("ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL").unwrap_or_default(),
             new_member_role_id: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE").unwrap_or_default(),
+            member_role_id: std::env::var("ERNOSAGENT_DISCORD_MEMBER_ROLE").unwrap_or_default(),
             new_role_duration_days: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE_DAYS")
                 .ok().and_then(|v| v.parse().ok())
                 .unwrap_or(7),

@@ -97,6 +97,89 @@ pub async fn run(
                 dispatch_job(job, state.clone(), handle.clone(), Arc::clone(&running_jobs));
             }
         }
+
+        // ── Onboarding role expiry check (every 60s) ──
+        // Promotes users from "New" → "Member" when their trial period expires.
+        #[cfg(feature = "discord")]
+        {
+            use std::sync::atomic::AtomicU64;
+            static LAST_EXPIRY_CHECK: AtomicU64 = AtomicU64::new(0);
+            let now_secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let last = LAST_EXPIRY_CHECK.load(Ordering::Relaxed);
+            if now_secs.saturating_sub(last) >= 60 {
+                LAST_EXPIRY_CHECK.store(now_secs, Ordering::Relaxed);
+
+                let expired = crate::platform::discord::onboarding::get_expired_roles();
+                if !expired.is_empty() {
+                    let st = state.read().await;
+                    if let Some(ref http) = st.discord_http {
+                        let guild_id: u64 = st.config.platform.discord.guild_id
+                            .parse().unwrap_or(0);
+                        let new_role_id: u64 = st.config.platform.discord.new_member_role_id
+                            .parse().unwrap_or(0);
+                        let member_role_id: u64 = st.config.platform.discord.member_role_id
+                            .parse().unwrap_or(0);
+
+                        if guild_id > 0 && new_role_id > 0 {
+                            let mut promoted_ids = Vec::new();
+                            for expiry in &expired {
+                                let user_id: u64 = expiry.user_id.parse().unwrap_or(0);
+                                if user_id == 0 { continue; }
+
+                                if member_role_id > 0 {
+                                    // Promote: New → Member
+                                    match crate::platform::discord::onboarding::promote_to_member(
+                                        http, guild_id, user_id, new_role_id, member_role_id,
+                                    ).await {
+                                        Ok(()) => {
+                                            tracing::info!(
+                                                user_id = user_id,
+                                                user_name = %expiry.user_name,
+                                                "Promoted 'New' → 'Member'"
+                                            );
+                                            promoted_ids.push(expiry.user_id.clone());
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                user_id = user_id,
+                                                error = %e,
+                                                "Failed to promote user to Member"
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    // No Member role configured — just remove New
+                                    match crate::platform::discord::onboarding::remove_new_role(
+                                        http, guild_id, user_id, new_role_id,
+                                    ).await {
+                                        Ok(()) => {
+                                            tracing::warn!(
+                                                user_id = user_id,
+                                                "Removed 'New' role — no Member role configured, user may lose access"
+                                            );
+                                            promoted_ids.push(expiry.user_id.clone());
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                user_id = user_id,
+                                                error = %e,
+                                                "Failed to remove expired 'New' role"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            if !promoted_ids.is_empty() {
+                                crate::platform::discord::onboarding::remove_expired_roles(&promoted_ids);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     tracing::info!("Scheduler background loop stopped");

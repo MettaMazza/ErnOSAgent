@@ -18,6 +18,7 @@ pub struct DiscordHandler {
     listen_channels: Vec<String>,
     onboarding_channel_id: String,
     new_member_role_id: String,
+    member_role_id: String,
     guild_id: String,
     sentinel_tx: Option<mpsc::Sender<super::sentinel::SentinelMessage>>,
 }
@@ -38,15 +39,17 @@ impl DiscordHandler {
             listen_channels,
             onboarding_channel_id: String::new(),
             new_member_role_id: String::new(),
+            member_role_id: String::new(),
             guild_id: String::new(),
             sentinel_tx: None,
         }
     }
 
     /// Configure onboarding settings.
-    pub fn with_onboarding(mut self, channel_id: &str, role_id: &str, guild_id: &str) -> Self {
+    pub fn with_onboarding(mut self, channel_id: &str, new_role_id: &str, member_role_id: &str, guild_id: &str) -> Self {
         self.onboarding_channel_id = channel_id.to_string();
-        self.new_member_role_id = role_id.to_string();
+        self.new_member_role_id = new_role_id.to_string();
+        self.member_role_id = member_role_id.to_string();
         self.guild_id = guild_id.to_string();
         self
     }
@@ -237,6 +240,23 @@ impl EventHandler for DiscordHandler {
                 &ctx.http, guild_id, onboarding_ch, role_id,
             ).await {
                 tracing::error!(error = %e, "Failed to configure onboarding permissions");
+            }
+
+            // Backfill existing members with the "Member" role so they aren't
+            // locked out by the @everyone channel deny.
+            let member_role_id: u64 = self.member_role_id.parse().unwrap_or(0);
+            if member_role_id > 0 {
+                match super::onboarding::backfill_existing_members(
+                    &ctx.http, guild_id, member_role_id, role_id,
+                ).await {
+                    Ok(count) => tracing::info!(
+                        assigned = count,
+                        "Backfilled 'Member' role to existing members"
+                    ),
+                    Err(e) => tracing::error!(error = %e, "Failed to backfill Member roles"),
+                }
+            } else {
+                tracing::warn!("No member_role_id configured — existing members may lose access");
             }
         }
     }

@@ -417,6 +417,86 @@ pub async fn remove_new_role(
     Ok(())
 }
 
+/// Promote a user from "New" → "Member" (remove New, add permanent Member).
+pub async fn promote_to_member(
+    http: &serenity::http::Http,
+    guild_id: u64,
+    user_id: u64,
+    new_role_id: u64,
+    member_role_id: u64,
+) -> anyhow::Result<()> {
+    use serenity::all::{GuildId, UserId, RoleId};
+
+    let guild = GuildId::new(guild_id);
+    let user = UserId::new(user_id);
+
+    let mut member = guild.member(http, user).await?;
+
+    // Add Member role first, then remove New
+    member.add_role(http, RoleId::new(member_role_id)).await?;
+    member.remove_role(http, RoleId::new(new_role_id)).await?;
+
+    tracing::info!(
+        user_id = user_id,
+        "Promoted: 'New' → 'Member'"
+    );
+    Ok(())
+}
+
+/// Backfill existing guild members with the "Member" role.
+/// Called at startup — assigns Member to everyone who has at least one
+/// non-@everyone role but doesn't have Member yet. This ensures existing
+/// members aren't locked out when onboarding permissions are applied.
+pub async fn backfill_existing_members(
+    http: &serenity::http::Http,
+    guild_id: u64,
+    member_role_id: u64,
+    new_role_id: u64,
+) -> anyhow::Result<u32> {
+    use serenity::all::{GuildId, RoleId};
+
+    let guild = GuildId::new(guild_id);
+    let everyone_role = RoleId::new(guild_id);
+    let member_role = RoleId::new(member_role_id);
+    let new_role = RoleId::new(new_role_id);
+
+    let members = guild.members(http, Some(1000), None).await?;
+    let mut assigned = 0u32;
+
+    for mut member in members {
+        if member.user.bot { continue; }
+
+        let has_member = member.roles.contains(&member_role);
+        let has_new = member.roles.contains(&new_role);
+
+        // Skip if they already have Member or are in "New" trial
+        if has_member || has_new { continue; }
+
+        // Skip pure @everyone (no roles) — they need to go through onboarding
+        let has_any_role = member.roles.iter().any(|r| *r != everyone_role);
+        if !has_any_role { continue; }
+
+        // Has existing roles but no Member → backfill
+        if let Err(e) = member.add_role(http, member_role).await {
+            tracing::warn!(
+                user = %member.user.name,
+                error = %e,
+                "Failed to backfill Member role"
+            );
+        } else {
+            assigned += 1;
+            tracing::info!(
+                user = %member.user.name,
+                "Backfilled 'Member' role to existing member"
+            );
+        }
+        // Rate limit
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    Ok(assigned)
+}
+
 /// Kick a user from the guild (failed interview).
 /// Tracks kick count — 3rd kick is an automatic ban.
 pub async fn kick_user(

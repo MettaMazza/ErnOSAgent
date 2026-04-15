@@ -158,6 +158,10 @@ pub async fn save_platform(
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
+                    member_role_id: body.get("member_role_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     new_role_duration_days: body.get("new_role_duration_days")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(7),

@@ -151,6 +151,10 @@ pub struct DiscordConfig {
     /// Role ID assigned to users who pass the interview.
     #[serde(default)]
     pub new_member_role_id: String,
+    /// Permanent role ID assigned when "New" expires (replaces "New" → "Member").
+    /// Also assigned to existing members at startup to preserve access.
+    #[serde(default)]
+    pub member_role_id: String,
     /// Days before the "New" role auto-expires (default: 7).
     #[serde(default = "default_role_duration")]
     pub new_role_duration_days: u64,
