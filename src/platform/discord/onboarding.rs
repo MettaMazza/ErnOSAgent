@@ -235,69 +235,47 @@ You are Ernos. This is your community. Protect it."#
 /// Auto-configure channel permissions so unverified members can ONLY see the
 /// onboarding channel. Called once at startup when onboarding is enabled.
 ///
-/// Strategy (minimal API calls):
-/// 1. Ensure every non-@everyone role has VIEW_CHANNEL in its base permissions
-///    (so channel-level @everyone deny doesn't lock them out)
-/// 2. Deny @everyone VIEW_CHANNEL on each non-onboarding text channel
+/// Discord permission hierarchy: channel-level DENY on @everyone blocks ALL
+/// members, even those with roles that have VIEW_CHANNEL at the role level.
+/// The ONLY way to override a channel deny is a channel-level ALLOW for a
+/// specific role. Therefore:
+///
+/// 1. Deny @everyone VIEW_CHANNEL on every non-onboarding text channel
+/// 2. Add channel-level ALLOW VIEW_CHANNEL for "New" and "Member" roles
+///    on every non-onboarding channel (so interviewed members can see them)
 /// 3. Allow @everyone VIEW_CHANNEL on the onboarding channel
 ///
-/// Result: only members with ZERO roles (pure @everyone) are locked to onboarding.
+/// Result: pure-@everyone users (no roles) → locked to onboarding only.
+///         Users with New or Member role → can see all channels.
 pub async fn setup_onboarding_permissions(
     http: &serenity::http::Http,
     guild_id: u64,
     onboarding_channel_id: u64,
-    _new_member_role_id: u64,
+    new_role_id: u64,
+    member_role_id: u64,
 ) -> anyhow::Result<()> {
     use serenity::all::{
         ChannelType, GuildId, RoleId, PermissionOverwrite,
-        PermissionOverwriteType, Permissions, EditRole,
+        PermissionOverwriteType, Permissions,
     };
 
     let guild = GuildId::new(guild_id);
     let everyone_role = RoleId::new(guild_id);
+    let new_role = RoleId::new(new_role_id);
+    let has_member_role = member_role_id > 0;
+    let member_role = RoleId::new(member_role_id);
 
-    // ── Step 1: Ensure every non-@everyone role has VIEW_CHANNEL ──
-    let roles = guild.roles(http).await?;
-    let mut roles_updated = 0u32;
-
-    for (role_id, role) in &roles {
-        if role_id.get() == guild_id { continue; } // skip @everyone
-        if role.managed { continue; } // skip bot-managed roles (can't edit them)
-
-        // If role already has VIEW_CHANNEL, skip it
-        if role.permissions.contains(Permissions::VIEW_CHANNEL) {
-            continue;
-        }
-
-        // Add VIEW_CHANNEL to existing permissions
-        let new_perms = role.permissions | Permissions::VIEW_CHANNEL;
-        if let Err(e) = guild.edit_role(http, *role_id, EditRole::new().permissions(new_perms)).await {
-            tracing::warn!(role = %role.name, error = %e, "Failed to update role permissions — skipping");
-            continue;
-        }
-        roles_updated += 1;
-        // Small delay to respect rate limits
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-    }
-
-    tracing::info!(
-        total_roles = roles.len(),
-        roles_updated = roles_updated,
-        "Ensured all roles have VIEW_CHANNEL"
-    );
-
-    // ── Step 2: Set channel overrides ──
     let channels = guild.channels(http).await?;
     let mut locked = 0u32;
 
     for (channel_id, channel) in &channels {
         match channel.kind {
-            ChannelType::Text | ChannelType::News => {}
+            ChannelType::Text | ChannelType::News | ChannelType::Forum => {}
             _ => continue,
         }
 
         if channel_id.get() == onboarding_channel_id {
-            // Onboarding channel: @everyone CAN view + use threads
+            // Onboarding channel: @everyone CAN view + use threads (but not send top-level)
             channel_id.create_permission(http, PermissionOverwrite {
                 allow: Permissions::VIEW_CHANNEL
                     | Permissions::SEND_MESSAGES_IN_THREADS
@@ -312,17 +290,40 @@ pub async fn setup_onboarding_permissions(
                 deny: Permissions::VIEW_CHANNEL,
                 kind: PermissionOverwriteType::Role(everyone_role),
             }).await?;
+
+            // Channel-level ALLOW for "New" role (overrides the @everyone deny)
+            channel_id.create_permission(http, PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL
+                    | Permissions::SEND_MESSAGES
+                    | Permissions::READ_MESSAGE_HISTORY,
+                deny: Permissions::empty(),
+                kind: PermissionOverwriteType::Role(new_role),
+            }).await?;
+
+            // Channel-level ALLOW for "Member" role (overrides the @everyone deny)
+            if has_member_role {
+                channel_id.create_permission(http, PermissionOverwrite {
+                    allow: Permissions::VIEW_CHANNEL
+                        | Permissions::SEND_MESSAGES
+                        | Permissions::READ_MESSAGE_HISTORY,
+                    deny: Permissions::empty(),
+                    kind: PermissionOverwriteType::Role(member_role),
+                }).await?;
+            }
+
             locked += 1;
         }
 
-        // Small delay to respect rate limits
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        // Rate limit — 3 API calls per channel, stay well under 50/s
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     }
 
     tracing::info!(
         locked_channels = locked,
         onboarding_channel = onboarding_channel_id,
-        "Onboarding permissions configured — only roleless members locked out"
+        new_role = new_role_id,
+        member_role = member_role_id,
+        "Onboarding permissions configured — channel-level overrides set"
     );
 
     Ok(())

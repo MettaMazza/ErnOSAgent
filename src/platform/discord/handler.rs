@@ -236,18 +236,19 @@ impl EventHandler for DiscordHandler {
                 }
             };
 
+            let member_role_parsed: u64 = self.member_role_id.parse().unwrap_or(0);
+
             if let Err(e) = super::onboarding::setup_onboarding_permissions(
-                &ctx.http, guild_id, onboarding_ch, role_id,
+                &ctx.http, guild_id, onboarding_ch, role_id, member_role_parsed,
             ).await {
                 tracing::error!(error = %e, "Failed to configure onboarding permissions");
             }
 
             // Backfill existing members with the "Member" role so they aren't
             // locked out by the @everyone channel deny.
-            let member_role_id: u64 = self.member_role_id.parse().unwrap_or(0);
-            if member_role_id > 0 {
+            if member_role_parsed > 0 {
                 match super::onboarding::backfill_existing_members(
-                    &ctx.http, guild_id, member_role_id, role_id,
+                    &ctx.http, guild_id, member_role_parsed, role_id,
                 ).await {
                     Ok(count) => tracing::info!(
                         assigned = count,
