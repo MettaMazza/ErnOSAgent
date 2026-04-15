@@ -326,30 +326,8 @@ pub async fn execute_react_loop(
             }
         }
 
-        if has_none && !has_reply && !output.response_text.trim().is_empty() {
-            // Model emitted plain text without calling reply_request.
-            // Auto-wrap it instead of wasting a turn on retry.
-            tracing::warn!(turn = turn, response_len = output.response_text.len(), "No tool calls — auto-wrapping response as reply_request");
-
-            let reply_text = output.response_text.clone();
-
-            match handle_reply(
-                &reply_text, provider, model, &mut messages, config,
-                system_prompt, identity_prompt, executor, &all_tool_results,
-                turn, &mut audit_passes, &mut total_audit_rejections,
-                &mut consecutive_audit_rejections, &event_tx, &mut learning_ctx,
-            ).await {
-                ReplyOutcome::Deliver(result) => {
-                    tracing::info!(turn = turn, "ReAct loop — delivering auto-wrapped response");
-                    return Ok(result);
-                }
-                ReplyOutcome::Retry => {
-                    tracing::info!(turn = turn, "ReAct loop — observer rejected auto-wrapped response, retrying");
-                    continue;
-                }
-            }
-        } else if has_none && !has_reply {
-            tracing::warn!(turn = turn, "No tool calls and empty response — injecting error");
+        if has_none && !has_reply {
+            tracing::warn!(turn = turn, response_len = output.response_text.len(), "No tool calls and no reply_request — injecting error");
             inject_no_reply_error(&output.response_text, &mut messages, turn);
         }
     }
