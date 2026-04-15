@@ -294,6 +294,75 @@ async fn init_web_state(
     };
     tracing::info!(provider = %config.general.active_provider, "Provider initialised");
 
+    // Auto-launch Flux image generation server if weights are available.
+    // Runs as a background subprocess — killed automatically when ErnOS exits.
+    {
+        let flux_port: u16 = std::env::var("FLUX_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(7860);
+        let flux_url = format!("http://127.0.0.1:{}", flux_port);
+
+        // Check if server is already running (user may have started it manually)
+        let already_running = reqwest::Client::new()
+            .get(format!("{}/health", flux_url))
+            .timeout(std::time::Duration::from_millis(500))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false);
+
+        if already_running {
+            tracing::info!(url = %flux_url, "Flux server already running");
+            std::env::set_var("FLUX_SERVER_URL", &flux_url);
+        } else {
+            // Find the flux_server.py script
+            let script_candidates = [
+                std::env::current_dir().unwrap_or_default().join("scripts/flux_server.py"),
+                config.general.data_dir.join("scripts/flux_server.py"),
+            ];
+            let script_path = script_candidates.iter().find(|p| p.exists());
+
+            if let Some(script) = script_path {
+                tracing::info!(
+                    script = %script.display(),
+                    port = flux_port,
+                    "Auto-launching Flux image generation server"
+                );
+
+                let mut cmd = tokio::process::Command::new("uv");
+                cmd.arg("run")
+                    .arg(script)
+                    .env("FLUX_PORT", flux_port.to_string())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
+
+                match cmd.spawn() {
+                    Ok(_child) => {
+                        // Set the env var so image_tool can find it
+                        std::env::set_var("FLUX_SERVER_URL", &flux_url);
+                        tracing::info!(
+                            url = %flux_url,
+                            "Flux server spawned — pipeline will load in background (~60-120s first run)"
+                        );
+                        // Don't await health — let it load in background.
+                        // The image_tool will get a connection error if called
+                        // before the pipeline is ready, which is self-descriptive.
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to auto-launch Flux server — image generation disabled. \
+                             Install uv: brew install uv"
+                        );
+                    }
+                }
+            } else {
+                tracing::debug!("Flux server script not found — image generation not available");
+            }
+        }
+    }
+
     // Model spec
     let model_spec = match provider.get_model_spec(&config.general.active_model).await {
         Ok(spec) => {

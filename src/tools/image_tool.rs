@@ -75,13 +75,16 @@ fn image_tool(call: &ToolCall) -> ToolResult {
     let server_url = match flux_server_url() {
         Some(url) => url,
         None => {
-            IMAGE_GENERATED_THIS_TURN.store(false, Ordering::SeqCst); // Reset — no server
+            IMAGE_GENERATED_THIS_TURN.store(false, Ordering::SeqCst);
             return ToolResult {
                 tool_call_id: call.id.clone(),
                 name: call.name.clone(),
-                output: "Image generation is not configured. Set FLUX_SERVER_URL to enable it.".to_string(),
+                output: "Image generation is not available. The Flux server did not \
+                         auto-launch at startup — check that 'uv' is installed (brew install uv) \
+                         and scripts/flux_server.py exists. You can also set FLUX_SERVER_URL \
+                         manually if running the server externally.".to_string(),
                 success: false,
-                error: Some("FLUX_SERVER_URL not set".to_string()),
+                error: Some("Flux server not available".to_string()),
             };
         }
     };
@@ -305,7 +308,7 @@ mod tests {
         };
         let result = image_tool(&call);
         assert!(!result.success);
-        assert!(result.output.contains("not configured"));
+        assert!(result.output.contains("not available"));
         reset_turn_flag();
     }
 
