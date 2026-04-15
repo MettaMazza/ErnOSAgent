@@ -260,6 +260,43 @@ impl EventHandler for DiscordHandler {
                 tracing::warn!("No member_role_id configured — existing members may lose access");
             }
         }
+
+        // ─── Post-recompile resume: send wakeup to requesting channel ────
+        {
+            let resume_path = std::path::Path::new("memory/core/resume.json");
+            if resume_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(resume_path) {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+                        let platform = parsed.get("platform")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let channel_id_str = parsed.get("channel_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let compiled_at = parsed.get("compiled_at")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+
+                        if platform == "discord" && !channel_id_str.is_empty() {
+                            if let Ok(ch_id) = channel_id_str.parse::<u64>() {
+                                let channel = serenity::all::ChannelId::new(ch_id);
+                                let wakeup = format!(
+                                    "✅ Recompile complete — back online.\nCompiled at: {}",
+                                    compiled_at
+                                );
+                                if let Err(e) = channel.say(&ctx.http, &wakeup).await {
+                                    tracing::error!(error = %e, "Failed to send Discord resume message");
+                                } else {
+                                    tracing::info!(channel_id = channel_id_str, "Sent post-recompile resume to Discord");
+                                }
+                                // Consume the file
+                                let _ = std::fs::remove_file(resume_path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     async fn guild_member_addition(&self, ctx: Context, new_member: serenity::all::Member) {
