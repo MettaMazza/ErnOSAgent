@@ -75,10 +75,6 @@ safetensors = { version = "0.4" }
 memmap2 = { version = "0.9", optional = true }
 tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
 
-# macOS: enable Metal GPU acceleration for Candle
-[target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.8", features = ["metal"] }
-
 # Utilities
 anyhow = "1"
 thiserror = "2"
@@ -104,6 +100,10 @@ chacha20poly1305 = { version = "0.10", optional = true }
 rand = { version = "0.8", optional = true }
 wasmtime = { version = "21", optional = true }
 sysinfo = "0.32"
+
+# macOS: enable Metal GPU acceleration for Candle
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8", features = ["metal"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
