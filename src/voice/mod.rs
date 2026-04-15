@@ -37,21 +37,16 @@ impl KokoroTTS {
             .unwrap_or_else(|_| PathBuf::from("src/voice/tts_worker.py"));
 
         let python_bin = std::env::var("ERNOSAGENT_TTS_PYTHON")
-            .unwrap_or_else(|_| {
-                // Try HIVENET venv first, then system python
-                let hivenet_python = "/Users/mettamazza/Desktop/HIVENET/.venv-tts/bin/python3";
-                if std::path::Path::new(hivenet_python).exists() {
-                    hivenet_python.to_string()
-                } else {
-                    "python3".to_string()
-                }
-            });
+            .unwrap_or_else(|_| "python3".to_string());
 
         let models_dir = std::env::var("ERNOSAGENT_TTS_MODELS_DIR")
             .unwrap_or_else(|_| {
-                let hivenet_models = "/Users/mettamazza/Desktop/HIVENET/models";
-                if std::path::Path::new(hivenet_models).exists() {
-                    hivenet_models.to_string()
+                // Default to data_dir/models, then project-local models/
+                let data_models = dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".ernosagent/models");
+                if data_models.exists() {
+                    data_models.to_string_lossy().to_string()
                 } else {
                     "models".to_string()
                 }
