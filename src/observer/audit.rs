@@ -219,11 +219,31 @@ fn build_observer_messages(
         .rposition(|m| m.role == "user");
 
     let tool_display = if tool_context.is_empty() {
-        "[No tools were executed in THIS TURN. \
-         The candidate may correctly reference tools from PREVIOUS turns \
-         visible in the conversation history above — that is NOT ghost tooling.]"
+        // Scan conversation history for tool results from earlier turns
+        // so the Observer knows the answer IS grounded in tool output.
+        let prior_tools: Vec<&str> = live_context.iter()
+            .filter(|m| m.role == "tool")
+            .filter_map(|m| {
+                // Tool messages typically start with the tool name or contain it
+                m.content.lines().next().map(|l| l.trim())
+            })
+            .collect();
+
+        if prior_tools.is_empty() {
+            "[No tools were executed in THIS TURN or any prior turn. \
+             The candidate is answering from its own knowledge.]".to_string()
+        } else {
+            format!(
+                "[No tools were executed in THIS TURN, but {} tool(s) were executed \
+                 in PRIOR turns (visible in conversation history above). \
+                 The candidate's answer IS grounded in those tool results — \
+                 this is NOT stale knowledge and NOT ghost tooling. \
+                 This is the normal ReAct multi-turn pattern.]",
+                prior_tools.len()
+            )
+        }
     } else {
-        tool_context
+        tool_context.to_string()
     };
 
     // Check if the user's original message had images attached
