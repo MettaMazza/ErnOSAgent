@@ -244,6 +244,7 @@ pub async fn run_react_pipeline(
     // ── 7. Collect events — forward thinking tokens to Discord thread ──
 
     let mut final_response = String::new();
+    let mut media_paths: Vec<String> = Vec::new();
 
     // For Discord: create a thinking thread on the first turn and update it with tokens.
     #[cfg(feature = "discord")]
@@ -317,6 +318,16 @@ pub async fn run_react_pipeline(
                 tracing::info!(tool = %name, platform = %ctx.platform, "Platform: tool executing");
             }
             ReactEvent::ToolCompleted { name, result } => {
+                // Extract MEDIA: paths from tool output (image_tool puts them here)
+                for line in result.output.lines() {
+                    let trimmed = line.trim();
+                    if let Some(path) = trimmed.strip_prefix("MEDIA:") {
+                        let path = path.trim();
+                        if !path.is_empty() {
+                            media_paths.push(path.to_string());
+                        }
+                    }
+                }
                 tracing::info!(
                     tool = %name, success = result.success, platform = %ctx.platform,
                     "Platform: tool completed"
@@ -342,7 +353,15 @@ pub async fn run_react_pipeline(
 
                 // Persist response to per-user session + memory (NOT to global state)
                 persist_user_response(state, &session_key, user_message, &text).await;
-                final_response = text;
+                // Append accumulated MEDIA: lines so delivery can extract them
+                if media_paths.is_empty() {
+                    final_response = text;
+                } else {
+                    let media_lines: Vec<String> = media_paths.drain(..)
+                        .map(|p| format!("MEDIA: {}", p))
+                        .collect();
+                    final_response = format!("{}\n{}", text, media_lines.join("\n"));
+                }
             }
             ReactEvent::Error(msg) => {
                 tracing::error!(error = %msg, platform = %ctx.platform, "Platform ReAct loop error");
