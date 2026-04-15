@@ -609,6 +609,18 @@ export OPENAI_API_KEY="sk-..."       # OpenAI-compatible endpoints
 export ANTHROPIC_API_KEY="sk-..."    # Claude API
 export GROQ_API_KEY="gsk_..."       # Groq API
 export OPENROUTER_API_KEY="sk-..."   # OpenRouter API
+
+# Discord Bot
+export ERNOSAGENT_DISCORD_ENABLED="true"    # Enable Discord adapter
+export ERNOSAGENT_DISCORD_TOKEN="your-bot-token-here"  # Bot token from Discord Developer Portal
+export ERNOSAGENT_DISCORD_ADMIN="123374061710606336"   # Trusted user ID (can control the bot)
+export ERNOSAGENT_DISCORD_LISTEN_CHANNELS="123456789"  # Channels to listen in (comma-separated)
+export ERNOSAGENT_DISCORD_AUTONOMY_CHANNEL="123456789"   # Autonomy mode channel
+export ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL="123456789"  # New member interview channel
+export ERNOSAGENT_DISCORD_NEW_ROLE="role-id"    # Temporary role for new members
+export ERNOSAGENT_DISCORD_MEMBER_ROLE="role-id"  # Permanent member role
+export ERNOSAGENT_DISCORD_NEW_ROLE_DAYS=7     # Days before new→member promotion
+
 ```
 
 ```toml
