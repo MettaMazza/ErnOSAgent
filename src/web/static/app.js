@@ -353,6 +353,24 @@
                 state.currentStreamEl.innerHTML = Markdown.render(finalText);
                 Chat._bindCodeCopy(state.currentStreamEl);
 
+                // Render generated images
+                if (msg.images && msg.images.length > 0) {
+                    const gallery = document.createElement('div');
+                    gallery.className = 'message-images';
+                    gallery.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;';
+                    msg.images.forEach(url => {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.alt = 'Generated image';
+                        img.style.cssText = 'max-width:512px;max-height:512px;border-radius:12px;border:1px solid var(--border);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:transform 0.2s;';
+                        img.addEventListener('mouseenter', () => img.style.transform = 'scale(1.02)');
+                        img.addEventListener('mouseleave', () => img.style.transform = 'scale(1)');
+                        img.addEventListener('click', () => window.open(url, '_blank'));
+                        gallery.appendChild(img);
+                    });
+                    state.currentStreamEl.appendChild(gallery);
+                }
+
                 // Add action buttons to finished message
                 const body = state.currentStreamEl.closest('.message-body');
                 if (body && !body.querySelector('.msg-actions')) {

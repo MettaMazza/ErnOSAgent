@@ -243,12 +243,14 @@ async fn map_react_event(
             confidence,
         }),
         ReactEvent::ResponseReady { text } => {
-            persist_response(state, user_message, &text).await;
+            // Extract MEDIA: lines → convert to API URLs, strip from response text
+            let (clean_text, image_urls) = extract_media_urls(&text);
+            persist_response(state, user_message, &clean_text).await;
             let usage = {
                 let st = state.read().await;
                 context::context_usage(&st.session_mgr.active().messages, st.model_spec.context_length)
             };
-            Some(ServerMessage::Done { response: text, context_usage: usage })
+            Some(ServerMessage::Done { response: clean_text, context_usage: usage, images: image_urls })
         }
         ReactEvent::Error(msg) => Some(ServerMessage::Error { message: msg }),
         ReactEvent::NeuralSnapshot(snap) => Some(ServerMessage::NeuralSnapshot {
@@ -298,4 +300,35 @@ async fn finalize_chat_turn(socket: &mut WebSocket, state: &SharedState) {
     if let Ok(status) = super::build_status_message(state).await {
         let _ = send_json(socket, &status).await;
     }
+}
+
+/// Extract MEDIA: lines from response text, strip them from visible text,
+/// and convert absolute file paths to /api/images/{filename} URLs.
+fn extract_media_urls(text: &str) -> (String, Vec<String>) {
+    let mut clean_lines = Vec::new();
+    let mut image_urls = Vec::new();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if let Some(path) = trimmed.strip_prefix("MEDIA:") {
+            let path = path.trim();
+            if !path.is_empty() {
+                // Extract just the filename from the full path
+                let filename = std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .unwrap_or(path);
+                image_urls.push(format!("/api/images/{}", filename));
+                continue; // Strip MEDIA line from visible text
+            }
+        }
+        clean_lines.push(line);
+    }
+
+    // Trim trailing empty lines
+    while clean_lines.last().map(|l| l.trim().is_empty()).unwrap_or(false) {
+        clean_lines.pop();
+    }
+
+    (clean_lines.join("\n"), image_urls)
 }

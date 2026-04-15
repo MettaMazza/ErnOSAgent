@@ -143,7 +143,46 @@ fn build_router(state: SharedState) -> Router {
         .route("/api/autonomy/status", get(routes::autonomy::autonomy_status))
         .route("/api/autonomy/log", get(routes::autonomy::autonomy_log))
         .route("/api/autonomy/live", get(routes::autonomy::autonomy_live))
+        // Generated images
+        .route("/api/images/{filename}", get(serve_generated_image))
         .with_state(state)
+}
+
+/// Serve a generated image from the output directory.
+async fn serve_generated_image(
+    axum::extract::Path(filename): axum::extract::Path<String>,
+) -> axum::response::Response {
+    use axum::http::{header, StatusCode};
+    use axum::response::IntoResponse;
+
+    // Sanitise filename — no path traversal
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return (StatusCode::BAD_REQUEST, "Invalid filename").into_response();
+    }
+
+    let base_dir = crate::tools::image_tool::output_dir();
+    let path = base_dir.join(&filename);
+
+    if !path.exists() {
+        return (StatusCode::NOT_FOUND, "Image not found").into_response();
+    }
+
+    match std::fs::read(&path) {
+        Ok(data) => {
+            let content_type = if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+                "image/jpeg"
+            } else {
+                "image/png"
+            };
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, content_type),
+                 (header::CACHE_CONTROL, "public, max-age=86400")],
+                data,
+            ).into_response()
+        }
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read image").into_response(),
+    }
 }
 
 /// Try to bind starting from `preferred_port`, scanning up to 50 ports if busy.

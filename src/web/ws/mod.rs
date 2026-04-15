@@ -66,7 +66,7 @@ pub(crate) enum ServerMessage {
     #[serde(rename = "react_turn")]
     ReactTurn { turn: usize },
     #[serde(rename = "done")]
-    Done { response: String, context_usage: f32 },
+    Done { response: String, context_usage: f32, #[serde(skip_serializing_if = "Vec::is_empty")] images: Vec<String> },
     #[serde(rename = "cancelled")]
     Cancelled,
     #[serde(rename = "error")]

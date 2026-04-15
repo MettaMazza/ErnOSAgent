@@ -32,7 +32,7 @@ fn flux_server_url() -> Option<String> {
 }
 
 /// Default output directory for generated images.
-fn output_dir() -> std::path::PathBuf {
+pub fn output_dir() -> std::path::PathBuf {
     let base = std::env::var("ERNOSAGENT_DATA_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| {
