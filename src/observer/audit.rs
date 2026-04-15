@@ -220,26 +220,37 @@ fn build_observer_messages(
 
     let tool_display = if tool_context.is_empty() {
         // Scan conversation history for tool results from earlier turns
-        // so the Observer knows the answer IS grounded in tool output.
-        let prior_tools: Vec<&str> = live_context.iter()
+        // and extract concrete evidence so the Observer can verify grounding.
+        let prior_tool_evidence: Vec<String> = live_context.iter()
             .filter(|m| m.role == "tool")
-            .filter_map(|m| {
-                // Tool messages typically start with the tool name or contain it
-                m.content.lines().next().map(|l| l.trim())
+            .map(|m| {
+                // Extract tool name and a short excerpt of the result
+                let lines: Vec<&str> = m.content.lines().collect();
+                let name = lines.first().map(|l| l.trim()).unwrap_or("unknown_tool");
+                let excerpt = if m.content.len() > 150 {
+                    format!("{}...", &m.content[..150])
+                } else {
+                    m.content.clone()
+                };
+                format!("- {}: {}", name, excerpt.replace('\n', " "))
             })
             .collect();
 
-        if prior_tools.is_empty() {
+        if prior_tool_evidence.is_empty() {
             "[No tools were executed in THIS TURN or any prior turn. \
              The candidate is answering from its own knowledge.]".to_string()
         } else {
             format!(
                 "[No tools were executed in THIS TURN, but {} tool(s) were executed \
-                 in PRIOR turns (visible in conversation history above). \
-                 The candidate's answer IS grounded in those tool results — \
-                 this is NOT stale knowledge and NOT ghost tooling. \
-                 This is the normal ReAct multi-turn pattern.]",
-                prior_tools.len()
+                 in PRIOR turns. Their results are visible in the conversation history \
+                 above and the candidate's answer IS grounded in them.\n\
+                 PRIOR TOOL EVIDENCE:\n{}\n\
+                 \nVERDICT GUIDANCE: Because tools were used in earlier turns and the \
+                 candidate's response references their results, this is NOT stale knowledge \
+                 (Rule 8) and NOT ghost tooling (Rule 2). The multi-turn ReAct pattern \
+                 executes tools on earlier turns and delivers results via reply_request.]",
+                prior_tool_evidence.len(),
+                prior_tool_evidence.join("\n")
             )
         }
     } else {
