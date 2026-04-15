@@ -224,6 +224,18 @@ pub async fn run_react_pipeline(
     };
     let session_id = session_key.clone();
 
+    // ── 5.5. Set per-user data dir for tools ──────────────────────────
+    // All tools read ERNOSAGENT_DATA_DIR to locate their storage.
+    // Point it at the per-user directory so timeline, lessons, scratchpad
+    // etc. read/write to the same location as the MemoryManager.
+    {
+        let st = state.read().await;
+        let safe_key = session_key.replace(':', "_");
+        let user_data_dir = st.config.general.data_dir.join("users").join(&safe_key);
+        std::env::set_var("ERNOSAGENT_DATA_DIR", user_data_dir.to_string_lossy().as_ref());
+        tracing::debug!(user_data_dir = %user_data_dir.display(), "Set ERNOSAGENT_DATA_DIR for tool isolation");
+    }
+
     // ── 6. Spawn the FULL ReAct loop ─────────────────────────────────
 
     // Get Discord HTTP handle for Discord tool execution
