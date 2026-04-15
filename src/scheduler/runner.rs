@@ -76,7 +76,13 @@ pub async fn run(
         }
 
         // Idle jobs — check against the idle timer
+        // GUARD: never fire idle jobs while actively generating (e.g. image tool blocking)
         if let Some(ref timer) = last_user_input {
+            let is_busy = state.read().await.is_generating;
+            if is_busy {
+                continue; // Skip idle check entirely — system is processing a turn
+            }
+
             let idle_elapsed = timer.lock().await.elapsed();
             let idle_jobs = handle.get_due_idle_jobs(idle_elapsed).await;
 
