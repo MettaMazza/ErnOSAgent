@@ -80,7 +80,7 @@ impl LlamaCppProvider {
             self.n_gpu_layers.to_string(),
             "--embeddings".to_string(),
             "--pooling".to_string(),
-            "none".to_string(),
+            "mean".to_string(),
             "--ctx-size".to_string(),
             "2048".to_string(),
             "--batch-size".to_string(),
