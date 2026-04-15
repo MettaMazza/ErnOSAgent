@@ -61,11 +61,12 @@ async fn main() -> Result<()> {
     }
 
     // Initialize live SAE for real-time interpretability
-    // Uses the MAIN inference server (Gemma 4) for activation extraction,
-    // not the dedicated embedding server (nomic-embed-text) — the SAE was
-    // trained on Gemma 4's 2816-dim residual stream.
+    // Uses a DEDICATED embedding server (same Gemma 4 model, port 8081)
+    // so SAE activation extraction doesn't contend with inference requests.
     {
-        let embed_url = if !config.llamacpp.model_path.is_empty() {
+        let embed_url = if config.llamacpp.embedding_port > 0 {
+            format!("http://localhost:{}", config.llamacpp.embedding_port)
+        } else if !config.llamacpp.model_path.is_empty() {
             format!("http://localhost:{}", config.llamacpp.port)
         } else {
             String::new()
