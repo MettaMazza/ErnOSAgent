@@ -61,23 +61,32 @@ impl LlamaCppProvider {
     }
 
     /// Build CLI args for the embedding server.
+    /// Uses the MAIN model (not nomic-embed) because the SAE was trained on
+    /// Gemma 4's 2816-dim residual stream — nomic produces dim=768 which mismatches.
     fn build_embedding_args(&self) -> Vec<String> {
+        // Use the main model for SAE-compatible activations
+        let model = if self.model_path.is_empty() {
+            self.embedding_model_path.clone()
+        } else {
+            self.model_path.clone()
+        };
+
         vec![
             "--model".to_string(),
-            self.embedding_model_path.clone(),
+            model,
             "--port".to_string(),
             self.embedding_port.to_string(),
             "--n-gpu-layers".to_string(),
             self.n_gpu_layers.to_string(),
             "--embeddings".to_string(),
             "--pooling".to_string(),
-            "mean".to_string(),
-            // Nomic-embed-text supports up to 8192 tokens — match the physical
-            // batch size so longer inputs don't get rejected with a 500 error.
+            "none".to_string(),
+            "--ctx-size".to_string(),
+            "2048".to_string(),
             "--batch-size".to_string(),
-            "8192".to_string(),
+            "2048".to_string(),
             "--ubatch-size".to_string(),
-            "8192".to_string(),
+            "2048".to_string(),
         ]
     }
 

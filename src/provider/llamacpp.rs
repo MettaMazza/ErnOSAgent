@@ -29,7 +29,7 @@ pub struct LlamaCppProvider {
     /// Path to llama-server binary.
     pub(crate) server_binary: String,
     /// Model GGUF path.
-    model_path: String,
+    pub(crate) model_path: String,
     /// Multimodal projector GGUF path.
     mmproj_path: String,
     /// GPU layers (-1 = full offload).
