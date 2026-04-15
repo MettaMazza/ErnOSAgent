@@ -219,42 +219,11 @@ fn build_observer_messages(
         .rposition(|m| m.role == "user");
 
     let tool_display = if tool_context.is_empty() {
-        // Scan conversation history for tool results from earlier turns
-        // and extract concrete evidence so the Observer can verify grounding.
-        let prior_tool_evidence: Vec<String> = live_context.iter()
-            .filter(|m| m.role == "tool")
-            .map(|m| {
-                // Extract tool name and a short excerpt of the result
-                let lines: Vec<&str> = m.content.lines().collect();
-                let name = lines.first().map(|l| l.trim()).unwrap_or("unknown_tool");
-                let excerpt = if m.content.len() > 150 {
-                    format!("{}...", &m.content[..150])
-                } else {
-                    m.content.clone()
-                };
-                format!("- {}: {}", name, excerpt.replace('\n', " "))
-            })
-            .collect();
-
-        if prior_tool_evidence.is_empty() {
-            "[No tools were executed in THIS TURN or any prior turn. \
-             The candidate is answering from its own knowledge.]".to_string()
-        } else {
-            format!(
-                "[No tools were executed in THIS TURN, but {} tool(s) were executed \
-                 in PRIOR turns. Their results are visible in the conversation history \
-                 above and the candidate's answer IS grounded in them.\n\
-                 PRIOR TOOL EVIDENCE:\n{}\n\
-                 \nVERDICT GUIDANCE: Because tools were used in earlier turns and the \
-                 candidate's response references their results, this is NOT stale knowledge \
-                 (Rule 8) and NOT ghost tooling (Rule 2). The multi-turn ReAct pattern \
-                 executes tools on earlier turns and delivers results via reply_request.]",
-                prior_tool_evidence.len(),
-                prior_tool_evidence.join("\n")
-            )
-        }
+        "[No tools were executed in THIS TURN. \
+         The candidate may correctly reference tools from PREVIOUS turns \
+         visible in the conversation history above — that is NOT ghost tooling.]"
     } else {
-        tool_context.to_string()
+        tool_context
     };
 
     // Check if the user's original message had images attached
