@@ -829,6 +829,41 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                 "required": ["action"]
             }),
         ),
+
+        // ── Image Generation ─────────────────────────────────────
+        def("image_tool",
+            "Generate an image using local Flux Dev. Limited to 1 image per turn. \
+             Requires FLUX_SERVER_URL to be configured. You will SEE the generated \
+             image in the next message — describe what you see to the user.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Detailed description of the image to generate. \
+                                        Be specific: include subject, style, lighting, \
+                                        composition, mood."
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Image width in pixels (default: 1024, max: 2048)."
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Image height in pixels (default: 1024, max: 2048)."
+                    },
+                    "steps": {
+                        "type": "integer",
+                        "description": "Inference steps — more = higher quality but slower (default: 50)."
+                    },
+                    "guidance": {
+                        "type": "number",
+                        "description": "Guidance scale — higher = more prompt adherence (default: 3.5)."
+                    }
+                },
+                "required": ["prompt"]
+            }),
+        ),
     ]
 }
 

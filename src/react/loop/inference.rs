@@ -190,12 +190,54 @@ pub(super) async fn execute_tool_calls(
             result: result.clone(),
         }).await;
 
+        // Multimodal feedback: if image_tool generated an image, inject it
+        // so Gemma 4 can SEE what it created before composing its reply.
+        let tool_images = if call.name == "image_tool" && result.success {
+            extract_media_image(&result.output)
+        } else {
+            Vec::new()
+        };
+
         messages.push(Message {
             role: "tool".to_string(),
             content: result.format_for_context(),
-            images: Vec::new(),
+            images: tool_images,
         });
 
         all_tool_results.push(result);
     }
+}
+
+/// Extract a MEDIA path from tool output and load the image as base64.
+fn extract_media_image(output: &str) -> Vec<String> {
+    if let Some(path) = extract_media_path(output) {
+        match std::fs::read(&path) {
+            Ok(data) => {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+                tracing::info!(path = %path, size_kb = data.len() / 1024, "Injecting generated image for multimodal feedback");
+                vec![b64]
+            }
+            Err(e) => {
+                tracing::warn!(path = %path, error = %e, "Failed to read generated image for feedback");
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    }
+}
+
+/// Parse the MEDIA: line from tool output to extract the file path.
+pub(super) fn extract_media_path(output: &str) -> Option<String> {
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some(path) = trimmed.strip_prefix("MEDIA:") {
+            let path = path.trim();
+            if !path.is_empty() {
+                return Some(path.to_string());
+            }
+        }
+    }
+    None
 }

@@ -107,6 +107,7 @@ pub async fn execute_react_loop(
 
     loop {
         turn += 1;
+        crate::tools::image_tool::reset_turn_flag();
 
         // Check cancel token at the top of each turn — bail immediately if cancelled
         if let Some(ref ct) = cancel_token {
