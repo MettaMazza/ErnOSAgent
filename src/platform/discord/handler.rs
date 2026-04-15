@@ -261,7 +261,7 @@ impl EventHandler for DiscordHandler {
             }
         }
 
-        // ─── Post-recompile resume: send wakeup to requesting channel ────
+        // ─── Post-recompile resume: route through full pipeline ────────
         {
             let resume_path = std::path::Path::new("memory/core/resume.json");
             if resume_path.exists() {
@@ -278,20 +278,46 @@ impl EventHandler for DiscordHandler {
                             .unwrap_or("unknown");
 
                         if platform == "discord" && !channel_id_str.is_empty() {
-                            if let Ok(ch_id) = channel_id_str.parse::<u64>() {
-                                let channel = serenity::all::ChannelId::new(ch_id);
-                                let wakeup = format!(
-                                    "✅ Recompile complete — back online.\nCompiled at: {}",
-                                    compiled_at
-                                );
-                                if let Err(e) = channel.say(&ctx.http, &wakeup).await {
-                                    tracing::error!(error = %e, "Failed to send Discord resume message");
-                                } else {
-                                    tracing::info!(channel_id = channel_id_str, "Sent post-recompile resume to Discord");
-                                }
-                                // Consume the file
-                                let _ = std::fs::remove_file(resume_path);
+                            // Read changelog for context
+                            let changelog = std::fs::read_to_string("memory/core/recompile_log.md")
+                                .ok()
+                                .and_then(|log| {
+                                    log.rsplit("## Recompile —")
+                                        .next()
+                                        .map(|entry| entry.chars().take(500).collect::<String>())
+                                })
+                                .unwrap_or_default();
+
+                            let resume_prompt = format!(
+                                "[SYSTEM: You have just been recompiled and restarted at {}. \
+                                Greet the user and let them know the upgrade was successful. \
+                                Be brief and natural — do not be robotic. \
+                                If there is changelog context below, mention what changed at a high level.\n\
+                                Changelog context: {}]",
+                                compiled_at,
+                                if changelog.is_empty() { "No changelog available.".to_string() } else { changelog }
+                            );
+
+                            // Route through the full ReAct pipeline as a system message
+                            let resume_msg = PlatformMessage {
+                                platform: "discord".to_string(),
+                                channel_id: channel_id_str.to_string(),
+                                user_id: self.admin_user_ids.first().cloned().unwrap_or_default(),
+                                user_name: "system".to_string(),
+                                content: resume_prompt,
+                                attachments: Vec::new(),
+                                message_id: String::new(),
+                                is_admin: true,
+                            };
+
+                            if let Err(e) = self.tx.send(resume_msg).await {
+                                tracing::error!(error = %e, "Failed to route resume through pipeline");
+                            } else {
+                                tracing::info!(channel_id = channel_id_str, "Routed post-recompile resume through full pipeline");
                             }
+
+                            // Consume the file
+                            let _ = std::fs::remove_file(resume_path);
                         }
                     }
                 }
