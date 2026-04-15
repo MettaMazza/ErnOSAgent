@@ -319,7 +319,7 @@ fn wipe_user_data(data_dir: &std::path::Path) -> usize {
         }
     }
 
-    for file in &["platforms.json", "autonomy_log.json"] {
+    for file in &["autonomy_log.json"] {
         let path = data_dir.join(file);
         if path.exists() {
             if let Err(e) = std::fs::remove_file(&path) {
