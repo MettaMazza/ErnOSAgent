@@ -213,8 +213,14 @@ fn build_observer_messages(
     capabilities: &str,
     user_message: &str,
 ) -> Vec<Message> {
+    // Filter out HUD neural state messages — the Observer doesn't need them
+    // and they weren't in the context before HUD was added.
+    let filtered_context: Vec<&Message> = live_context.iter()
+        .filter(|m| !m.content.starts_with("[HUD — Neural State"))
+        .collect();
+
     // Find the index of the last user message
-    let last_user_idx = live_context
+    let last_user_idx = filtered_context
         .iter()
         .rposition(|m| m.role == "user");
 
@@ -227,7 +233,7 @@ fn build_observer_messages(
     };
 
     // Check if the user's original message had images attached
-    let user_images_count = live_context.iter()
+    let user_images_count = filtered_context.iter()
         .filter(|m| m.role == "user")
         .last()
         .map(|m| m.images.len())
@@ -258,7 +264,7 @@ fn build_observer_messages(
     match last_user_idx {
         Some(idx) => {
             // Build: all messages up to last user (exclusive), then the audit instruction
-            let mut msgs: Vec<Message> = live_context[..idx].to_vec();
+            let mut msgs: Vec<Message> = filtered_context[..idx].iter().map(|m| (*m).clone()).collect();
             msgs.push(Message {
                 role: "user".to_string(),
                 content: audit_instruction,
