@@ -37,7 +37,17 @@ impl KokoroTTS {
             .unwrap_or_else(|_| PathBuf::from("src/voice/tts_worker.py"));
 
         let python_bin = std::env::var("ERNOSAGENT_TTS_PYTHON")
-            .unwrap_or_else(|_| "python3".to_string());
+            .unwrap_or_else(|_| {
+                // Auto-discover ErnOS TTS venv, then fall back to system python3
+                let venv_python = dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".ernosagent/venv-tts/bin/python3");
+                if venv_python.exists() {
+                    venv_python.to_string_lossy().to_string()
+                } else {
+                    "python3".to_string()
+                }
+            });
 
         let models_dir = std::env::var("ERNOSAGENT_TTS_MODELS_DIR")
             .unwrap_or_else(|_| {
