@@ -326,9 +326,11 @@ pub async fn execute_react_loop(
             }
         }
 
-        if has_none && !has_reply && !output.response_text.trim().is_empty() {
+        if has_none && !has_reply && !output.response_text.trim().is_empty() && consecutive_audit_rejections == 0 {
             // Model emitted plain text without calling reply_request.
             // Auto-wrap it instead of wasting a turn on retry.
+            // BUT only on first attempt — if we already got rejected, let the
+            // model retry properly with reply_request.
             tracing::warn!(turn = turn, response_len = output.response_text.len(), "No tool calls — auto-wrapping response as reply_request");
 
             let reply_text = output.response_text.clone();
