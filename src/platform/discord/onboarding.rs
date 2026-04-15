@@ -430,7 +430,7 @@ pub async fn promote_to_member(
     let guild = GuildId::new(guild_id);
     let user = UserId::new(user_id);
 
-    let mut member = guild.member(http, user).await?;
+    let member = guild.member(http, user).await?;
 
     // Add Member role first, then remove New
     member.add_role(http, RoleId::new(member_role_id)).await?;
@@ -463,7 +463,7 @@ pub async fn backfill_existing_members(
     let members = guild.members(http, Some(1000), None).await?;
     let mut assigned = 0u32;
 
-    for mut member in members {
+    for member in members {
         if member.user.bot { continue; }
 
         let has_member = member.roles.contains(&member_role);
