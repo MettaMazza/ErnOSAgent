@@ -145,7 +145,7 @@ fn image_tool(call: &ToolCall) -> ToolResult {
     });
 
     let client = match reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(300)) // 5 min timeout for generation
+        .timeout(None) // No timeout — local generation can take 10+ minutes
         .build()
     {
         Ok(c) => c,
