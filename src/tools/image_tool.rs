@@ -205,7 +205,7 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         }
     };
 
-    let saved_path = match result.get("path").and_then(|v| v.as_str()) {
+    let saved_path = match result.get("path").or_else(|| result.get("file_path")).and_then(|v| v.as_str()) {
         Some(p) if !p.is_empty() => p,
         _ => {
             tracing::error!("Flux server response missing 'path' field: {:?}", result);
