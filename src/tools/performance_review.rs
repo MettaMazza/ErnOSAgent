@@ -58,7 +58,12 @@ fn gather_failure_patterns(buffers: &TrainingBuffers) -> String {
     report.push_str("\nMost recent failures:\n");
     for pair in pairs.iter().rev().take(3) {
         let preview = if pair.rejected_response.len() > 80 {
-            format!("{}...", &pair.rejected_response[..80])
+            let boundary = pair.rejected_response.char_indices()
+                .take_while(|(i, _)| *i <= 80)
+                .last()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            format!("{}...", &pair.rejected_response[..boundary])
         } else {
             pair.rejected_response.clone()
         };
@@ -91,7 +96,12 @@ fn gather_success_patterns(buffers: &TrainingBuffers) -> String {
     report.push_str("\nMost recent golden interactions:\n");
     for ex in examples.iter().rev().take(3) {
         let user_preview = if ex.user_message.len() > 60 {
-            format!("{}...", &ex.user_message[..60])
+            let boundary = ex.user_message.char_indices()
+                .take_while(|(i, _)| *i <= 60)
+                .last()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            format!("{}...", &ex.user_message[..boundary])
         } else {
             ex.user_message.clone()
         };

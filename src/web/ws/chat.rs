@@ -151,6 +151,9 @@ async fn stream_react_events(
 ) {
     use axum::extract::ws;
 
+    // Accumulate image URLs from tool results across the turn
+    let mut turn_images: Vec<String> = Vec::new();
+
     loop {
         // Check if already cancelled
         if cancel_token.load(Ordering::SeqCst) {
@@ -165,7 +168,7 @@ async fn stream_react_events(
             event = event_rx.recv() => {
                 match event {
                     Some(event) => {
-                        let msg = map_react_event(event, socket, state, user_message).await;
+                        let msg = map_react_event(event, socket, state, user_message, &mut turn_images).await;
                         let Some(msg) = msg else { continue };
                         if send_json(socket, &msg).await.is_err() {
                             tracing::warn!("WebSocket send failed — client disconnected");
@@ -228,29 +231,37 @@ async fn map_react_event(
     _socket: &mut WebSocket,
     state: &SharedState,
     user_message: &str,
+    turn_images: &mut Vec<String>,
 ) -> Option<ServerMessage> {
     match event {
         ReactEvent::Token(token) => Some(ServerMessage::Token { content: token }),
         ReactEvent::Thinking(token) => Some(ServerMessage::Thinking { content: token }),
         ReactEvent::TurnStarted { turn } => Some(ServerMessage::ReactTurn { turn }),
         ReactEvent::ToolExecuting { name, id: _, arguments } => Some(ServerMessage::ToolCall { name, arguments }),
-        ReactEvent::ToolCompleted { name: _, result } => Some(ServerMessage::ToolResult {
-            name: result.name.clone(), output: result.output.clone(), success: result.success,
-        }),
+        ReactEvent::ToolCompleted { name: _, result } => {
+            // Extract MEDIA: URLs from tool output (image_tool puts them here)
+            let (clean_output, tool_images) = extract_media_urls(&result.output);
+            turn_images.extend(tool_images);
+            Some(ServerMessage::ToolResult {
+                name: result.name.clone(), output: clean_output, success: result.success,
+            })
+        }
         ReactEvent::AuditRunning => None,
         ReactEvent::AuditCompleted { verdict, reason: _, confidence } => Some(ServerMessage::Audit {
             verdict: format!("{}", verdict),
             confidence,
         }),
         ReactEvent::ResponseReady { text } => {
-            // Extract MEDIA: lines → convert to API URLs, strip from response text
-            let (clean_text, image_urls) = extract_media_urls(&text);
+            // Also check the response text for any MEDIA: lines (belt and suspenders)
+            let (clean_text, response_images) = extract_media_urls(&text);
+            let mut all_images = turn_images.drain(..).collect::<Vec<_>>();
+            all_images.extend(response_images);
             persist_response(state, user_message, &clean_text).await;
             let usage = {
                 let st = state.read().await;
                 context::context_usage(&st.session_mgr.active().messages, st.model_spec.context_length)
             };
-            Some(ServerMessage::Done { response: clean_text, context_usage: usage, images: image_urls })
+            Some(ServerMessage::Done { response: clean_text, context_usage: usage, images: all_images })
         }
         ReactEvent::Error(msg) => Some(ServerMessage::Error { message: msg }),
         ReactEvent::NeuralSnapshot(snap) => Some(ServerMessage::NeuralSnapshot {
