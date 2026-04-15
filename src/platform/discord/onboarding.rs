@@ -474,7 +474,8 @@ pub async fn backfill_existing_members(
         if has_member || has_new { continue; }
 
         // Skip pure @everyone (no roles) — they need to go through onboarding
-        let has_any_role = member.roles.iter().any(|r| *r != everyone_role);
+        // Also exclude the "New" onboarding role — it's not a regular role
+        let has_any_role = member.roles.iter().any(|r| *r != everyone_role && *r != new_role);
         if !has_any_role { continue; }
 
         // Has existing roles but no Member → backfill
