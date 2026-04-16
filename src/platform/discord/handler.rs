@@ -144,14 +144,13 @@ impl EventHandler for DiscordHandler {
                 .as_ref()
                 .map(|ct| ct.starts_with("text/") || ct == "application/json" || ct == "application/javascript")
                 .unwrap_or(false)
-                || attachment.filename.ends_with(".txt") 
-                || attachment.filename.ends_with(".md")
-                || attachment.filename.ends_with(".rs")
-                || attachment.filename.ends_with(".html")
-                || attachment.filename.ends_with(".py")
-                || attachment.filename.ends_with(".json")
-                || attachment.filename.ends_with(".csv")
-                || attachment.filename.ends_with(".log");
+                || [
+                    ".txt", ".md", ".rs", ".html", ".py", ".json", ".csv", ".log",
+                    ".js", ".ts", ".jsx", ".tsx", ".c", ".cpp", ".h", ".hpp",
+                    ".go", ".java", ".rb", ".php", ".sh", ".bash", ".bat",
+                    ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg", ".conf",
+                    ".css", ".scss", ".sql", ".graphql"
+                ].iter().any(|ext| attachment.filename.to_lowercase().ends_with(ext));
 
             if is_image {
                 let content_type = attachment.content_type
