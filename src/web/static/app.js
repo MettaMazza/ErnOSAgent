@@ -527,21 +527,46 @@
             chatArea.addEventListener('drop', (e) => {
                 e.preventDefault();
                 els.dropOverlay.classList.add('hidden');
-                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-                if (files.length) ImageUpload.handleFiles(files);
+                const validFiles = [...e.dataTransfer.files].filter(f => {
+                    const type = f.type || '';
+                    const name = f.name.toLowerCase();
+                    const isText = type.startsWith('text/') || type === 'application/json' || type === 'application/javascript' ||
+                        ['.txt','.md','.rs','.html','.py','.json','.csv','.log','.js','.ts','.jsx','.tsx','.c','.cpp','.h','.hpp','.go','.java','.rb','.php','.sh','.bash','.bat','.yaml','.yml','.toml','.xml','.ini','.cfg','.conf','.css','.scss','.sql','.graphql'].some(ext => name.endsWith(ext));
+                    return type.startsWith('image/') || isText;
+                });
+                if (validFiles.length) ImageUpload.handleFiles(validFiles);
             });
         },
 
         handleFiles(files) {
             [...files].forEach(file => {
-                if (!file.type.startsWith('image/')) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const base64 = e.target.result.split(',')[1];
-                    state.pendingImages.push(base64);
-                    ImageUpload.renderPreview();
-                };
-                reader.readAsDataURL(file);
+                const type = file.type || '';
+                const name = file.name.toLowerCase();
+                const isText = type.startsWith('text/') || type === 'application/json' || type === 'application/javascript' ||
+                    ['.txt','.md','.rs','.html','.py','.json','.csv','.log','.js','.ts','.jsx','.tsx','.c','.cpp','.h','.hpp','.go','.java','.rb','.php','.sh','.bash','.bat','.yaml','.yml','.toml','.xml','.ini','.cfg','.conf','.css','.scss','.sql','.graphql'].some(ext => name.endsWith(ext));
+
+                if (type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const base64 = e.target.result.split(',')[1];
+                        state.pendingImages.push(base64);
+                        ImageUpload.renderPreview();
+                    };
+                    reader.readAsDataURL(file);
+                } else if (isText) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        let text = e.target.result;
+                        const maxLen = 100000;
+                        if (text.length > maxLen) {
+                            text = text.substring(0, maxLen) + `...\n[Truncated ${text.length - maxLen} chars]`;
+                        }
+                        els.input.value += `\n\n[Attachment: ${file.name}]\n\`\`\`\n${text}\n\`\`\`\n`;
+                        els.input.style.height = 'auto';
+                        els.input.style.height = els.input.scrollHeight + 'px';
+                    };
+                    reader.readAsText(file);
+                }
             });
         },
 
