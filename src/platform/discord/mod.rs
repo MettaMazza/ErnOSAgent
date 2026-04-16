@@ -164,6 +164,35 @@ impl PlatformAdapter for DiscordAdapter {
         let shutdown_flag = std::sync::Arc::new(tokio::sync::RwLock::new(false));
         self.shutdown = Some(shutdown_flag.clone());
 
+        let onboarding_enabled = !self.config.onboarding_channel_id.is_empty() && !self.config.new_member_role_id.is_empty();
+        if onboarding_enabled {
+            let bg_http = client.http.clone();
+            let bg_guild_id = self.config.guild_id.parse().unwrap_or(0);
+            let bg_new_role_id = self.config.new_member_role_id.parse().unwrap_or(0);
+            let bg_onboarding_channel = self.config.onboarding_channel_id.parse().unwrap_or(0);
+            let bg_admins: Vec<String> = self.config.admin_user_id
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let bg_shutdown = shutdown_flag.clone();
+
+            tokio::spawn(async move {
+                tracing::info!("Onboarding background task started");
+                loop {
+                    if *bg_shutdown.read().await {
+                        break;
+                    }
+                    
+                    onboarding::process_onboarding_decisions(&bg_http, bg_guild_id, bg_new_role_id).await;
+                    onboarding::auto_interview_members(&bg_http, bg_guild_id, bg_onboarding_channel, &bg_admins).await;
+                    
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+                tracing::info!("Onboarding background task stopped");
+            });
+        }
+
         let handle = tokio::spawn(async move {
             if let Err(e) = client.start().await {
                 tracing::error!(error = %e, "Discord gateway error");

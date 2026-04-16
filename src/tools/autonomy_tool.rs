@@ -198,8 +198,11 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max { s.to_string() }
-    else { format!("{}…", &s[..max]) }
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        s.chars().take(max).collect::<String>() + "…"
+    }
 }
 
 fn ok_result(call: &ToolCall, output: &str) -> ToolResult {

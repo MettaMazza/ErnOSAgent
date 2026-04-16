@@ -100,12 +100,11 @@ fn build_reflection_prompt(examples: &[(GoldenExample, f64)]) -> String {
 }
 
 /// Truncate text to a preview length, adding ellipsis.
+use crate::utils::string_utils::safe_truncate;
+
+/// Truncate text to a preview length, adding ellipsis.
 fn truncate_preview(text: &str, max_len: usize) -> String {
-    if text.len() <= max_len {
-        text.to_string()
-    } else {
-        format!("{}...", &text[..max_len])
-    }
+    safe_truncate(text, max_len)
 }
 
 /// Store the reflection as a golden example for future training.

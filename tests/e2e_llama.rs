@@ -274,6 +274,7 @@ async fn test_e2e_react_pipeline() {
             "e2e-test",
             #[cfg(feature = "discord")]
             None,
+            None,
         )
         .await
     });

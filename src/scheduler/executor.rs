@@ -318,15 +318,14 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
             .collect();
         if !lines.is_empty() {
             let start = lines.len().saturating_sub(10);
-            ctx.push_str(&format!(
-                "\n🚫 PREVIOUS AUTONOMY SESSIONS ({} total) — DO NOT REPEAT:\n",
-                lines.len()
-            ));
+            
+            let mut recent_sessions = Vec::new();
             for line in &lines[start..] {
                 if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
                     let summary = entry.get("summary")
                         .and_then(|v| v.as_str())
-                        .unwrap_or("(no summary)");
+                        .unwrap_or("(no summary)")
+                        .to_string();
                     let tools = entry.get("tools_used")
                         .and_then(|v| v.as_array())
                         .map(|arr| arr.iter()
@@ -334,9 +333,38 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
                             .collect::<Vec<_>>()
                             .join(", "))
                         .unwrap_or_default();
+                    recent_sessions.push((tools, summary));
+                }
+            }
+
+            // Deduplicate consecutive identical sessions
+            let mut grouped: Vec<((String, String), usize)> = Vec::new();
+            for session in recent_sessions {
+                if let Some((last_session, count)) = grouped.last_mut() {
+                    if last_session.0 == session.0 && last_session.1 == session.1 {
+                         *count += 1;
+                         continue;
+                    }
+                }
+                grouped.push((session, 1));
+            }
+
+            ctx.push_str(&format!(
+                "\n🚫 PREVIOUS AUTONOMY SESSIONS ({} total) — DO NOT REPEAT:\n",
+                lines.len()
+            ));
+
+            for ((tools, summary), count) in grouped {
+                if count >= 3 {
+                    // Out of sight, out of mind: heavily obfuscate to break the Pink Elephant loop
+                    ctx.push_str(&format!("  • ⚠️ System Warning: A specific automated action was repeated {} times consecutively. It has been completely omitted from this log to prevent repeating it. Execute a new, creative task.\n", count));
+                } else if count > 1 {
+                    ctx.push_str(&format!("  • [x{}] Tools: {} | {}\n", count, tools, summary));
+                } else {
                     ctx.push_str(&format!("  • Tools: {} | {}\n", tools, summary));
                 }
             }
+
             ctx.push_str("Do something DIFFERENT this session.\n");
         }
     }

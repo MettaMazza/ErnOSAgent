@@ -7,9 +7,9 @@ use super::*;
 
 #[test]
 fn test_gpu_backend_detect() {
-    let backend = GpuBackend::detect();
+    let _backend = GpuBackend::detect();
     #[cfg(target_os = "macos")]
-    assert_eq!(backend, GpuBackend::Metal);
+    assert_eq!(_backend, GpuBackend::Metal);
 }
 
 #[test]

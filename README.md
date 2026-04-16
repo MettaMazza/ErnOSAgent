@@ -603,6 +603,19 @@ export ERNOS_EWC_LAMBDA="1.0"        # EWC consolidation strength
 export ERNOS_AUTONOMY_ENABLED="1"    # Enable idle-triggered autonomy mode
 export ERNOS_AUTONOMY_IDLE_SECS="300" # Seconds idle before autonomy fires (default: 300)
 
+# Discord Integration (Requires `discord` feature)
+export ERNOSAGENT_DISCORD_ENABLED="1"
+export ERNOSAGENT_DISCORD_TOKEN="MTE..."
+export ERNOSAGENT_DISCORD_ADMIN="123456789"         # Comma-separated admin user IDs
+export ERNOSAGENT_DISCORD_GUILD="123456789"         # Server/Guild ID
+export ERNOSAGENT_DISCORD_LISTEN_CHANNELS="123,456" # Channels the bot is allowed to reply in
+export ERNOSAGENT_DISCORD_AUTONOMY_CHANNEL="123"    # Channel where autonomy logs are sent
+export ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL="123"  # Channel where interview threads are made
+export ERNOSAGENT_DISCORD_NEW_ROLE="123"            # Role assigned upon passing interview
+export ERNOSAGENT_DISCORD_MEMBER_ROLE="123"         # Role upgraded to after duration
+export ERNOSAGENT_DISCORD_NEW_ROLE_DAYS="7"         # Duration before New role becomes Member
+export ERNOSAGENT_DISCORD_SENTINEL="1"              # Enable background moderation scanner
+
 # Cloud provider API keys (optional — accessibility fallbacks, not recommended for primary use)
 # These are untested by the maintainer and provided for users who lack local hardware.
 export OPENAI_API_KEY="sk-..."       # OpenAI-compatible endpoints

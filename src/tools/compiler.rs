@@ -73,6 +73,24 @@ fn system_recompile(call: &ToolCall) -> ToolResult {
 
 /// The actual recompile pipeline, run inside block_in_place.
 async fn run_recompile_pipeline(project_root: &PathBuf) -> Result<String, String> {
+    // ── STAGE 0: Codebase Change Check ─────────────────────────────
+    tracing::info!("system_recompile: STAGE 0 — checking for codebase changes");
+
+    let diff_result = tokio::process::Command::new("git")
+        .args(["diff", "--stat", "HEAD"])
+        .current_dir(project_root)
+        .output()
+        .await;
+
+    if let Ok(output) = diff_result {
+        let diff_text = String::from_utf8_lossy(&output.stdout);
+        if diff_text.trim().is_empty() {
+             return Err("RECOMPILE ABORTED: No codebase changes detected. You cannot run system_recompile unless you have modified the source code using codebase_edit. Please choose a different tool or action.".to_string());
+        }
+    } else {
+        return Err("RECOMPILE ABORTED: Failed to run git diff to verify codebase changes.".to_string());
+    }
+
     // ── STAGE 1: Test Gate ───────────────────────────────────────────
     tracing::info!("system_recompile: STAGE 1 — running test suite");
 
