@@ -130,39 +130,83 @@ impl EventHandler for DiscordHandler {
         let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
 
         // Download image attachments and base64-encode them for the vision model.
+        // Download text attachments and append them to the message content.
         let mut encoded_images = Vec::new();
+        let mut content = msg.content.clone();
+
         for attachment in &msg.attachments {
             let is_image = attachment.content_type
                 .as_ref()
                 .map(|ct| ct.starts_with("image/"))
                 .unwrap_or(false);
-            if !is_image { continue; }
 
-            let content_type = attachment.content_type
-                .as_deref()
-                .unwrap_or("image/png")
-                .to_string();
+            let is_text = attachment.content_type
+                .as_ref()
+                .map(|ct| ct.starts_with("text/") || ct == "application/json" || ct == "application/javascript")
+                .unwrap_or(false)
+                || attachment.filename.ends_with(".txt") 
+                || attachment.filename.ends_with(".md")
+                || attachment.filename.ends_with(".rs")
+                || attachment.filename.ends_with(".html")
+                || attachment.filename.ends_with(".py")
+                || attachment.filename.ends_with(".json")
+                || attachment.filename.ends_with(".csv")
+                || attachment.filename.ends_with(".log");
 
-            match reqwest::get(&attachment.url).await {
-                Ok(resp) => {
-                    match resp.bytes().await {
-                        Ok(bytes) => {
-                            use base64::Engine;
-                            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                            encoded_images.push(format!("data:{};base64,{}", content_type, b64));
-                            tracing::info!(
-                                filename = %attachment.filename,
-                                size = bytes.len(),
-                                "Downloaded Discord image attachment"
-                            );
-                        }
-                        Err(e) => {
-                            tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord attachment bytes");
+            if is_image {
+                let content_type = attachment.content_type
+                    .as_deref()
+                    .unwrap_or("image/png")
+                    .to_string();
+
+                match reqwest::get(&attachment.url).await {
+                    Ok(resp) => {
+                        match resp.bytes().await {
+                            Ok(bytes) => {
+                                use base64::Engine;
+                                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                                encoded_images.push(format!("data:{};base64,{}", content_type, b64));
+                                tracing::info!(
+                                    filename = %attachment.filename,
+                                    size = bytes.len(),
+                                    "Downloaded Discord image attachment"
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord attachment bytes");
+                            }
                         }
                     }
+                    Err(e) => {
+                        tracing::warn!(error = %e, url = %attachment.url, "Failed to download Discord attachment");
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!(error = %e, url = %attachment.url, "Failed to download Discord attachment");
+            } else if is_text {
+                match reqwest::get(&attachment.url).await {
+                    Ok(resp) => {
+                        match resp.text().await {
+                            Ok(text) => {
+                                // Cap at 100K bytes to avoid overflowing context window for massive dumps
+                                let max_len = 100_000;
+                                let snippet = if text.len() > max_len {
+                                    format!("{}...\n[Truncated {} chars]", &text[..max_len], text.len() - max_len)
+                                } else {
+                                    text
+                                };
+                                content.push_str(&format!("\n\n[Attachment: {}]\n```\n{}\n```", attachment.filename, snippet));
+                                tracing::info!(
+                                    filename = %attachment.filename,
+                                    "Downloaded Discord text attachment"
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord text attachment text");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, url = %attachment.url, "Failed to download Discord text attachment");
+                    }
                 }
             }
         }
@@ -172,7 +216,7 @@ impl EventHandler for DiscordHandler {
             channel_id: channel_id_str,
             user_id: msg.author.id.to_string(),
             user_name: msg.author.name.clone(),
-            content: msg.content.clone(),
+            content,
             attachments: encoded_images,
             message_id: msg.id.to_string(),
             is_admin,
