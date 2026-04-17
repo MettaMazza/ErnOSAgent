@@ -59,7 +59,6 @@ pub(super) async fn collect_inference(
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut thought_spiral: Option<String> = None;
     let mut cancelled = false;
-    let mut in_think_block = false;
 
     while let Some(event) = rx.recv().await {
         // Check cancel token on every chunk — abort mid-stream if set
@@ -80,32 +79,48 @@ pub(super) async fn collect_inference(
 
         match event {
             StreamEvent::Token(token) => {
-                if in_think_block {
-                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
-                        response_text.push_str("\n</think>\n");
-                    }
-                    in_think_block = false;
-                }
                 response_text.push_str(&token);
-                // Standard un-thinking tokens go to ReactEvent::Token
-                let _ = event_tx.send(ReactEvent::Token(token)).await;
+
+                let is_thinking = response_text.rfind("<think>").map_or(false, |start| {
+                    match response_text[start..].rfind("</think>") {
+                        Some(_) => false,
+                        None => true,
+                    }
+                });
+
+                if is_thinking {
+                    let _ = event_tx.send(ReactEvent::Thinking(token)).await;
+                } else {
+                    let _ = event_tx.send(ReactEvent::Token(token)).await;
+                }
             }
             StreamEvent::Thinking(token) => {
-                if !in_think_block {
-                    if !token.contains("<think>") {
-                        response_text.push_str("<think>\n");
+                let is_thinking = response_text.rfind("<think>").map_or(false, |start| {
+                    match response_text[start..].rfind("</think>") {
+                        Some(_) => false,
+                        None => true,
                     }
-                    in_think_block = true;
+                });
+
+                if !is_thinking {
+                    response_text.push_str("<think>\n");
                 }
+                
                 response_text.push_str(&token);
                 let _ = event_tx.send(ReactEvent::Thinking(token)).await;
             }
             StreamEvent::ToolCall { id, name, arguments } => {
-                if in_think_block {
+                let is_thinking = response_text.rfind("<think>").map_or(false, |start| {
+                    match response_text[start..].rfind("</think>") {
+                        Some(_) => false,
+                        None => true,
+                    }
+                });
+                
+                if is_thinking {
                     if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
                         response_text.push_str("\n</think>\n");
                     }
-                    in_think_block = false;
                 }
                 match serde_json::from_str::<serde_json::Value>(&arguments) {
                     Ok(args) => {
@@ -113,10 +128,6 @@ pub(super) async fn collect_inference(
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, tool = %name, "Failed to parse tool call JSON arguments");
-                        // Inject a synthetic ToolCall holding the error.
-                        // This bypasses the bare-text auto-wrapper, avoids the Observer, 
-                        // and natively forces the ToolExecutor to return an execution error 
-                        // back to the LLM context so it can self-correct.
                         tool_calls.push(ToolCall {
                             id: if id.is_empty() { uuid::Uuid::new_v4().to_string() } else { id.clone() },
                             name: format!("malformed_json_in_{}", name),
@@ -128,7 +139,14 @@ pub(super) async fn collect_inference(
                 }
             }
             StreamEvent::Done { .. } => {
-                if in_think_block {
+                let is_thinking = response_text.rfind("<think>").map_or(false, |start| {
+                    match response_text[start..].rfind("</think>") {
+                        Some(_) => false,
+                        None => true,
+                    }
+                });
+                
+                if is_thinking {
                     if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
                         response_text.push_str("\n</think>\n");
                     }
