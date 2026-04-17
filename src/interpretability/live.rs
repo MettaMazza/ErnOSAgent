@@ -334,6 +334,11 @@ async fn extract_activations(
         anyhow::bail!("Empty embedding vector from {}", url);
     }
 
+    let l2_norm = values.iter().map(|x| x * x).sum::<f32>().sqrt();
+    if (l2_norm - 1.0).abs() < 0.1 {
+        anyhow::bail!("Normalized/Pooled embeddings detected (L2 form ≈ 1.0). SAE requires unnormalized raw residual states (pooling type 'none').");
+    }
+
     match embedding {
         Some(_) => {
             tracing::debug!(
