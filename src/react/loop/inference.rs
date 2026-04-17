@@ -86,8 +86,20 @@ pub(super) async fn collect_inference(
                 let _ = event_tx.send(ReactEvent::Thinking(token)).await;
             }
             StreamEvent::ToolCall { id, name, arguments } => {
-                if let Ok(args) = serde_json::from_str::<serde_json::Value>(&arguments) {
-                    tool_calls.push(ToolCall { id, name, arguments: args });
+                match serde_json::from_str::<serde_json::Value>(&arguments) {
+                    Ok(args) => {
+                        tool_calls.push(ToolCall { id, name, arguments: args });
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, tool = %name, "Failed to parse tool call JSON arguments");
+                        // Inject the failure directly into the assistant's response text so the 
+                        // ReAct loop naturally sees it as text and responds, triggering auto-correction
+                        // without hitting 0-token block logic.
+                        response_text.push_str(&format!(
+                            "\n[TOOL ERROR: Attempted to call '{}' but generated invalid JSON: '{}'. Error: {}. Fix the syntax.]\n",
+                            name, arguments, e
+                        ));
+                    }
                 }
             }
             StreamEvent::Done { .. } => {
