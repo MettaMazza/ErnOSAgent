@@ -413,6 +413,14 @@ async fn generate_snapshot(
 }
 
 fn format_hud_message(snap: &crate::interpretability::snapshot::NeuralSnapshot) -> String {
+    if !snap.is_live && snap.top_features.is_empty() {
+        return format!(
+            "[HUD — Neural State | UNAVAILABLE | turn {}]\n\
+             State: SAE extraction failed (Endpoint Offline). Cognitive telemetry unavailable.",
+            snap.turn
+        );
+    }
+
     let source = if snap.is_live { "LIVE SAE" } else { "SIMULATED" };
 
     let features: String = snap.top_features.iter()
