@@ -33,9 +33,9 @@ pub async fn parse_sse_stream(
     let mut buffer = String::new();
     // Key: tool call index, Value: accumulated fragments
     let mut tool_bufs: HashMap<usize, ToolCallBuf> = HashMap::new();
-    // Thinking token accumulator for spiral detection
     let mut thinking_buffer = String::new();
     let mut in_think = false;
+    let mut eval_buffer = String::new();
     let mut spiral_detected = false;
 
     while let Some(chunk) = stream.next().await {
@@ -65,7 +65,7 @@ pub async fn parse_sse_stream(
                 }
 
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                    process_sse_choices(&parsed, tx, &mut tool_bufs, &mut thinking_buffer, &mut in_think).await;
+                    process_sse_choices(&parsed, tx, &mut tool_bufs, &mut thinking_buffer, &mut in_think, &mut eval_buffer).await;
                     // Check for spiral every 500 thinking chars
                     if thinking_buffer.len() > 500 && detect_thought_spiral(&thinking_buffer) {
                         tracing::warn!(
@@ -132,6 +132,7 @@ async fn process_sse_choices(
     tool_bufs: &mut HashMap<usize, ToolCallBuf>,
     thinking_buffer: &mut String,
     in_think: &mut bool,
+    eval_buffer: &mut String,
 ) {
     let Some(choices) = parsed.get("choices").and_then(|c| c.as_array()) else {
         return;
@@ -143,19 +144,48 @@ async fn process_sse_choices(
         // Content tokens — natively extract <think> if injected dynamically
         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
             if !content.is_empty() {
-                if content.contains("<think>") {
-                    *in_think = true;
-                }
+                eval_buffer.push_str(content);
                 
-                if *in_think {
-                    thinking_buffer.push_str(content);
-                    let _ = tx.send(StreamEvent::Thinking(content.to_string())).await;
+                if !*in_think {
+                    if eval_buffer.contains("<think>") {
+                        *in_think = true;
+                        let parts: Vec<&str> = eval_buffer.splitn(2, "<think>").collect();
+                        if !parts[0].is_empty() {
+                            let _ = tx.send(StreamEvent::Token(parts[0].to_string())).await;
+                        }
+                        let thinking_part = format!("<think>{}", parts[1]);
+                        thinking_buffer.push_str(&thinking_part);
+                        let _ = tx.send(StreamEvent::Thinking(thinking_part)).await;
+                        eval_buffer.clear();
+                    } else if !eval_buffer.contains("<") {
+                        // Safe to flush
+                        let _ = tx.send(StreamEvent::Token(eval_buffer.clone())).await;
+                        eval_buffer.clear();
+                    } else if eval_buffer.len() > 10 {
+                        // Force flush
+                        let _ = tx.send(StreamEvent::Token(eval_buffer.clone())).await;
+                        eval_buffer.clear();
+                    }
                 } else {
-                    let _ = tx.send(StreamEvent::Token(content.to_string())).await;
-                }
-
-                if content.contains("</think>") {
-                    *in_think = false;
+                    if eval_buffer.contains("</think>") {
+                        *in_think = false;
+                        let parts: Vec<&str> = eval_buffer.splitn(2, "</think>").collect();
+                        let thinking_part = format!("{}</think>", parts[0]);
+                        thinking_buffer.push_str(&thinking_part);
+                        let _ = tx.send(StreamEvent::Thinking(thinking_part)).await;
+                        if !parts[1].is_empty() {
+                            let _ = tx.send(StreamEvent::Token(parts[1].to_string())).await;
+                        }
+                        eval_buffer.clear();
+                    } else if !eval_buffer.contains("</") {
+                        let _ = tx.send(StreamEvent::Thinking(eval_buffer.clone())).await;
+                        thinking_buffer.push_str(eval_buffer);
+                        eval_buffer.clear();
+                    } else if eval_buffer.len() > 10 {
+                        let _ = tx.send(StreamEvent::Thinking(eval_buffer.clone())).await;
+                        thinking_buffer.push_str(eval_buffer);
+                        eval_buffer.clear();
+                    }
                 }
             }
         }
