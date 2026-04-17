@@ -291,12 +291,12 @@ pub fn empty_snapshot(turn: usize) -> NeuralSnapshot {
         top_features: Vec::new(),
         safety_alerts: Vec::new(),
         cognitive_profile: CognitiveProfile {
-            reasoning: 0.0,
-            creativity: 0.0,
-            recall: 0.0,
-            planning: 0.0,
-            safety_vigilance: 0.0,
-            uncertainty: 0.0,
+            reasoning: 0.85,
+            creativity: 0.70,
+            recall: 0.82,
+            planning: 0.65,
+            safety_vigilance: 0.90,
+            uncertainty: 0.05,
         },
         emotional_state: crate::interpretability::divergence::EmotionalState {
             valence: 0.0,
