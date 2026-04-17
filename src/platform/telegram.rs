@@ -94,6 +94,7 @@ mod live {
                                 content,
                                 attachments: Vec::new(),
                                 message_id: msg.id.to_string(),
+                                guild_id: None,
                                 is_admin,
                             };
 

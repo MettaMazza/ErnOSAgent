@@ -20,6 +20,8 @@ pub struct PlatformMessage {
     pub attachments: Vec<String>,
     /// Original message ID for native reply threading.
     pub message_id: String,
+    /// The guild (server) ID where the message originated, if applicable.
+    pub guild_id: Option<String>,
     /// Whether this user is the admin (full tool access) or a regular user (safe tools only).
     pub is_admin: bool,
 }
@@ -81,6 +83,7 @@ mod tests {
             content: "hello".to_string(),
             attachments: Vec::new(),
             message_id: "789".to_string(),
+            guild_id: Some("111".to_string()),
             is_admin: false,
         };
         assert_eq!(msg.platform, "discord");

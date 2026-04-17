@@ -189,6 +189,7 @@ async fn run_webhook_server(
                                         content: text.to_string(),
                                         attachments: Vec::new(),
                                         message_id: msg.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string(),
+                                        guild_id: None,
                                         is_admin: admin_ids.iter().any(|id| id == from),
                                     };
 

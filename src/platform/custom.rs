@@ -177,6 +177,7 @@ async fn run_custom_server(
                 content: body.message,
                 attachments: Vec::new(),
                 message_id: String::new(),
+                guild_id: None,
                 is_admin: false,
             };
 

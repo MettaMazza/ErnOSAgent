@@ -102,6 +102,7 @@ impl HumanMeshAdapter {
             content: content.to_string(),
             is_admin: false, // Human mesh users are never admin
             message_id: String::new(),
+            guild_id: None,
             attachments: Vec::new(),
         };
 

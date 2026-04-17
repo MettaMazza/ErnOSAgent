@@ -69,6 +69,7 @@ pub async fn process_message(
         is_admin: msg.is_admin,
         channel_id: msg.channel_id.clone(),
         message_id: msg.message_id.clone(),
+        guild_id: msg.guild_id.clone(),
     };
 
     // ─── Boundary injection (Discord only) ───

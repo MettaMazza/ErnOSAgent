@@ -108,6 +108,7 @@ impl EventHandler for DiscordHandler {
                 content: msg.content.clone(),
                 attachments: Vec::new(),
                 message_id: msg.id.to_string(),
+                guild_id: msg.guild_id.map(|id| id.to_string()),
                 is_admin: false, // Interviewees are never admin
             };
 
@@ -218,6 +219,7 @@ impl EventHandler for DiscordHandler {
             content,
             attachments: encoded_images,
             message_id: msg.id.to_string(),
+            guild_id: msg.guild_id.map(|id| id.to_string()),
             is_admin,
         };
 
@@ -350,6 +352,7 @@ impl EventHandler for DiscordHandler {
                                 content: resume_prompt,
                                 attachments: Vec::new(),
                                 message_id: String::new(),
+                                guild_id: None,
                                 is_admin: true,
                             };
 

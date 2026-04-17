@@ -53,8 +53,9 @@ pub struct PlatformContext {
     pub is_admin: bool,
     /// Platform channel ID (used for thinking threads, delivery).
     pub channel_id: String,
-    /// Original message ID (used for thinking threads, reply references).
     pub message_id: String,
+    /// The guild (server) ID where the message originated.
+    pub guild_id: Option<String>,
 }
 
 /// Run the full ReAct pipeline non-streaming, returning the final response text.
@@ -181,11 +182,11 @@ pub async fn run_react_pipeline(
         content: format!(
             "[PLATFORM CONTEXT] You are in a {} group chat. \
             The current message is from user '{}' (user ID: {}). \
-            Channel ID: {}. Message ID: {}. \
+            Channel ID: {}. Message ID: {}. Server (Guild) ID: {}. \
             Address them by their display name. \
             Do NOT confuse them with other users from previous sessions. \
             You can use these IDs with Discord tools (e.g. discord_add_reaction).",
-            ctx.platform, ctx.user_name, ctx.user_id, ctx.channel_id, ctx.message_id
+            ctx.platform, ctx.user_name, ctx.user_id, ctx.channel_id, ctx.message_id, ctx.guild_id.clone().unwrap_or_else(|| "None".to_string())
         ),
         images: Vec::new(),
     });
