@@ -284,39 +284,47 @@ pub async fn setup_onboarding_permissions(
 
         if channel_id.get() == onboarding_channel_id {
             // Onboarding channel: @everyone CAN view + use threads (but not send top-level)
-            channel_id.create_permission(http, PermissionOverwrite {
+            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
                 allow: Permissions::VIEW_CHANNEL
                     | Permissions::SEND_MESSAGES_IN_THREADS
                     | Permissions::READ_MESSAGE_HISTORY,
                 deny: Permissions::SEND_MESSAGES,
                 kind: PermissionOverwriteType::Role(everyone_role),
-            }).await?;
+            }).await {
+                tracing::warn!(error = %e, channel = channel_id.get(), "Failed to set onboarding channel permissions");
+            }
         } else {
             // All other channels: deny @everyone VIEW_CHANNEL
-            channel_id.create_permission(http, PermissionOverwrite {
+            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
                 allow: Permissions::empty(),
                 deny: Permissions::VIEW_CHANNEL,
                 kind: PermissionOverwriteType::Role(everyone_role),
-            }).await?;
+            }).await {
+                tracing::warn!(error = %e, channel = channel_id.get(), "Failed to deny @everyone VIEW_CHANNEL");
+            }
 
             // Channel-level ALLOW for "New" role (overrides the @everyone deny)
-            channel_id.create_permission(http, PermissionOverwrite {
+            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
                 allow: Permissions::VIEW_CHANNEL
                     | Permissions::SEND_MESSAGES
                     | Permissions::READ_MESSAGE_HISTORY,
                 deny: Permissions::empty(),
                 kind: PermissionOverwriteType::Role(new_role),
-            }).await?;
+            }).await {
+                tracing::warn!(error = %e, channel = channel_id.get(), "Failed to allow New role VIEW_CHANNEL");
+            }
 
             // Channel-level ALLOW for "Member" role (overrides the @everyone deny)
             if has_member_role {
-                channel_id.create_permission(http, PermissionOverwrite {
+                if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
                     allow: Permissions::VIEW_CHANNEL
                         | Permissions::SEND_MESSAGES
                         | Permissions::READ_MESSAGE_HISTORY,
                     deny: Permissions::empty(),
                     kind: PermissionOverwriteType::Role(member_role),
-                }).await?;
+                }).await {
+                    tracing::warn!(error = %e, channel = channel_id.get(), "Failed to allow Member role VIEW_CHANNEL");
+                }
             }
 
             locked += 1;
