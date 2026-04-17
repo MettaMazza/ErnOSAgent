@@ -132,7 +132,7 @@ impl ThinkingThread {
             Colour::from_rgb(255, 193, 7), // amber
         );
 
-        let edit = EditMessage::new().embed(embed);
+        let edit = EditMessage::new().content("\u{200B}").embed(embed);
         let _ = self.thread_id.edit_message(http, self.embed_message_id, edit).await;
         self.last_flush_len = self.buffer.len();
 
@@ -155,7 +155,7 @@ impl ThinkingThread {
             Colour::from_rgb(76, 175, 80), // green
         );
 
-        let edit = EditMessage::new().embed(embed);
+        let edit = EditMessage::new().content("\u{200B}").embed(embed);
         let _ = self.thread_id.edit_message(&*http, self.embed_message_id, edit).await;
 
         tracing::debug!(
@@ -237,7 +237,7 @@ impl ThinkingEmbed {
             Colour::from_rgb(255, 193, 7),
         );
 
-        let edit = EditMessage::new().embed(embed);
+        let edit = EditMessage::new().content("\u{200B}").embed(embed);
         let _ = self.channel_id.edit_message(http, self.embed_message_id, edit).await;
         self.last_flush_len = self.buffer.len();
         Ok(())
