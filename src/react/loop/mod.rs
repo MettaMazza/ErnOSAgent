@@ -216,11 +216,16 @@ pub async fn execute_react_loop(
         let has_other = output.tool_calls.iter().any(|tc| !schema::is_loop_terminator(tc));
         let mut has_none = output.tool_calls.is_empty();
 
-        // ── AUTO-WRAPPER for bare text ──
-        if has_none && !has_reply && !output.response_text.trim().is_empty() {
+        // ── AUTO-WRAPPER for bare text or empty responses ──
+        if has_none && !has_reply {
+            let bare_text = if output.response_text.trim().is_empty() {
+                "[Model generated empty response — auto-wrapped fallback]".to_string()
+            } else {
+                output.response_text.clone()
+            };
             tracing::info!(turn = turn, "Model output bare text with no tools — auto-wrapping into reply_request");
             let mut args = serde_json::Map::new();
-            args.insert("message".to_string(), serde_json::Value::String(output.response_text.clone()));
+            args.insert("message".to_string(), serde_json::Value::String(bare_text));
             output.tool_calls.push(crate::tools::schema::ToolCall {
                 id: uuid::Uuid::new_v4().to_string(),
                 name: "reply_request".to_string(),
