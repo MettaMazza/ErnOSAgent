@@ -381,6 +381,8 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
     if decision.is_empty() { return error_result(call, "Missing required argument: decision (pass/fail)"); }
 
     let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
+    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id. You must provide the user_id to correctly attribute the decision."); }
+
     let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
     let scores = call.arguments.get("scores").and_then(|v| v.as_str()).unwrap_or("");
 

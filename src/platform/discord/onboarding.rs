@@ -229,8 +229,8 @@ IMMEDIATE FAIL CONDITIONS (do not waste turns):
 - Obvious bad faith (joined to troll or screenshot for mockery)
 - Three or more one-word answers in a row
 
-TO PASS THE USER: Call moderation_tool with action "onboarding_decision", decision "pass", and your scores. CRITICAL: DO NOT PASS THE USER BEFORE TURN 7. You must complete the full interview first.
-TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", decision "fail", and your reason. CRITICAL: DO NOT FAIL THE USER BEFORE TURN 7. You must complete the full interview first, even if they perform poorly, to ensure a fair evaluation. Tell them why they failed. Don't sugarcoat it.
+TO PASS THE USER: Call moderation_tool with action "onboarding_decision", user_id, decision "pass", and your scores. CRITICAL: DO NOT PASS THE USER BEFORE TURN 7. You must complete the full interview first.
+TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", user_id, decision "fail", and your reason. CRITICAL: DO NOT FAIL THE USER BEFORE TURN 7. You must complete the full interview first, even if they perform poorly, to ensure a fair evaluation. Tell them why they failed. Don't sugarcoat it.
 
 KICK POLICY: Failed users are kicked, not banned. They can rejoin and try again. But the third kick is a permanent ban. Make sure to tell them this when you fail them.
 

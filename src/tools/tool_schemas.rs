@@ -890,7 +890,7 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
                         "description": "Scoring breakdown (for onboarding_decision, e.g. 'Technical:20 Philosophy:15 Attitude:20 Engagement:18 = 73/100')."
                     }
                 },
-                "required": ["action"]
+                "required": ["action", "user_id"]
             }),
         ),
 
