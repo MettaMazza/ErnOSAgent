@@ -166,7 +166,7 @@ pub async fn execute_react_loop(
             images: Vec::new(),
         });
 
-        let output = collect_inference(
+        let mut output = collect_inference(
             provider, model, &messages, tools, turn, &event_tx,
             cancel_token.as_ref(),
         ).await?;
@@ -175,6 +175,13 @@ pub async fn execute_react_loop(
         // No cap — the model is re-prompted until it completes. No bail-out.
         if let Some(ref summary) = output.thought_spiral {
             tracing::warn!(turn = turn, "🌀 Thought spiral detected — re-prompting to complete");
+
+            messages.push(Message {
+                role: "assistant".to_string(),
+                content: format!("<think>\n{}...\n</think>", summary.chars().take(200).collect::<String>()),
+                images: Vec::new(),
+            });
+
             // Inject recovery instructions and continue the loop
             messages.push(Message {
                 role: "system".to_string(),
@@ -201,10 +208,24 @@ pub async fn execute_react_loop(
 
         // Neural snapshot already emitted above (pre-inference HUD)
 
-        let has_reply = output.tool_calls.iter().any(schema::is_loop_terminator);
+        let mut has_reply = output.tool_calls.iter().any(schema::is_loop_terminator);
         let has_refuse = output.tool_calls.iter().any(schema::is_refuse_request);
         let has_other = output.tool_calls.iter().any(|tc| !schema::is_loop_terminator(tc));
-        let has_none = output.tool_calls.is_empty();
+        let mut has_none = output.tool_calls.is_empty();
+
+        // ── AUTO-WRAPPER for bare text ──
+        if has_none && !has_reply && !output.response_text.trim().is_empty() {
+            tracing::info!(turn = turn, "Model output bare text with no tools — auto-wrapping into reply_request");
+            let mut args = serde_json::Map::new();
+            args.insert("response".to_string(), serde_json::Value::String(output.response_text.clone()));
+            output.tool_calls.push(crate::tools::schema::ToolCall {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: "reply_request".to_string(),
+                arguments: serde_json::Value::Object(args),
+            });
+            has_reply = true;
+            has_none = false; // it now has a tool!
+        }
 
         tracing::info!(turn = turn, has_reply = has_reply, has_refuse = has_refuse, has_other = has_other, has_none = has_none, "ReAct branch decision");
 
@@ -235,6 +256,18 @@ pub async fn execute_react_loop(
                     "Tool-loop detected — same tool(s) called {} times with identical arguments",
                     same_tool_count
                 );
+
+                let attempted_tools: Vec<String> = output.tool_calls.iter()
+                    .filter(|tc| !schema::is_loop_terminator(tc))
+                    .map(|tc| format!("```json\n{{\"name\": \"{}\", \"arguments\": {}}}\n```", tc.name, serde_json::to_string(&tc.arguments).unwrap_or_default()))
+                    .collect();
+                
+                messages.push(Message {
+                    role: "assistant".to_string(),
+                    content: format!("{}\n\n{}", output.response_text, attempted_tools.join("\n\n")).trim().to_string(),
+                    images: Vec::new(),
+                });
+
                 messages.push(Message {
                     role: "system".to_string(),
                     content: format!(
@@ -256,6 +289,17 @@ pub async fn execute_react_loop(
                 last_tool_sig = None;
                 continue;
             }
+
+            let executed_tools: Vec<String> = output.tool_calls.iter()
+                .filter(|tc| !schema::is_loop_terminator(tc))
+                .map(|tc| format!("```json\n{{\"name\": \"{}\", \"arguments\": {}}}\n```", tc.name, serde_json::to_string(&tc.arguments).unwrap_or_default()))
+                .collect();
+            
+            messages.push(Message {
+                role: "assistant".to_string(),
+                content: format!("{}\n\n{}", output.response_text, executed_tools.join("\n\n")).trim().to_string(),
+                images: Vec::new(),
+            });
 
             execute_tool_calls(
                 &output.tool_calls, executor, &mut messages,
@@ -289,6 +333,13 @@ pub async fn execute_react_loop(
 
             if reply_text.trim().is_empty() {
                 tracing::warn!(turn = turn, "reply/refuse_request had empty text — retrying");
+
+                messages.push(Message {
+                    role: "assistant".to_string(),
+                    content: format!("```json\n{{\"name\": \"{}\", \"arguments\": {}}}\n```", reply_call.name, serde_json::to_string(&reply_call.arguments).unwrap_or_default()),
+                    images: Vec::new(),
+                });
+
                 inject_empty_reply_error(&mut messages);
                 continue;
             }
@@ -337,13 +388,25 @@ async fn generate_snapshot(
     messages: &[Message],
     turn: usize,
 ) -> crate::interpretability::snapshot::NeuralSnapshot {
-    let prompt_text = messages
+    let recent_context: String = messages
         .iter()
+        .filter(|m| !m.content.starts_with("[HUD"))
         .rev()
-        .find(|m| m.role == "user")
-        .map(|m| m.content.as_str())
-        .unwrap_or("");
-    crate::interpretability::live::snapshot_for_turn(turn, prompt_text, None).await
+        .take(3)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|m| format!("{}: {}", m.role, m.content.chars().take(2000).collect::<String>()))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let prompt_text = if recent_context.is_empty() {
+        "Empty context".to_string()
+    } else {
+        recent_context
+    };
+
+    crate::interpretability::live::snapshot_for_turn(turn, &prompt_text, None).await
 }
 
 fn format_hud_message(snap: &crate::interpretability::snapshot::NeuralSnapshot) -> String {

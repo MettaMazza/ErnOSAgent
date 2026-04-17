@@ -169,6 +169,7 @@ impl PlatformAdapter for DiscordAdapter {
             let bg_http = client.http.clone();
             let bg_guild_id = self.config.guild_id.parse().unwrap_or(0);
             let bg_new_role_id = self.config.new_member_role_id.parse().unwrap_or(0);
+            let bg_member_role_id = self.config.member_role_id.parse().unwrap_or(0);
             let bg_onboarding_channel = self.config.onboarding_channel_id.parse().unwrap_or(0);
             let bg_admins: Vec<String> = self.config.admin_user_id
                 .split(',')
@@ -186,6 +187,8 @@ impl PlatformAdapter for DiscordAdapter {
                     
                     onboarding::process_onboarding_decisions(&bg_http, bg_guild_id, bg_new_role_id).await;
                     onboarding::auto_interview_members(&bg_http, bg_guild_id, bg_onboarding_channel, &bg_admins).await;
+                    onboarding::enforce_onboarding_timeouts(&bg_http, bg_guild_id).await;
+                    onboarding::enforce_role_expiries(&bg_http, bg_guild_id, bg_new_role_id, bg_member_role_id).await;
                     
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }

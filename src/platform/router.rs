@@ -41,6 +41,14 @@ pub async fn process_message(
         "Routing platform message through full ReAct pipeline"
     );
 
+    // ─── Global Autonomy Preemption ───
+    // Incoming user messages take absolute priority. Force abort any
+    // background processing to rapidly free up processing threads.
+    {
+        let st = state.read().await;
+        st.autonomy_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
     // ─── Mute gate (Discord only) ───
     // If this user is muted, skip inference entirely.
     if msg.platform == "discord" && !msg.is_admin {

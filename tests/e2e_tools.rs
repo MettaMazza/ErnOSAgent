@@ -29,6 +29,7 @@ fn executor() -> ToolExecutor {
     ernosagent::tools::reasoning_tool::register_tools(&mut e);
     ernosagent::tools::web_tool::register_tools(&mut e);
     ernosagent::tools::download_tool::register_tools(&mut e);
+    ernosagent::tools::browser_tool::register_tools(&mut e);
     e
 }
 
@@ -55,7 +56,7 @@ fn all_tools_registered() {
         "run_command", "system_recompile", "git_tool", "tool_forge",
         "memory_tool", "scratchpad_tool", "lessons_tool", "timeline_tool",
         "steering_tool", "interpretability_tool", "reasoning_tool",
-        "web_tool", "download_tool",
+        "web_tool", "download_tool", "browser_navigate", "browser_click", "browser_type",
     ];
     for name in &expected {
         assert!(e.has_tool(name), "Tool '{}' not registered", name);
@@ -417,4 +418,18 @@ fn forge_unknown() {
     let e = executor();
     let r = run(&e, &call("tool_forge", serde_json::json!({"action":"explode"})));
     assert!(!r.success);
+}
+
+// ── Browser Tool ──────────────────────────────────────────────────────
+
+#[test]
+fn browser_tool_navigate_data_uri() {
+    let e = executor();
+    // Using a data URI to bypass network latency and ensure test stability
+    let r = run(&e, &call("browser_navigate", serde_json::json!({
+        "url": "data:text/html,<html><body><h1>Test H1</h1></body></html>"
+    })));
+    assert!(r.success, "browser_navigate failed: {:?}", r.error);
+    assert!(r.output.contains("Test H1"), "Output missing DOM content: {}", r.output);
+    assert!(r.output.contains("MEDIA:"), "Output missing media screenshot tag: {}", r.output);
 }

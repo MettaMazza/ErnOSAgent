@@ -10,14 +10,7 @@ use crate::tools::executor::ToolExecutor;
 use std::path::PathBuf;
 
 fn downloads_dir() -> PathBuf {
-    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ernosagent")
-            .to_string_lossy()
-            .to_string()
-    });
-    PathBuf::from(dir).join("downloads")
+    crate::tools::executor::get_data_dir().join("downloads")
 }
 
 fn download_tool(call: &ToolCall) -> ToolResult {

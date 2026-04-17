@@ -18,14 +18,7 @@ struct ScratchEntry {
 }
 
 fn scratchpad_path() -> PathBuf {
-    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ernosagent")
-            .to_string_lossy()
-            .to_string()
-    });
-    PathBuf::from(dir).join("scratchpad.json")
+    crate::tools::executor::get_data_dir().join("scratchpad.json")
 }
 
 fn load_entries() -> Vec<ScratchEntry> {

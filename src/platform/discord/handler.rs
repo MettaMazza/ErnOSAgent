@@ -368,7 +368,7 @@ impl EventHandler for DiscordHandler {
         }
     }
 
-    async fn guild_member_addition(&self, ctx: Context, new_member: serenity::all::Member) {
+    async fn guild_member_addition(&self, _ctx: Context, new_member: serenity::all::Member) {
         if !self.onboarding_enabled() { return; }
 
         // Don't interview bots
@@ -380,38 +380,8 @@ impl EventHandler for DiscordHandler {
         tracing::info!(
             user_id = user_id,
             user_name = %user_name,
-            "New member joined — starting onboarding interview"
+            "New member joined — deferring onboarding thread creation to the background daemon"
         );
-
-        let channel_id: u64 = match self.onboarding_channel_id.parse() {
-            Ok(id) => id,
-            Err(_) => {
-                tracing::error!(
-                    channel_id = %self.onboarding_channel_id,
-                    "Invalid onboarding channel ID"
-                );
-                return;
-            }
-        };
-
-        match super::onboarding::create_interview_thread(
-            &ctx.http, channel_id, user_id, user_name
-        ).await {
-            Ok(thread_id) => {
-                tracing::info!(
-                    user_id = user_id,
-                    thread_id = thread_id,
-                    "Onboarding thread created"
-                );
-            }
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    user_id = user_id,
-                    "Failed to create onboarding interview thread"
-                );
-            }
-        }
     }
 }
 

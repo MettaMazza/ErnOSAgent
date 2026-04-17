@@ -45,14 +45,7 @@ pub struct EthicalConcern {
 // ─── File paths ───
 
 fn data_dir() -> PathBuf {
-    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ernosagent")
-            .to_string_lossy()
-            .to_string()
-    });
-    PathBuf::from(dir)
+    crate::tools::executor::get_master_data_dir()
 }
 
 fn muted_users_path() -> PathBuf { data_dir().join("muted_users.json") }
@@ -391,6 +384,29 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
     let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
     let scores = call.arguments.get("scores").and_then(|v| v.as_str()).unwrap_or("");
 
+    // Enforce 7-turn minimum interview length for all decisions
+    {
+        #[cfg(feature = "discord")]
+        {
+            let state = crate::platform::discord::onboarding::load_state();
+            if let Some(interview) = state.active_interviews.iter().find(|i| i.user_id == user_id) {
+                if interview.turn_count < 7 {
+                    return ToolResult {
+                        tool_call_id: call.id.clone(),
+                        name: call.name.clone(),
+                        output: format!(
+                            "ERROR (POLICY VIOLATION): You attempted to evaluate the user on turn {}. \
+                            You MUST NOT pass or fail the user before turn 7. You must complete the full technical screening first.",
+                            interview.turn_count
+                        ),
+                        success: false,
+                        error: None,
+                    };
+                }
+            }
+        }
+    }
+
     match decision.to_lowercase().as_str() {
         "pass" => {
             tracing::info!(
@@ -414,9 +430,12 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
                 name: call.name.clone(),
                 output: format!(
                     "✅ PASS — User {} admitted.\nScores: {}\n\
-                    [SYSTEM: The user needs the 'New' role assigned via Discord API. \
-                    This will be handled by the onboarding system. Reply to the user \
-                    welcoming them to the community.]",
+                    [CRITICAL SYSTEM DIRECTIVE: The user needs the 'New' role assigned via Discord API. \
+                    This will be handled automatically by the background onboarding system. \
+                    YOUR ONLY JOB NOW IS TO CONCLUDE THE INTERVIEW. \
+                    DO NOT ASK ANY MORE QUESTIONS. DO NOT CONTINUE THE CONVERSATION. \
+                    Tell the user they have passed, inform them they will receive access shortly, \
+                    and instruct them to move to the main channels.]",
                     user_id, scores
                 ),
                 success: true,
@@ -443,9 +462,11 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
                 name: call.name.clone(),
                 output: format!(
                     "❌ FAIL — User {} rejected. Reason: {}\n\
-                    [SYSTEM: The user will be kicked. This counts as a strike — 3 strikes \
-                    is a permanent ban. Tell them why they failed and warn them about \
-                    the 3-strike policy before they are removed.]",
+                    [CRITICAL SYSTEM DIRECTIVE: The user will be kicked automatically. This counts as a strike — 3 strikes \
+                    is a permanent ban. \
+                    YOUR ONLY JOB NOW IS TO CONCLUDE THE INTERVIEW. \
+                    DO NOT ASK ANY MORE QUESTIONS. DO NOT CONTINUE THE CONVERSATION. \
+                    Tell them why they failed and warn them about the 3-strike policy before they are removed.]",
                     user_id, reason
                 ),
                 success: true,

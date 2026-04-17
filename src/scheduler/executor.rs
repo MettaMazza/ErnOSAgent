@@ -197,7 +197,7 @@ pub async fn execute_job(
                 crate::react::r#loop::ReactEvent::ToolCompleted { name, result } => {
                     let icon = if result.error.is_none() { "✅" } else { "❌" };
                     let output = if result.output.len() > 1800 {
-                        format!("{}…", &result.output[..1800])
+                        format!("{}…", &result.output.chars().take(1800).collect::<String>())
                     } else {
                         result.output.clone()
                     };
@@ -210,7 +210,7 @@ pub async fn execute_job(
                         msg.push_str(&format!("💭 **Thinking**\n```\n{}\n```\n", thought));
                     }
                     let preview = if text.len() > 1800 {
-                        format!("{}…", &text[..1800])
+                        format!("{}…", &text.chars().take(1800).collect::<String>())
                     } else {
                         text.clone()
                     };

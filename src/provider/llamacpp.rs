@@ -389,7 +389,8 @@ impl Provider for LlamaCppProvider {
             // and cause 400 errors. Skip them.
             let valid_images: Vec<&String> = msg.images.iter().filter(|img| {
                 if img.starts_with("http://") || img.starts_with("https://") {
-                    tracing::warn!("Skipping raw URL in image field (not base64-encoded): {}...", &img[..img.len().min(80)]);
+                    let preview: String = img.chars().take(80).collect();
+                    tracing::warn!("Skipping raw URL in image field (not base64-encoded): {}...", preview);
                     false
                 } else {
                     true

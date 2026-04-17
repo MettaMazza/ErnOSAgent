@@ -190,9 +190,9 @@ pub(super) async fn execute_tool_calls(
             result: result.clone(),
         }).await;
 
-        // Multimodal feedback: if image_tool generated an image, inject it
-        // so Gemma 4 can SEE what it created before composing its reply.
-        let tool_images = if call.name == "image_tool" && result.success {
+        // Multimodal feedback: attach generated image (or browser screenshot)
+        // so Gemma 4 can SEE what it created or interacted with.
+        let tool_images = if (call.name == "image_tool" || call.name.starts_with("browser_")) && result.success {
             extract_media_image(&result.output)
         } else {
             Vec::new()

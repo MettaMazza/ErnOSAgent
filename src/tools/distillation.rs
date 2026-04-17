@@ -140,11 +140,14 @@ fn append_to_golden(
             expert_model,
         ) {
             Ok(()) => recorded += 1,
-            Err(e) => tracing::warn!(
-                error = %e,
-                question_preview = &question[..question.len().min(50)],
-                "Failed to record distilled pair — non-fatal"
-            ),
+            Err(e) => {
+                let preview: String = question.chars().take(50).collect();
+                tracing::warn!(
+                    error = %e,
+                    question_preview = %preview,
+                    "Failed to record distilled pair — non-fatal"
+                );
+            }
         }
     }
 

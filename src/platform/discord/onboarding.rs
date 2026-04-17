@@ -25,6 +25,13 @@ pub struct OnboardingState {
     /// Kick history — tracks how many times a user has been kicked
     #[serde(default)]
     pub kick_history: Vec<KickedUser>,
+    /// Whether the auto interviewer is allowed to run
+    #[serde(default = "default_auto_enabled")]
+    pub auto_enabled: bool,
+}
+
+fn default_auto_enabled() -> bool {
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +66,7 @@ impl Default for OnboardingState {
             active_interviews: Vec::new(),
             role_expiries: Vec::new(),
             kick_history: Vec::new(),
+            auto_enabled: false,
         }
     }
 }
@@ -221,8 +229,8 @@ IMMEDIATE FAIL CONDITIONS (do not waste turns):
 - Obvious bad faith (joined to troll or screenshot for mockery)
 - Three or more one-word answers in a row
 
-TO PASS THE USER: Call moderation_tool with action "onboarding_decision", decision "pass", and your scores.
-TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", decision "fail", and your reason. Tell them why they failed. Don't sugarcoat it.
+TO PASS THE USER: Call moderation_tool with action "onboarding_decision", decision "pass", and your scores. CRITICAL: DO NOT PASS THE USER BEFORE TURN 7. You must complete the full interview first.
+TO FAIL THE USER: Call moderation_tool with action "onboarding_decision", decision "fail", and your reason. CRITICAL: DO NOT FAIL THE USER BEFORE TURN 7. You must complete the full interview first, even if they perform poorly, to ensure a fair evaluation. Tell them why they failed. Don't sugarcoat it.
 
 KICK POLICY: Failed users are kicked, not banned. They can rejoin and try again. But the third kick is a permanent ban. Make sure to tell them this when you fail them.
 
@@ -516,6 +524,12 @@ pub async fn kick_user(
         // 3 strikes — permanent ban
         let guild = GuildId::new(guild_id);
         let user = UserId::new(user_id);
+        
+        // Attempt DM before ban
+        if let Ok(dm) = user.create_dm_channel(http).await {
+            let _ = dm.say(http, "You have failed or been kicked from the onboarding process 3 times. You are now permanently banned from the server.").await;
+        }
+
         guild.ban_with_reason(http, user, 0, &format!(
             "Permanently banned after {} failed interviews. Last reason: {}",
             kick_count, reason
@@ -528,6 +542,17 @@ pub async fn kick_user(
     } else {
         let guild = GuildId::new(guild_id);
         let user = UserId::new(user_id);
+        
+        // Attempt DM before kick
+        if let Ok(dm) = user.create_dm_channel(http).await {
+            let _ = dm.say(http, &format!(
+                "Hey you've been kicked because you were inactive for 1hr after joining, or took >24hrs to complete your interview. \
+                You get 1hr to start the interview and 24hrs to complete it. Here is the link to try again: https://discord.gg/4MmbzyA37P\n\n\
+                You can try up to three times. This is attempt {} of 3.",
+                kick_count
+            )).await;
+        }
+
         guild.kick_with_reason(http, user, reason).await?;
         tracing::warn!(
             user_id = user_id,
@@ -646,6 +671,7 @@ pub async fn process_onboarding_decisions(
             if let Err(e) = assign_new_role(http, guild_id, uid, new_role_id).await {
                 tracing::error!(error = %e, user_id = uid, "Failed to assign New role after interview pass");
             } else {
+                register_role_expiry(&uid.to_string(), &user_name, 7);
                 tracing::info!(user_id = uid, "Executed role assignment for passed interview");
             }
         } else if record.decision == "fail" {
@@ -657,7 +683,6 @@ pub async fn process_onboarding_decisions(
             }
         }
         
-        // Remove from active interviews whether pass or fail
         state.active_interviews.retain(|i| i.user_id != record.user_id);
         save_state(&state);
     }
@@ -671,29 +696,127 @@ pub async fn auto_interview_members(
     admin_user_ids: &[String],
 ) {
     let guild = serenity::model::id::GuildId::new(guild_id);
-    let Ok(members) = guild.members(http, Some(1000), None).await else { return; };
 
     let state = load_state();
-    
-    // Find one unverified member to interview
-    for m in members {
-        if m.user.bot { continue; }
-        let uid_str = m.user.id.to_string();
-        if admin_user_ids.iter().any(|id| id == &uid_str) { continue; }
-        
-        // Skip if they have any non-@everyone role
-        if m.roles.iter().any(|r| r.get() != guild_id) { continue; }
-        
-        // Skip if they already have an active interview
-        if state.active_interviews.iter().any(|i| i.user_id == uid_str) { continue; }
+    if !state.auto_enabled {
+        return;
+    }
 
+    let mut last_id: Option<serenity::all::UserId> = None;
+    let mut to_interview = None;
+    
+    // Paginate through members until we find one that needs interviewing
+    loop {
+        let Ok(members) = guild.members(http, Some(1000), last_id).await else { break; };
+        if members.is_empty() { break; }
+        
+        for m in &members {
+            if m.user.bot { continue; }
+            let uid_str = m.user.id.to_string();
+            if admin_user_ids.iter().any(|id| id == &uid_str) { continue; }
+            
+            // Skip if they have any non-@everyone role
+            if m.roles.iter().any(|r| r.get() != guild_id) { continue; }
+            
+            // Skip if they already have an active interview
+            if state.active_interviews.iter().any(|i| i.user_id == uid_str) { continue; }
+
+            to_interview = Some(m.clone());
+            break;
+        }
+
+        if to_interview.is_some() {
+            break;
+        }
+
+        last_id = Some(members.last().unwrap().user.id);
+    }
+
+    if let Some(m) = to_interview {
+        let uid_str = m.user.id.to_string();
         tracing::info!(user_id = %uid_str, "Auto-starting interview for unverified member");
         if let Ok(_thread_id) = create_interview_thread(http, onboarding_channel_id, m.user.id.get(), &m.user.name).await {
-            // State is mutated by create_interview, not needed for loop break 
+            // State is mutated by create_interview
         }
-        // Break after starting one to avoid rate limiting. The polling loop will catch the rest.
-        break;
     }
+}
+
+
+/// Enforce time limits on onboarding interviews:
+/// - No response within 1 hour: Ban
+/// - Not completed within 24 hours: Ban
+pub async fn enforce_onboarding_timeouts(
+    http: &serenity::http::Http,
+    guild_id: u64,
+) {
+    let mut state = load_state();
+    let now = chrono::Utc::now();
+    let mut to_kick: Vec<(u64, String, String, String)> = Vec::new();
+
+    // Identify timed-out users
+    for interview in &state.active_interviews {
+        if let Ok(started) = chrono::DateTime::parse_from_rfc3339(&interview.started_at) {
+            let duration = now.signed_duration_since(started.with_timezone(&chrono::Utc));
+            let hours = duration.num_hours();
+            
+            if interview.turn_count == 0 && hours >= 1 {
+                if let Ok(uid) = interview.user_id.parse::<u64>() {
+                    to_kick.push((uid, interview.user_name.clone(), interview.thread_id.clone(), "Ignored onboarding interview (>1 hour)".to_string()));
+                }
+            } else if hours >= 24 {
+                if let Ok(uid) = interview.user_id.parse::<u64>() {
+                    to_kick.push((uid, interview.user_name.clone(), interview.thread_id.clone(), "Failed to complete onboarding interview (>24 hours)".to_string()));
+                }
+            }
+        }
+    }
+
+    if to_kick.is_empty() { return; }
+
+    // Execute kicks and delete threads
+    for (uid, user_name, thread_id, reason) in to_kick {
+        if let Err(e) = kick_user(http, guild_id, uid, &user_name, &reason).await {
+            tracing::error!(error = %e, user_id = uid, "Failed to kick user for onboarding timeout");
+        } else {
+            tracing::info!(user_id = uid, "Kicked user for onboarding timeout: {}", reason);
+        }
+
+        // Try to delete their thread immediately to clean up chat
+        if let Ok(channel_id) = thread_id.parse::<u64>() {
+            let channel = serenity::model::id::ChannelId::new(channel_id);
+            let _ = channel.delete(http).await;
+        }
+
+        // Remove from active state
+        state.active_interviews.retain(|i| i.user_id != uid.to_string());
+    }
+
+    save_state(&state);
+}
+
+/// Enforce role expirations:
+/// Promote "New" members to "Member" after their trial period expires (7 days).
+pub async fn enforce_role_expiries(
+    http: &serenity::http::Http,
+    guild_id: u64,
+    new_role_id: u64,
+    member_role_id: u64,
+) {
+    let expired = get_expired_roles();
+    if expired.is_empty() { return; }
+
+    let mut state = load_state();
+    for exp in expired {
+        if let Ok(uid) = exp.user_id.parse::<u64>() {
+            if let Err(e) = promote_to_member(http, guild_id, uid, new_role_id, member_role_id).await {
+                tracing::error!(error = %e, user_id = uid, "Failed auto-promotion to Member");
+            } else {
+                tracing::info!(user_id = uid, "Auto-promoted user from New to Member");
+            }
+        }
+        state.role_expiries.retain(|r| r.user_id != exp.user_id);
+    }
+    save_state(&state);
 }
 
 // ─── Tests ───

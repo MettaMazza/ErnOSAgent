@@ -224,17 +224,13 @@ pub async fn run_react_pipeline(
     };
     let session_id = session_key.clone();
 
-    // ── 5.5. Set per-user data dir for tools ──────────────────────────
-    // All tools read ERNOSAGENT_DATA_DIR to locate their storage.
-    // Point it at the per-user directory so timeline, lessons, scratchpad
-    // etc. read/write to the same location as the MemoryManager.
-    {
+    // ── 5.5. Deduce per-user data dir for tools ──────────────────────────
+    // All tools will use RUNTIME_DATA_DIR task_local to locate their storage.
+    let user_data_dir = {
         let st = state.read().await;
         let safe_key = session_key.replace(':', "_");
-        let user_data_dir = st.config.general.data_dir.join("users").join(&safe_key);
-        std::env::set_var("ERNOSAGENT_DATA_DIR", user_data_dir.to_string_lossy().as_ref());
-        tracing::debug!(user_data_dir = %user_data_dir.display(), "Set ERNOSAGENT_DATA_DIR for tool isolation");
-    }
+        st.config.general.data_dir.join("users").join(&safe_key)
+    };
 
     // Set platform context so system_recompile knows where to route post-restart messages
     std::env::set_var("ERNOSAGENT_RECOMPILE_PLATFORM", &ctx.platform);
@@ -259,7 +255,7 @@ pub async fn run_react_pipeline(
     let react_handle = super::chat::spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        context_length, executor,
+        context_length, executor, user_data_dir,
         #[cfg(feature = "discord")]
         discord_http_for_tools,
     );

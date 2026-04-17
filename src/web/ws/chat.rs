@@ -22,8 +22,9 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     {
         let st = state.read().await;
         if st.is_generating {
+            st.cancel_token.store(true, Ordering::SeqCst);
             let _ = send_json(socket, &ServerMessage::Error {
-                message: "Generation already in progress".to_string(),
+                message: "Interrupting active generation. Please wait a moment and send again.".to_string(),
             }).await;
             return;
         }
@@ -57,16 +58,21 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     let (provider, model, messages, tools, system_prompt, identity_prompt) =
         build_chat_context(state, user_message, memory_budget).await;
 
-    let (training_buffers, session_id, cancel_token) = {
+    let (training_buffers, session_id, cancel_token, user_data_dir) = {
         let st = state.read().await;
-        (st.training_buffers.clone(), st.session_mgr.active().id.clone(), Arc::clone(&st.cancel_token))
+        (
+            st.training_buffers.clone(), 
+            st.session_mgr.active().id.clone(), 
+            Arc::clone(&st.cancel_token),
+            st.config.general.data_dir.clone(),
+        )
     };
 
     let (event_tx, event_rx) = mpsc::channel::<ReactEvent>(256);
     let react_handle = spawn_react_loop(
         provider, model, messages, tools, system_prompt, identity_prompt,
         event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        context_length, executor,
+        context_length, executor, user_data_dir,
         #[cfg(feature = "discord")]
         None,
     );
@@ -124,20 +130,23 @@ pub(crate) fn spawn_react_loop(
     observer_model: Option<String>,
     context_length: u64,
     executor: Arc<crate::tools::executor::ToolExecutor>,
+    user_data_dir: std::path::PathBuf,
     #[cfg(feature = "discord")]
     discord_http: Option<std::sync::Arc<serenity::http::Http>>,
 ) -> tokio::task::JoinHandle<anyhow::Result<react_loop::ReactResult>> {
     let react_config = ReactConfig { observer_enabled, observer_model, context_length };
 
     tokio::spawn(async move {
-        react_loop::execute_react_loop(
-            &provider, &model, messages, &tools, &executor,
-            &react_config, &system_prompt, &identity_prompt, event_tx,
-            training_buffers, &session_id,
-            #[cfg(feature = "discord")]
-            discord_http,
-            None, // No cancel token for user chat
-        ).await
+        crate::tools::executor::RUNTIME_DATA_DIR.scope(user_data_dir, async move {
+            react_loop::execute_react_loop(
+                &provider, &model, messages, &tools, &executor,
+                &react_config, &system_prompt, &identity_prompt, event_tx,
+                training_buffers, &session_id,
+                #[cfg(feature = "discord")]
+                discord_http,
+                None, // No cancel token for user chat
+            ).await
+        }).await
     })
 }
 

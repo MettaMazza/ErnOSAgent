@@ -11,6 +11,31 @@ use std::collections::HashMap;
 /// Type alias for tool handler functions.
 pub type ToolHandler = Box<dyn Fn(&ToolCall) -> ToolResult + Send + Sync>;
 
+tokio::task_local! {
+    /// Task-scoped data directory for isolated tool execution.
+    pub static RUNTIME_DATA_DIR: std::path::PathBuf;
+}
+
+/// Helper function to explicitly retrieve the global master data directory.
+/// Use this bypassing task-local scope when executing administrative tools (like moderation).
+pub fn get_master_data_dir() -> std::path::PathBuf {
+    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
+        dirs::home_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join(".ernosagent")
+            .to_string_lossy()
+            .to_string()
+    });
+    std::path::PathBuf::from(dir)
+}
+
+/// Helper function to retrieve the data directory for tools.
+/// It attempts to resolve the task-local scoped directory first. 
+/// If un-scoped (e.g. background tasks), it falls back to the master environment default.
+pub fn get_data_dir() -> std::path::PathBuf {
+    RUNTIME_DATA_DIR.try_with(|d| d.clone()).unwrap_or_else(|_| get_master_data_dir())
+}
+
 /// Registry and dispatcher for tool implementations.
 pub struct ToolExecutor {
     handlers: HashMap<String, ToolHandler>,

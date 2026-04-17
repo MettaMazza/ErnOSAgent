@@ -33,14 +33,7 @@ fn flux_server_url() -> Option<String> {
 
 /// Default output directory for generated images.
 pub fn output_dir() -> std::path::PathBuf {
-    let base = std::env::var("ERNOSAGENT_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join(".ernosagent")
-        });
-    base.join("generated_images")
+    crate::tools::executor::get_data_dir().join("generated_images")
 }
 
 fn image_tool(call: &ToolCall) -> ToolResult {

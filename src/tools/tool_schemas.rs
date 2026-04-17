@@ -32,6 +32,48 @@ fn def(name: &str, description: &str, params: serde_json::Value) -> ToolDefiniti
 /// by the chat handler to guarantee it is always last.
 pub fn all_tool_definitions() -> Vec<ToolDefinition> {
     vec![
+        // ── Browser Automation ───────────────────────────────────
+        def("browser_navigate",
+            "Open the built-in Chrome browser, navigate to a URL, and return a preview of the rendered page content.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The fully qualified URL to visit (e.g. 'https://github.com/')."
+                    }
+                },
+                "required": ["url"]
+            })),
+        def("browser_click",
+            "Click on an element in the active browser tab.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "A valid CSS selector for the element to click."
+                    }
+                },
+                "required": ["selector"]
+            })),
+        def("browser_type",
+            "Type text into an input field on the active browser tab.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "A valid CSS selector for the input element."
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The exact text string to type into the element."
+                    }
+                },
+                "required": ["selector", "text"]
+            })),
+
         // ── Memory ───────────────────────────────────────────────
         def("memory_tool",
             "Access and manage the 5-tier memory system. Use this to store information, \

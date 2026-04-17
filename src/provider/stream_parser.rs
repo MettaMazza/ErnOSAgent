@@ -35,6 +35,7 @@ pub async fn parse_sse_stream(
     let mut tool_bufs: HashMap<usize, ToolCallBuf> = HashMap::new();
     // Thinking token accumulator for spiral detection
     let mut thinking_buffer = String::new();
+    let mut in_think = false;
     let mut spiral_detected = false;
 
     while let Some(chunk) = stream.next().await {
@@ -64,7 +65,7 @@ pub async fn parse_sse_stream(
                 }
 
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                    process_sse_choices(&parsed, tx, &mut tool_bufs, &mut thinking_buffer).await;
+                    process_sse_choices(&parsed, tx, &mut tool_bufs, &mut thinking_buffer, &mut in_think).await;
                     // Check for spiral every 500 thinking chars
                     if thinking_buffer.len() > 500 && detect_thought_spiral(&thinking_buffer) {
                         tracing::warn!(
@@ -130,6 +131,7 @@ async fn process_sse_choices(
     tx: &mpsc::Sender<StreamEvent>,
     tool_bufs: &mut HashMap<usize, ToolCallBuf>,
     thinking_buffer: &mut String,
+    in_think: &mut bool,
 ) {
     let Some(choices) = parsed.get("choices").and_then(|c| c.as_array()) else {
         return;
@@ -138,10 +140,23 @@ async fn process_sse_choices(
     for choice in choices {
         let delta = choice.get("delta").unwrap_or(choice);
 
-        // Content tokens
+        // Content tokens — natively extract <think> if injected dynamically
         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
             if !content.is_empty() {
-                let _ = tx.send(StreamEvent::Token(content.to_string())).await;
+                if content.contains("<think>") {
+                    *in_think = true;
+                }
+                
+                if *in_think {
+                    thinking_buffer.push_str(content);
+                    let _ = tx.send(StreamEvent::Thinking(content.to_string())).await;
+                } else {
+                    let _ = tx.send(StreamEvent::Token(content.to_string())).await;
+                }
+
+                if content.contains("</think>") {
+                    *in_think = false;
+                }
             }
         }
 
@@ -252,7 +267,7 @@ mod tests {
             }]
         });
 
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new()).await;
+        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
 
         let event = rx.try_recv().unwrap();
         match event {
@@ -283,9 +298,9 @@ mod tests {
             "choices": [{"delta": {}, "finish_reason": "tool_calls"}]
         });
 
-        process_sse_choices(&chunk1, &tx, &mut tool_bufs, &mut String::new()).await;
-        process_sse_choices(&chunk2, &tx, &mut tool_bufs, &mut String::new()).await;
-        process_sse_choices(&chunk3, &tx, &mut tool_bufs, &mut String::new()).await;
+        process_sse_choices(&chunk1, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(&chunk2, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(&chunk3, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
 
         let event = rx.try_recv().unwrap();
         match event {
@@ -305,7 +320,7 @@ mod tests {
         let data = serde_json::json!({
             "choices": [{"delta": {"content": "Hello world"}}]
         });
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new()).await;
+        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
 
         assert!(matches!(rx.try_recv().unwrap(), StreamEvent::Token(t) if t == "Hello world"));
     }
@@ -320,7 +335,7 @@ mod tests {
                 "function": {"name": "reply_request", "arguments": "{}"}}]},
                 "finish_reason": "tool_calls"}]
         });
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new()).await;
+        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
 
         let event = rx.try_recv().unwrap();
         match event {

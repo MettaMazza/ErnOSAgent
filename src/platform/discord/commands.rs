@@ -33,6 +33,10 @@ fn build_commands() -> Vec<CreateCommand> {
             .description("⚠️ NUCLEAR: Start 24h countdown to kick all members (admin-only)"),
         CreateCommand::new("cancelkickall")
             .description("Cancel an active /kickall countdown (admin-only)"),
+        CreateCommand::new("cleaninterviews")
+            .description("⚠️ NUCLEAR: Delete all onboarding threads and reset interview state (admin-only)"),
+        CreateCommand::new("toggleonboarding")
+            .description("Pause or resume the auto-interviewer background loop (admin-only)"),
     ]
 }
 
@@ -57,7 +61,7 @@ pub async fn handle_command(
     onboarding_config: &OnboardingConfig,
 ) {
     // Slow commands: defer immediately (Discord 3s timeout), then follow up
-    let is_slow = matches!(command.data.name.as_str(), "interview" | "kickall" | "cancelkickall");
+    let is_slow = matches!(command.data.name.as_str(), "interview" | "kickall" | "cancelkickall" | "cleaninterviews" | "toggleonboarding");
 
     if is_slow {
         // Acknowledge immediately — buys us 15 minutes
@@ -73,6 +77,8 @@ pub async fn handle_command(
             "interview" => handle_interview(ctx, command, admin_user_ids, onboarding_config).await,
             "kickall" => super::kickall::handle_kickall(ctx, command, admin_user_ids).await,
             "cancelkickall" => super::kickall::handle_cancelkickall(ctx, command, admin_user_ids).await,
+            "cleaninterviews" => handle_clean_interviews(ctx, command, admin_user_ids, onboarding_config).await,
+            "toggleonboarding" => handle_toggle_onboarding(command, admin_user_ids).await,
             _ => "Unknown command.".to_string(),
         };
 
@@ -107,6 +113,28 @@ pub async fn handle_command(
     }
 }
 
+async fn handle_toggle_onboarding(
+    command: &CommandInteraction,
+    admin_user_ids: &[String],
+) -> String {
+    let caller_id = command.user.id.to_string();
+
+    if !admin_user_ids.iter().any(|id| id == &caller_id) {
+        return "❌ Admin-only command.".to_string();
+    }
+
+    let mut state = super::onboarding::load_state();
+    state.auto_enabled = !state.auto_enabled;
+    let enabled = state.auto_enabled;
+    super::onboarding::save_state(&state);
+
+    if enabled {
+        "▶️ Onboarding auto-interviewer is now **RESUMED**. New members will be automatically vetted.".to_string()
+    } else {
+        "⏸️ Onboarding auto-interviewer is now **PAUSED**. You can safely clean up threads without auto-restarts. Use `/interview` to manually fetch the next person.".to_string()
+    }
+}
+
 async fn handle_status() -> String {
     "🟢 **ErnOS Agent Online**\n\
     Use the chat to interact with the full ReAct pipeline.\n\
@@ -132,6 +160,68 @@ async fn handle_session(command: &CommandInteraction) -> String {
         command.user.id,
         command.user.id,
     )
+}
+
+async fn handle_clean_interviews(
+    ctx: &Context,
+    command: &CommandInteraction,
+    admin_user_ids: &[String],
+    config: &OnboardingConfig,
+) -> String {
+    let caller_id = command.user.id.to_string();
+
+    if !admin_user_ids.iter().any(|id| id == &caller_id) {
+        return "❌ Admin-only command.".to_string();
+    }
+
+    if config.channel_id.is_empty() || config.guild_id.is_empty() {
+        return "❌ Onboarding not configured.".to_string();
+    }
+
+    let guild_id: u64 = match config.guild_id.parse() {
+        Ok(id) => id,
+        Err(_) => return "❌ Invalid guild_id in config.".to_string(),
+    };
+
+    let guild = serenity::model::id::GuildId::new(guild_id);
+    let channel_id_parsed: u64 = match config.channel_id.parse() {
+        Ok(id) => id,
+        Err(_) => return "❌ Invalid channel_id in config.".to_string(),
+    };
+
+    let channel = serenity::model::id::ChannelId::new(channel_id_parsed);
+    let mut state = super::onboarding::load_state();
+    let mut deleted_count = 0;
+
+    // Delete ALL active private threads in the channel matching Interview
+    if let Ok(threads) = guild.get_active_threads(&ctx.http).await {
+        for thread in threads.threads {
+            if thread.parent_id == Some(channel) && thread.kind == serenity::all::ChannelType::PrivateThread && thread.name.starts_with("Interview —") {
+                if let Err(e) = thread.delete(&ctx.http).await {
+                    tracing::warn!(error = %e, thread_id = %thread.id, "Failed to delete thread");
+                } else {
+                    deleted_count += 1;
+                }
+            }
+        }
+    }
+
+    // Explicitly delete threads saved in state to prevent archived/ghost threads
+    for interview in &state.active_interviews {
+        if let Ok(id) = interview.thread_id.parse::<u64>() {
+            let ch = serenity::model::id::ChannelId::new(id);
+            if let Ok(_) = ch.delete(&ctx.http).await {
+                deleted_count += 1;
+            }
+        }
+    }
+
+    // Wipe state active interviews unconditionally
+    let user_count = state.active_interviews.len();
+    state.active_interviews.clear();
+    super::onboarding::save_state(&state);
+
+    format!("✅ Nuked {} threads and wiped {} users from the interview queue.", deleted_count, user_count)
 }
 
 /// `/interview` — Find the next member without a role and start their onboarding interview.

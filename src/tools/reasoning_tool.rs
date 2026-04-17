@@ -25,14 +25,7 @@ pub struct ReasoningTrace {
 }
 
 fn traces_path() -> PathBuf {
-    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ernosagent")
-            .to_string_lossy()
-            .to_string()
-    });
-    PathBuf::from(dir).join("reasoning/traces.jsonl")
+    crate::tools::executor::get_data_dir().join("reasoning/traces.jsonl")
 }
 
 fn load_traces() -> Vec<ReasoningTrace> {
@@ -54,6 +47,25 @@ fn append_trace(trace: &ReasoningTrace) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
+    
+    // Auto-rotation: If file is > 2MB, truncate to last 1000 lines
+    if let Ok(metadata) = std::fs::metadata(&path) {
+        if metadata.len() > 2 * 1024 * 1024 {
+            let traces = load_traces();
+            if traces.len() > 1000 {
+                let recent = &traces[traces.len().saturating_sub(1000)..];
+                if let Ok(mut f) = std::fs::File::create(&path) {
+                    for t in recent {
+                        if let Ok(json) = serde_json::to_string(t) {
+                            use std::io::Write;
+                            let _ = writeln!(f, "{}", json);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if let Ok(json) = serde_json::to_string(trace) {
         use std::io::Write;
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {

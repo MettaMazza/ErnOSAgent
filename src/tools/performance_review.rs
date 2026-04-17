@@ -140,14 +140,7 @@ fn gather_lessons() -> String {
 
 /// Path to the lesson store file.
 fn lesson_store_path() -> std::path::PathBuf {
-    let dir = std::env::var("ERNOSAGENT_DATA_DIR").unwrap_or_else(|_| {
-        dirs::home_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join(".ernosagent")
-            .to_string_lossy()
-            .to_string()
-    });
-    std::path::PathBuf::from(dir).join("lessons.json")
+    crate::tools::executor::get_data_dir().join("lessons.json")
 }
 
 /// Format the complete performance report.

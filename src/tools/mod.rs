@@ -37,6 +37,7 @@ pub mod scheduler_tool;
 pub mod autonomy_tool;
 pub mod moderation_tool;
 pub mod image_tool;
+pub mod browser_tool;
 
 pub use schema::{ToolCall, ToolResult};
 
@@ -83,5 +84,6 @@ pub fn build_default_executor() -> executor::ToolExecutor {
     download_tool::register_tools(&mut executor);
     moderation_tool::register_tools(&mut executor);
     image_tool::register_tools(&mut executor);
+    browser_tool::register_tools(&mut executor);
     executor
 }
