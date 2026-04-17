@@ -92,13 +92,17 @@ pub(super) async fn collect_inference(
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, tool = %name, "Failed to parse tool call JSON arguments");
-                        // Inject the failure directly into the assistant's response text so the 
-                        // ReAct loop naturally sees it as text and responds, triggering auto-correction
-                        // without hitting 0-token block logic.
-                        response_text.push_str(&format!(
-                            "\n[TOOL ERROR: Attempted to call '{}' but generated invalid JSON: '{}'. Error: {}. Fix the syntax.]\n",
-                            name, arguments, e
-                        ));
+                        // Inject a synthetic ToolCall holding the error.
+                        // This bypasses the bare-text auto-wrapper, avoids the Observer, 
+                        // and natively forces the ToolExecutor to return an execution error 
+                        // back to the LLM context so it can self-correct.
+                        tool_calls.push(ToolCall {
+                            id: if id.is_empty() { uuid::Uuid::new_v4().to_string() } else { id.clone() },
+                            name: format!("malformed_json_in_{}", name),
+                            arguments: serde_json::json!({
+                                "error": format!("Your JSON arguments for tool '{}' were invalid: {}. Raw arguments: {}", name, e, arguments)
+                            }),
+                        });
                     }
                 }
             }
