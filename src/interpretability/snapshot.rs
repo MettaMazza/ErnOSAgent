@@ -237,16 +237,16 @@ fn compute_cognitive_profile(
         if let Some(label) = dictionary.get_by_name(&feat.name) {
             match &label.category {
                 FeatureCategory::Cognitive => {
-                    // Map specific cognitive features
+                    // Map ALL core cognitive baseline features to reasoning to avoid 0.0 flatlines
                     match label.name.as_str() {
-                        "Reasoning Chain" | "Mathematical Reasoning" => {
+                        "Reasoning Chain" | "Mathematical Reasoning" | "Planning" | "Tool Selection" | "Instruction Following" => {
                             reasoning += feat.normalized;
+                            planning += feat.normalized * 0.5; // Shared overlap
                         }
-                        "Creativity" => creativity += feat.normalized,
-                        "Factual Recall" | "Context Integration" => {
+                        "Creativity" | "Context Integration" => creativity += feat.normalized,
+                        "Factual Recall" | "Technical Depth" => {
                             recall += feat.normalized;
                         }
-                        "Planning" | "Tool Selection" => planning += feat.normalized,
                         "Uncertainty" | "Knowledge Boundary" => {
                             uncertainty += feat.normalized;
                         }

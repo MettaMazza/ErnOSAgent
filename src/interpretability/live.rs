@@ -226,8 +226,10 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 return snapshot::empty_snapshot(turn);
             }
 
-            // Run through SAE encoder — get top 20 features
-            let mut features = sae.encode(&activations, 20);
+            // Run through SAE encoder — get top 150 features to ensure we reliably capture 
+            // baseline cognitive structures (Reasoning/Creativity) that otherwise get pushed 
+            // out of the top 20 by high-valence Emotion features on shorter prompts.
+            let mut features = sae.encode(&activations, 150);
 
             // Relabel features using the feature map
             if let Some(ref map) = state.feature_map {
