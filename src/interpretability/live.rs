@@ -240,6 +240,12 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 }
             }
 
+            // The L2 Norm of the raw unpooled residual vector explicitly represents 
+            // the baseline operational mass (uncategorized capability). We pass it down 
+            // to prevent the cognitive profile from yielding theoretical zeroes merely 
+            // because emotions dominated the categorical slice.
+            let l2_norm: f32 = activations.iter().map(|x| x * x).sum::<f32>().sqrt();
+
             tracing::info!(
                 turn = turn,
                 active_features = features.len(),
@@ -251,7 +257,7 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 "Live SAE encoding complete"
             );
 
-            snapshot::build_snapshot(turn, &features, &state.dictionary)
+            snapshot::build_snapshot(turn, &features, &state.dictionary, l2_norm)
         }
         Err(e) => {
             tracing::warn!(

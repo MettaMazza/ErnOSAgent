@@ -80,6 +80,7 @@ pub fn build_snapshot(
     turn: usize,
     features: &[FeatureActivation],
     dictionary: &FeatureDictionary,
+    residual_l2_norm: f32,
 ) -> NeuralSnapshot {
     let start = std::time::Instant::now();
     let timestamp_ms = std::time::SystemTime::now()
@@ -89,7 +90,7 @@ pub fn build_snapshot(
 
     let labeled = label_features(features, dictionary);
     let alerts = extract_safety_alerts(&labeled, dictionary);
-    let profile = compute_cognitive_profile(&labeled, dictionary);
+    let profile = compute_cognitive_profile(&labeled, dictionary, residual_l2_norm);
 
     // Compute emotional state from active emotion features
     let emotion_pairs: Vec<(String, f32)> = labeled
@@ -225,11 +226,16 @@ fn extract_safety_alerts(
 fn compute_cognitive_profile(
     labeled: &[LabeledFeature],
     dictionary: &FeatureDictionary,
+    residual_l2_norm: f32,
 ) -> CognitiveProfile {
-    let mut reasoning = 0.0f32;
-    let mut creativity = 0.0f32;
-    let mut recall = 0.0f32;
-    let mut planning = 0.0f32;
+    // Incorporate the uncategorized raw residual tensor mass as the true irreducible baseline.
+    // An LLM generating syntax always has base hardware activity. Norm roughly 40.0 - 80.0.
+    let base_pulse = (residual_l2_norm / 150.0).clamp(0.01, 0.40);
+
+    let mut reasoning = base_pulse;
+    let mut creativity = base_pulse * 0.8;
+    let mut recall = base_pulse * 0.9;
+    let mut planning = base_pulse * 0.7;
     let mut safety_vigilance = 0.0f32;
     let mut uncertainty = 0.0f32;
 
@@ -363,7 +369,7 @@ pub fn simulate_snapshot(turn: usize, prompt: &str) -> NeuralSnapshot {
         "Simulated neural activations from prompt"
     );
 
-    let mut snapshot = build_snapshot(turn, &features, &dictionary);
+    let mut snapshot = build_snapshot(turn, &features, &dictionary, 45.0); // Baseline sim norm
     snapshot.is_live = false; // This is simulated, not real SAE data
     snapshot
 }
