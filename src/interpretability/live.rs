@@ -283,11 +283,10 @@ async fn extract_activations(
     embed_url: &str,
     text: &str,
 ) -> anyhow::Result<Vec<f32>> {
-    // Use standard OAI-compatible /v1/embeddings endpoint
-    let url = format!("{}/v1/embeddings", embed_url);
+    // Use native llama.cpp endpoint, NOT the OAI-compatible /v1/embeddings
+    let url = format!("{}/embedding", embed_url);
     let body = serde_json::json!({
-        "input": text,
-        "model": "text-embedding", // Dummy model argument for compatibility
+        "content": text,
     });
 
     let resp = client.post(&url)
@@ -304,13 +303,13 @@ async fn extract_activations(
 
     let parsed: serde_json::Value = resp.json().await?;
 
-    // OAI /v1/embeddings returns: {"data": [{"index":0,"embedding":[f32...]}]}
+    // Native endpoint returns: [{"index":0,"embedding":[[f32...]]}]
+    // The embedding can be nested [[f32...]] or flat [f32...] depending on version
     let embedding = parsed
-        .get("data")
-        .and_then(|d| d.as_array())
+        .as_array()
         .and_then(|arr| arr.first())
         .and_then(|item| item.get("embedding"))
-        .or_else(|| parsed.get("embedding")); // Fallback just in case
+        .or_else(|| parsed.get("embedding"));
 
     let values: Vec<f32> = match embedding {
         Some(emb) => {

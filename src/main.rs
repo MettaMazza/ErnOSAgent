@@ -61,12 +61,11 @@ async fn main() -> Result<()> {
     }
 
     // Initialize live SAE for real-time interpretability
-    // Uses a DEDICATED embedding server (same Gemma 4 model, port 8081)
-    // so SAE activation extraction doesn't contend with inference requests.
+    // FORCE connection to the main generative server (port 8080) for raw SAE activations.
+    // The previously intended dedicated server on 8081 is now explicitly pooled via 
+    // Nomic for OAI compatibility and mathematically cannot provide raw unpooled residual states.
     {
-        let embed_url = if config.llamacpp.embedding_port > 0 {
-            format!("http://localhost:{}", config.llamacpp.embedding_port)
-        } else if !config.llamacpp.model_path.is_empty() {
+        let embed_url = if !config.llamacpp.model_path.is_empty() {
             format!("http://localhost:{}", config.llamacpp.port)
         } else {
             String::new()
