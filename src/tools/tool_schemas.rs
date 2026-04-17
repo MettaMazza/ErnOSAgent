@@ -227,6 +227,28 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
             }),
         ),
 
+        // ── STEM Mini Lab ────────────────────────────────────────
+        def("stem_lab",
+            "University-grade STEM computational engine. Use this to execute rigorous math, physics, \
+             statistics, linear algebra, or design experiments. Do NOT guess STEM answers using inference \
+             — you MUST use this tool to calculate and verify them.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["compute", "solve", "matrix", "stats", "experiment", "physics_lookup", "chemistry_lookup"],
+                        "description": "The rigorous STEM calculation to perform."
+                    },
+                    "payload": {
+                        "type": "string",
+                        "description": "Data payload: multi-line python algorithm for 'compute', algebraic expression for 'solve', dataset list for 'stats', or the research question for 'experiment'."
+                    }
+                },
+                "required": ["action", "payload"]
+            }),
+        ),
+
         // ── Web ──────────────────────────────────────────────────
         def("web_tool",
             "Search the web or visit a specific URL. Use 'search' for general queries \

@@ -59,6 +59,7 @@ pub(super) async fn collect_inference(
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut thought_spiral: Option<String> = None;
     let mut cancelled = false;
+    let mut in_think_block = false;
 
     while let Some(event) = rx.recv().await {
         // Check cancel token on every chunk — abort mid-stream if set
@@ -79,13 +80,33 @@ pub(super) async fn collect_inference(
 
         match event {
             StreamEvent::Token(token) => {
+                if in_think_block {
+                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
+                        response_text.push_str("\n</think>\n");
+                    }
+                    in_think_block = false;
+                }
+                response_text.push_str(&token);
+                // Standard un-thinking tokens go to ReactEvent::Token
+                let _ = event_tx.send(ReactEvent::Token(token)).await;
+            }
+            StreamEvent::Thinking(token) => {
+                if !in_think_block {
+                    if !token.contains("<think>") {
+                        response_text.push_str("<think>\n");
+                    }
+                    in_think_block = true;
+                }
                 response_text.push_str(&token);
                 let _ = event_tx.send(ReactEvent::Thinking(token)).await;
             }
-            StreamEvent::Thinking(token) => {
-                let _ = event_tx.send(ReactEvent::Thinking(token)).await;
-            }
             StreamEvent::ToolCall { id, name, arguments } => {
+                if in_think_block {
+                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
+                        response_text.push_str("\n</think>\n");
+                    }
+                    in_think_block = false;
+                }
                 match serde_json::from_str::<serde_json::Value>(&arguments) {
                     Ok(args) => {
                         tool_calls.push(ToolCall { id, name, arguments: args });
@@ -107,6 +128,11 @@ pub(super) async fn collect_inference(
                 }
             }
             StreamEvent::Done { .. } => {
+                if in_think_block {
+                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
+                        response_text.push_str("\n</think>\n");
+                    }
+                }
                 tracing::info!(turn = turn, elapsed_ms = start.elapsed().as_millis(), "collect_inference stream DONE");
                 break;
             }

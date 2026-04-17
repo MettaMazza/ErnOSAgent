@@ -11,9 +11,10 @@
 
 use crate::provider::Message;
 
-/// Estimated tokens for a message (rough: 4 chars ≈ 1 token, plus 4000 for each image).
+/// Estimated tokens for a message (conservative: 3 bytes ≈ 1 token, plus 4000 for each image).
+/// Used because JSON and code have lower token density than prose.
 fn estimate_tokens(m: &Message) -> usize {
-    (m.content.len() / 4 + 1) + (m.images.len() * 4000)
+    (m.content.len() / 3 + 1) + (m.images.len() * 4000)
 }
 
 /// Build the full message array for an inference call.
@@ -149,7 +150,7 @@ mod tests {
             msg("system", &"x".repeat(4000)), // ~1000 tokens
         ];
         let usage = context_usage(&messages, 4096);
-        assert!(usage > 0.2 && usage < 0.3);
+        assert!(usage > 0.3 && usage < 0.4);
     }
 
     #[test]
@@ -168,7 +169,7 @@ mod tests {
     #[test]
     fn test_estimate_tokens() {
         assert_eq!(estimate_tokens(&msg("user", "")), 1);
-        assert_eq!(estimate_tokens(&msg("user", "hello world")), 3); // 11/4+1
-        assert_eq!(estimate_tokens(&msg("user", &"x".repeat(100))), 26); // 100/4+1
+        assert_eq!(estimate_tokens(&msg("user", "hello world")), 4); // 11/3+1
+        assert_eq!(estimate_tokens(&msg("user", &"x".repeat(100))), 34); // 100/3+1
     }
 }

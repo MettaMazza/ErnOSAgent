@@ -267,7 +267,7 @@ pub async fn run_react_pipeline(
 
     // For Discord: create a thinking thread on the first turn and update it with tokens.
     #[cfg(feature = "discord")]
-    let mut thinking_thread: Option<crate::platform::discord::telemetry::ThinkingThread> = None;
+    let mut thinking_indicator: Option<crate::platform::discord::telemetry::ThinkingIndicator> = None;
     #[cfg(feature = "discord")]
     let discord_http_for_thinking = if ctx.platform == "discord" {
         let st = state.read().await;
@@ -295,18 +295,18 @@ pub async fn run_react_pipeline(
                         Some(http) => {
                             match (ctx.channel_id.parse::<u64>(), ctx.message_id.parse::<u64>()) {
                                 (Ok(ch), Ok(mid)) => {
-                                    match crate::platform::discord::telemetry::ThinkingThread::create(
+                                    match crate::platform::discord::telemetry::ThinkingIndicator::create(
                                         http,
                                         serenity::model::id::ChannelId::new(ch),
                                         serenity::model::id::MessageId::new(mid),
                                         &ctx.user_name,
                                     ).await {
                                         Ok(tt) => {
-                                            thinking_thread = Some(tt);
-                                            tracing::info!("ThinkingThread created for Discord user {}", ctx.user_name);
+                                            thinking_indicator = Some(tt);
+                                            tracing::info!("ThinkingIndicator created for Discord user {}", ctx.user_name);
                                         }
                                         Err(e) => {
-                                            tracing::error!(error = %e, "ThinkingThread creation FAILED");
+                                            tracing::error!(error = %e, "ThinkingIndicator creation FAILED");
                                         }
                                     }
                                 }
@@ -325,11 +325,11 @@ pub async fn run_react_pipeline(
                 }
             }
             ReactEvent::Thinking(token) => {
-                // Forward thinking tokens to the Discord thread
+                // Forward thinking tokens to the Discord thread/embed
                 #[cfg(feature = "discord")]
-                if let Some(ref mut tt) = thinking_thread {
+                if let Some(ref mut ti) = thinking_indicator {
                     if let Some(ref http) = discord_http_for_thinking {
-                        let _ = tt.update(http, &token).await;
+                        let _ = ti.update(http, &token).await;
                     }
                 }
             }
@@ -362,11 +362,11 @@ pub async fn run_react_pipeline(
                 );
             }
             ReactEvent::ResponseReady { text } => {
-                // Finalise thinking thread
+                // Finalise thinking thread/embed
                 #[cfg(feature = "discord")]
-                if let Some(ref mut tt) = thinking_thread {
+                if let Some(ref mut ti) = thinking_indicator {
                     if let Some(ref http) = discord_http_for_thinking {
-                        let _ = tt.complete(http.clone()).await;
+                        let _ = ti.complete(http.clone()).await;
                     }
                 }
 

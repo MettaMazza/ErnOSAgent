@@ -101,6 +101,10 @@ impl LlamaCppProvider {
         args.push("--n-gpu-layers".to_string());
         args.push(self.n_gpu_layers.to_string());
 
+        // Delegate context detection to native GGUF limits
+        args.push("-c".to_string());
+        args.push("0".to_string());
+
         // Enable embedding endpoint on main server (needed for SAE activation extraction)
         args.push("--embeddings".to_string());
 

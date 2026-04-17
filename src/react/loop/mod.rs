@@ -136,7 +136,7 @@ pub async fn execute_react_loop(
                 // 4000 token offset for tool schemas so context is never pushed natively over the edge
                 let budget = config.context_length.saturating_sub(4000) as usize;
                 let estimate = |m: &Message| -> usize { 
-                    (m.content.len() / 4 + 1) + (m.images.len() * 4000)
+                    (m.content.len() / 3 + 1) + (m.images.len() * 4000)
                 };
 
                 let mut total: usize = messages.iter().map(|m| estimate(m)).sum();

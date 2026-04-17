@@ -38,6 +38,7 @@ pub mod autonomy_tool;
 pub mod moderation_tool;
 pub mod image_tool;
 pub mod browser_tool;
+pub mod stem_tool;
 
 pub use schema::{ToolCall, ToolResult};
 
@@ -85,5 +86,6 @@ pub fn build_default_executor() -> executor::ToolExecutor {
     moderation_tool::register_tools(&mut executor);
     image_tool::register_tools(&mut executor);
     browser_tool::register_tools(&mut executor);
+    stem_tool::register_tools(&mut executor);
     executor
 }
