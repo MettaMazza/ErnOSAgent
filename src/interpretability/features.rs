@@ -384,6 +384,36 @@ impl FeatureDictionary {
             .unwrap_or_else(|| format!("Feature #{}", index))
     }
 
+    /// Retrieve a feature label by its human-readable name, bypassing rigid integer bounds.
+    pub fn get_by_name(&self, name: &str) -> Option<&FeatureLabel> {
+        self.labels.values().find(|l| l.name == name)
+    }
+
+    /// Check if a feature is safety-relevant by name.
+    pub fn is_safety_by_name(&self, name: &str) -> bool {
+        self.get_by_name(name)
+            .map(|l| matches!(l.category, FeatureCategory::Safety(_)))
+            .unwrap_or(false)
+    }
+
+    /// Check if a feature is an emotion feature by name.
+    pub fn is_emotion_by_name(&self, name: &str) -> bool {
+        self.get_by_name(name)
+            .map(|l| l.is_emotion())
+            .unwrap_or(false)
+    }
+
+    /// Get the safety type by name.
+    pub fn safety_type_by_name(&self, name: &str) -> Option<&SafetyType> {
+        self.get_by_name(name).and_then(|l| {
+            if let FeatureCategory::Safety(ref st) = l.category {
+                Some(st)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Check if a feature is safety-relevant.
     pub fn is_safety_feature(&self, index: usize) -> bool {
         self.labels
@@ -433,6 +463,33 @@ impl FeatureDictionary {
 
         for &(index, activation) in features {
             if let Some(label) = self.labels.get(&index) {
+                if let (Some(v), Some(a)) = (label.valence(), label.arousal()) {
+                    let w = activation.abs();
+                    weighted_valence += v * w;
+                    weighted_arousal += a * w;
+                    total_weight += w;
+                }
+            }
+        }
+
+        if total_weight > 0.0 {
+            (weighted_valence / total_weight, weighted_arousal / total_weight)
+        } else {
+            (0.0, 0.0)
+        }
+    }
+
+    /// Compute aggregate emotional state dynamically by name (live mapping bridge).
+    pub fn compute_emotional_state_by_name(
+        &self,
+        features: &[(String, f32)],
+    ) -> (f32, f32) {
+        let mut total_weight = 0.0_f32;
+        let mut weighted_valence = 0.0_f32;
+        let mut weighted_arousal = 0.0_f32;
+
+        for (name, activation) in features {
+            if let Some(label) = self.get_by_name(name) {
                 if let (Some(v), Some(a)) = (label.valence(), label.arousal()) {
                     let w = activation.abs();
                     weighted_valence += v * w;

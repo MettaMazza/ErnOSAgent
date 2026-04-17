@@ -288,8 +288,11 @@ async fn init_web_state(
                 .context("OPENROUTER_API_KEY not set — required for OpenRouter provider")?;
             Arc::new(provider::openai_compat::OpenAICompatProvider::openrouter(&key))
         }
+        "candle_native" => {
+            Arc::new(provider::candle_native::NativeSteeringProvider::new().context("Failed to init candle_native")?)
+        }
         other => anyhow::bail!(
-            "Unknown provider '{}'. Valid: llamacpp, ollama, lmstudio, huggingface, openai, claude, groq, openrouter",
+            "Unknown provider '{}'. Valid: llamacpp, ollama, lmstudio, huggingface, candle_native, openai, claude, groq, openrouter",
             other
         ),
     };

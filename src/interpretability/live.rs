@@ -182,6 +182,11 @@ pub fn is_live() -> bool {
     get().is_live
 }
 
+/// Access the real, underlying SAE for native Math Steering interception.
+pub fn global_sae() -> Option<&'static SparseAutoencoder> {
+    get().sae.as_ref()
+}
+
 /// Whether features have been labeled via probing.
 pub fn has_labels() -> bool {
     get().feature_map.is_some()

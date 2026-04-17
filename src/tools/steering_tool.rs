@@ -33,7 +33,7 @@ static FEATURE_STATE: std::sync::OnceLock<Mutex<FeatureSteeringState>> = std::sy
 /// Global GGUF steering config.
 static VECTOR_CONFIG: std::sync::OnceLock<Mutex<SteeringConfig>> = std::sync::OnceLock::new();
 
-fn get_feature_state() -> &'static Mutex<FeatureSteeringState> {
+pub fn get_feature_state() -> &'static Mutex<FeatureSteeringState> {
     FEATURE_STATE.get_or_init(|| {
         let vectors_dir = std::env::var("ERNOSAGENT_VECTORS_DIR")
             .map(PathBuf::from)

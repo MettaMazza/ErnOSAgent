@@ -68,7 +68,7 @@ async fn chat_once(msg: &str) -> Option<String> {
     let _ = ws.next().await; // discard initial status push
 
     ws.send(Message::Text(
-        serde_json::json!({"type": "chat", "content": msg})
+        serde_json::json!({"type": "chat", "message": msg})
             .to_string()
             .into(),
     ))
@@ -212,7 +212,7 @@ async fn test_websocket_chat_full_turn() {
     let _ = ws.next().await; // discard initial status
 
     ws.send(Message::Text(
-        serde_json::json!({"type": "chat", "content": "what is 2 + 2? reply with just the number"})
+        serde_json::json!({"type": "chat", "message": "what is 2 + 2? reply with just the number"})
             .to_string()
             .into(),
     ))
@@ -249,7 +249,7 @@ async fn test_websocket_chat_full_turn() {
                     break;
                 }
                 Some("error") => {
-                    panic!("[e2e_chat] Server error: {}", v["content"].as_str().unwrap_or("?"))
+                    panic!("[e2e_chat] Server error payload: {}", serde_json::to_string(&v).unwrap())
                 }
                 _ => {}
             }
@@ -297,7 +297,7 @@ async fn test_react_loop_completes_in_few_turns() {
     let _ = ws.next().await;
 
     ws.send(Message::Text(
-        serde_json::json!({"type": "chat", "content": "what is 2 + 2? reply with just the number."})
+        serde_json::json!({"type": "chat", "message": "what is 2 + 2? reply with just the number."})
             .to_string()
             .into(),
     ))
@@ -420,7 +420,7 @@ async fn test_multi_turn_context_retained() {
 
     // Turn 1: establish name
     ws.send(Message::Text(
-        serde_json::json!({"type": "chat", "content": "My name is Ernesto. Just say: got it."})
+        serde_json::json!({"type": "chat", "message": "My name is Ernesto. Just say: got it."})
             .to_string()
             .into(),
     ))
@@ -440,7 +440,7 @@ async fn test_multi_turn_context_retained() {
 
     // Turn 2: recall name
     ws.send(Message::Text(
-        serde_json::json!({"type": "chat", "content": "What is my name? Just the name."})
+        serde_json::json!({"type": "chat", "message": "What is my name? Just the name."})
             .to_string()
             .into(),
     ))

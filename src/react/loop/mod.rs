@@ -133,8 +133,11 @@ pub async fn execute_react_loop(
             let usage = crate::inference::context::context_usage(&messages, config.context_length);
             if usage > 0.85 {
                 let before = messages.len();
-                let budget = config.context_length as usize;
-                let estimate = |m: &Message| -> usize { m.content.len() / 4 + 1 };
+                // 4000 token offset for tool schemas so context is never pushed natively over the edge
+                let budget = config.context_length.saturating_sub(4000) as usize;
+                let estimate = |m: &Message| -> usize { 
+                    (m.content.len() / 4 + 1) + (m.images.len() * 4000)
+                };
 
                 let mut total: usize = messages.iter().map(|m| estimate(m)).sum();
                 // Trim from index 1 (after system prompt) toward the end,
@@ -217,7 +220,7 @@ pub async fn execute_react_loop(
         if has_none && !has_reply && !output.response_text.trim().is_empty() {
             tracing::info!(turn = turn, "Model output bare text with no tools — auto-wrapping into reply_request");
             let mut args = serde_json::Map::new();
-            args.insert("response".to_string(), serde_json::Value::String(output.response_text.clone()));
+            args.insert("message".to_string(), serde_json::Value::String(output.response_text.clone()));
             output.tool_calls.push(crate::tools::schema::ToolCall {
                 id: uuid::Uuid::new_v4().to_string(),
                 name: "reply_request".to_string(),

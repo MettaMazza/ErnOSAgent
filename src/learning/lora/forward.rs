@@ -19,6 +19,29 @@ use candle_nn::{VarBuilder, VarMap};
 use std::collections::HashMap;
 use std::path::Path;
 
+#[derive(Clone, Default)]
+pub struct KVCache {
+    pub layers: HashMap<usize, (Tensor, Tensor)>,
+}
+
+impl KVCache {
+    pub fn new() -> Self {
+        Self { layers: HashMap::new() }
+    }
+    
+    pub fn append(&mut self, layer: usize, k: &Tensor, v: &Tensor) -> Result<(Tensor, Tensor)> {
+        if let Some((prev_k, prev_v)) = self.layers.get(&layer) {
+            let new_k = Tensor::cat(&[prev_k, k], 1)?; // Dim 1 is seq_len
+            let new_v = Tensor::cat(&[prev_v, v], 1)?;
+            self.layers.insert(layer, (new_k.clone(), new_v.clone()));
+            Ok((new_k, new_v))
+        } else {
+            self.layers.insert(layer, (k.clone(), v.clone()));
+            Ok((k.clone(), v.clone()))
+        }
+    }
+}
+
 /// Auto-detect the tensor name prefix from a safetensors index file.
 ///
 /// Scans the weight_map keys for the `embed_tokens.weight` tensor and extracts
@@ -197,13 +220,24 @@ pub fn detect_architecture(weights_dir: &Path) -> Result<ModelArchitecture> {
     Ok(arch)
 }
 
-/// Compute next-token prediction logits with LoRA-injected attention.
 pub fn forward_with_lora(
     input_ids: &[u32],
     base_vb: &VarBuilder,
     lora_vs: &VarMap,
     config: &LoraConfig,
     device: &candle_core::Device,
+) -> Result<Tensor> {
+    forward_with_lora_cached(input_ids, base_vb, lora_vs, config, device, &mut None, None)
+}
+
+pub fn forward_with_lora_cached(
+    input_ids: &[u32],
+    base_vb: &VarBuilder,
+    lora_vs: &VarMap,
+    config: &LoraConfig,
+    device: &candle_core::Device,
+    kv_cache: &mut Option<KVCache>,
+    active_steering: Option<&[(candle_core::Tensor, f64)]>,
 ) -> Result<Tensor> {
     let seq_len = input_ids.len();
     let input_tensor = Tensor::from_vec(input_ids.to_vec(), (seq_len,), device)?;
@@ -231,7 +265,7 @@ pub fn forward_with_lora(
 
     for layer in 0..config.num_layers() {
         hidden = forward_transformer_layer(
-            hidden, layer, base_vb, &lora_data, config,
+            hidden, layer, base_vb, &lora_data, config, kv_cache, active_steering,
         )?;
     }
 
@@ -264,6 +298,8 @@ fn forward_transformer_layer(
     base_vb: &VarBuilder,
     lora_data: &std::sync::MutexGuard<HashMap<String, candle_core::Var>>,
     config: &LoraConfig,
+    kv_cache: &mut Option<KVCache>,
+    active_steering: Option<&[(candle_core::Tensor, f64)]>,
 ) -> Result<Tensor> {
     let prefix = &config.model_prefix;
     let lp = if prefix.is_empty() {
@@ -301,6 +337,12 @@ fn forward_transformer_layer(
     let q = add_lora_delta(&q_base, &normed, lora_data, &format!("lora.{layer}.q_proj"), scale)?;
     let k = add_lora_delta(&k_base, &normed, lora_data, &format!("lora.{layer}.k_proj"), scale)?;
     let v = add_lora_delta(&v_base, &normed, lora_data, &format!("lora.{layer}.v_proj"), scale)?;
+
+    let (k, v) = if let Some(cache) = kv_cache {
+        cache.append(layer, &k, &v)?
+    } else {
+        (k, v)
+    };
 
     // Build per-layer architecture for GQA attention
     let layer_num_q_heads = layer_q_dim / config.arch.head_dim;
@@ -348,7 +390,21 @@ fn forward_transformer_layer(
     let down = linear_no_grad(&ffn, &base_vb.pp(&format!("{lp}.mlp.down_proj")), ffn_dim, dim)?;
 
     // Residual connection
-    Ok((hidden + down)?)
+    let mut final_hidden = (hidden + down)?;
+
+    // ── INTERCEPTION: TIER A STEERING ──
+    // Inject SAE feature directions directly into the residual stream natively.
+    if let Some(steer) = active_steering {
+        for (direction_tensor, scale) in steer {
+            if *scale == 0.0 { continue; }
+            let s = *scale;
+            // V_direction * scale
+            // Make sure dimensions line up: direction_tensor is [1, 1, dim]
+            final_hidden = (final_hidden + (direction_tensor * s)?)?;
+        }
+    }
+
+    Ok(final_hidden)
 }
 
 /// Probe actual projection dimensions from weight shapes.

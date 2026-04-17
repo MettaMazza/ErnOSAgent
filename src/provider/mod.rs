@@ -18,6 +18,7 @@ pub mod lmstudio;
 pub mod huggingface;
 pub mod openai_compat;
 pub mod stream_parser;
+pub mod candle_native;
 
 use crate::model::spec::{ModelSpec, ModelSummary, Modality};
 use anyhow::Result;

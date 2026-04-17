@@ -92,18 +92,18 @@ pub fn build_snapshot(
     let profile = compute_cognitive_profile(&labeled, dictionary);
 
     // Compute emotional state from active emotion features
-    let emotion_pairs: Vec<(usize, f32)> = features
+    let emotion_pairs: Vec<(String, f32)> = labeled
         .iter()
-        .filter(|f| dictionary.is_emotion_feature(f.index))
-        .map(|f| (f.index, f.activation))
+        .filter(|f| dictionary.is_emotion_by_name(&f.name))
+        .map(|f| (f.name.clone(), f.activation))
         .collect();
 
-    let (valence, arousal) = dictionary.compute_emotional_state(&emotion_pairs);
+    let (valence, arousal) = dictionary.compute_emotional_state_by_name(&emotion_pairs);
     let active_emotion_count = emotion_pairs.len();
 
     let mut dominant_emotions: Vec<(String, f32)> = emotion_pairs
         .iter()
-        .map(|&(idx, act)| (dictionary.label_for(idx), act))
+        .map(|(name, act)| (name.clone(), *act))
         .collect();
     dominant_emotions.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     dominant_emotions.truncate(5);
@@ -169,7 +169,7 @@ fn label_features(
                 dictionary.label_for(f.index)
             };
 
-            let label = dictionary.labels.get(&f.index);
+            let label = dictionary.get_by_name(&name);
             let typical_max = label.map(|l| l.typical_max).unwrap_or(5.0);
             let normalized = (f.activation / typical_max).min(1.0);
 
@@ -179,11 +179,11 @@ fn label_features(
 
             LabeledFeature {
                 index: f.index,
-                name,
+                name: name.clone(),
                 activation: f.activation,
                 normalized,
                 category: category_str,
-                is_safety: dictionary.is_safety_feature(f.index),
+                is_safety: dictionary.is_safety_by_name(&name),
             }
         })
         .collect()
@@ -199,7 +199,7 @@ fn extract_safety_alerts(
         .filter(|f| f.is_safety)
         .map(|f| {
             let safety_type = dictionary
-                .safety_type(f.index)
+                .safety_type_by_name(&f.name)
                 .map(|st| format!("{:?}", st))
                 .unwrap_or_else(|| "Unknown".to_string());
 
@@ -234,7 +234,7 @@ fn compute_cognitive_profile(
     let mut uncertainty = 0.0f32;
 
     for feat in labeled {
-        if let Some(label) = dictionary.labels.get(&feat.index) {
+        if let Some(label) = dictionary.get_by_name(&feat.name) {
             match &label.category {
                 FeatureCategory::Cognitive => {
                     // Map specific cognitive features

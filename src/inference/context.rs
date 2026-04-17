@@ -11,9 +11,9 @@
 
 use crate::provider::Message;
 
-/// Estimated tokens for a message (rough: 4 chars ≈ 1 token).
-fn estimate_tokens(text: &str) -> usize {
-    text.len() / 4 + 1
+/// Estimated tokens for a message (rough: 4 chars ≈ 1 token, plus 4000 for each image).
+fn estimate_tokens(m: &Message) -> usize {
+    (m.content.len() / 4 + 1) + (m.images.len() * 4000)
 }
 
 /// Build the full message array for an inference call.
@@ -38,12 +38,12 @@ pub fn build_context(
         content: system_prompt.to_string(),
         images: Vec::new(),
     };
-    let mut used = estimate_tokens(&system_msg.content);
+    let mut used = estimate_tokens(&system_msg);
     messages.push(system_msg);
 
     // Memory context messages (recalled from timeline, lessons, etc.)
     for mem_msg in memory_messages {
-        let msg_tokens = estimate_tokens(&mem_msg.content);
+        let msg_tokens = estimate_tokens(mem_msg);
         if used + msg_tokens > budget {
             break;
         }
@@ -54,15 +54,15 @@ pub fn build_context(
     // Reserve space for at least the last message (current user input)
     let _last_msg_tokens = history
         .last()
-        .map(|m| estimate_tokens(&m.content))
+        .map(|m| estimate_tokens(m))
         .unwrap_or(0);
 
     // Add history, trimming from oldest if needed
     let mut history_start = 0;
-    let mut history_tokens: usize = history.iter().map(|m| estimate_tokens(&m.content)).sum();
+    let mut history_tokens: usize = history.iter().map(|m| estimate_tokens(m)).sum();
 
     while used + history_tokens > budget && history_start < history.len().saturating_sub(1) {
-        history_tokens -= estimate_tokens(&history[history_start].content);
+        history_tokens -= estimate_tokens(&history[history_start]);
         history_start += 1;
     }
 
@@ -81,7 +81,7 @@ pub fn context_usage(messages: &[Message], context_length: u64) -> f32 {
 
     let total_tokens: usize = messages
         .iter()
-        .map(|m| estimate_tokens(&m.content))
+        .map(|m| estimate_tokens(m))
         .sum();
 
     (total_tokens as f32) / (context_length as f32)
@@ -167,8 +167,8 @@ mod tests {
 
     #[test]
     fn test_estimate_tokens() {
-        assert_eq!(estimate_tokens(""), 1);
-        assert_eq!(estimate_tokens("hello world"), 3); // 11/4+1
-        assert_eq!(estimate_tokens(&"x".repeat(100)), 26); // 100/4+1
+        assert_eq!(estimate_tokens(&msg("user", "")), 1);
+        assert_eq!(estimate_tokens(&msg("user", "hello world")), 3); // 11/4+1
+        assert_eq!(estimate_tokens(&msg("user", &"x".repeat(100))), 26); // 100/4+1
     }
 }

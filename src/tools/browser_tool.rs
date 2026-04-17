@@ -23,6 +23,7 @@ fn get_browser() -> Result<Arc<Browser>, String> {
     let b = Browser::new(LaunchOptions {
         headless: false,
         window_size: Some((1280, 800)),
+        idle_browser_timeout: std::time::Duration::from_secs(86400),
         ..Default::default()
     }).map_err(|e| format!("Failed to launch Chrome process: {}", e))?;
     
@@ -65,17 +66,19 @@ pub fn register_tools(executor: &mut crate::tools::executor::ToolExecutor) {
 }
 
 fn capture_and_save_screenshot(tab: &std::sync::Arc<headless_chrome::Tab>) -> Result<String, String> {
-    let png_data = tab.capture_screenshot(
-        headless_chrome::protocol::cdp::Page::CaptureScreenshotFormatOption::Png,
+    // We use Jpeg instead of Png because Png base64 matrices easily exceed HTTP payload limits on llama-server
+    let img_data = tab.capture_screenshot(
+        headless_chrome::protocol::cdp::Page::CaptureScreenshotFormatOption::Jpeg,
         None,
         None,
         true
     ).map_err(|e| format!("Screenshot failed: {}", e))?;
     
-    let path = "/tmp/ernos_browser_state.png";
-    std::fs::write(path, png_data).map_err(|e| format!("Save failed: {}", e))?;
-    
-    Ok(format!("\nMEDIA: {}\n", path))
+    let path = "/tmp/ernos_browser_state.jpg";
+    std::fs::write(path, &img_data)
+        .map_err(|e| format!("Failed to save screenshot: {}", e))?;
+        
+    Ok(format!("MEDIA: {}", path))
 }
 
 pub fn execute_browser_navigate(args: &Value) -> Result<String, String> {
@@ -91,11 +94,9 @@ pub fn execute_browser_navigate(args: &Value) -> Result<String, String> {
         .map_err(|e| format!("DOM read failed: {}", e))?;
     
     let text_content = text.value.unwrap_or(serde_json::json!("")).as_str().unwrap_or("").to_string();
-    let truncated: String = text_content.chars().take(8000).collect();
-    
     let media_tag = capture_and_save_screenshot(&tab)?;
     
-    Ok(format!("Navigated to {}.\n\nDOM PREVIEW:\n{}{}", url, truncated, media_tag))
+    Ok(format!("Navigated to {}.\n\nDOM PREVIEW:\n{}{}", url, text_content, media_tag))
 }
 
 pub fn execute_browser_click(args: &Value) -> Result<String, String> {
@@ -105,7 +106,7 @@ pub fn execute_browser_click(args: &Value) -> Result<String, String> {
     let tabs = browser.get_tabs().lock().unwrap();
     let tab = tabs.last().ok_or("No active browser tabs found")?.clone();
     
-    let element = tab.wait_for_element(selector).map_err(|e| format!("Timeout waiting for {}: {}", selector, e))?;
+    let element = tab.find_element(selector).map_err(|e| format!("Could not find element {}: {}", selector, e))?;
     element.click().map_err(|e| format!("Click failed: {}", e))?;
     
     // Wait for network/DOM response before snapping
@@ -123,7 +124,7 @@ pub fn execute_browser_type(args: &Value) -> Result<String, String> {
     let tabs = browser.get_tabs().lock().unwrap();
     let tab = tabs.last().ok_or("No active browser tabs found")?.clone();
     
-    let element = tab.wait_for_element(selector).map_err(|e| format!("Timeout waiting for {}: {}", selector, e))?;
+    let element = tab.find_element(selector).map_err(|e| format!("Could not find element {}: {}", selector, e))?;
     element.click().map_err(|e| format!("Click before typing failed: {}", e))?;
     element.type_into(text).map_err(|e| format!("Type failed: {}", e))?;
     
