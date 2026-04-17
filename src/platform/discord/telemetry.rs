@@ -86,7 +86,7 @@ impl ThinkingThread {
 
         // Post the initial "thinking" embed
         let embed = Self::build_embed("⏳ Thinking...", "", Colour::from_rgb(255, 193, 7));
-        let msg = CreateMessage::new().embed(embed);
+        let msg = CreateMessage::new().content("\u{200B}").embed(embed);
         let sent: serenity::model::channel::Message = thread_id.send_message(http, msg).await
             .map_err(|e| anyhow::anyhow!("Failed to post initial thinking embed: {e}"))?;
 
@@ -202,7 +202,7 @@ impl ThinkingEmbed {
         user_name: &str,
     ) -> Result<Self> {
         let embed = ThinkingThread::build_embed(&format!("⏳ {} — Thinking...", user_name), "", Colour::from_rgb(255, 193, 7));
-        let msg = CreateMessage::new().embed(embed);
+        let msg = CreateMessage::new().content("\u{200B}").embed(embed);
         let sent = channel_id.send_message(http, msg).await
             .map_err(|e| anyhow::anyhow!("Failed to post fallback thinking embed: {e}"))?;
 
