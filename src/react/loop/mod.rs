@@ -331,10 +331,22 @@ pub async fn execute_react_loop(
                 .find(|tc| schema::is_loop_terminator(tc))
                 .expect("loop terminator must exist");
 
-            let reply_text = schema::extract_reply_text(reply_call)
+            let mut reply_text = schema::extract_reply_text(reply_call)
                 .unwrap_or_else(|| output.response_text.clone());
 
-            if reply_text.trim().is_empty() {
+            // ── STRIP LEAKED THINKING BLOCKS ──
+            // If the model mistakenly embedded <think>...</think> INSIDE the 
+            // reply_request JSON payload, strip it out so it doesn't leak to the user.
+            while let Some(start) = reply_text.find("<think>") {
+                if let Some(end) = reply_text[start..].find("</think>") {
+                    reply_text.replace_range(start..start + end + 8, "");
+                } else {
+                    reply_text.replace_range(start.., "");
+                }
+            }
+            reply_text = reply_text.trim().to_string();
+
+            if reply_text.is_empty() {
                 tracing::warn!(turn = turn, "reply/refuse_request had empty text — retrying");
 
                 messages.push(Message {
@@ -489,8 +501,8 @@ fn inject_no_reply_error(response_text: &str, messages: &mut Vec<Message>, turn:
         content: format!(
             "[REJECTION: You produced a response but did NOT call the reply_request tool. \
             Raw text is NOT delivered to the user. Your response started with: \"{excerpt}\" \
-            You MUST call reply_request with your full response in the message field. \
-            Do not re-reason or re-think. Just call reply_request NOW.]"
+            You MUST call reply_request with your final response in the message field. \
+            DO NOT copy your <think> tags into the JSON arguments—only copy the final user-facing message.]"
         ),
         images: Vec::new(),
     });
