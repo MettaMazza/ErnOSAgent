@@ -97,7 +97,7 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
         training_active,
         total_sessions,
         active_session_messages: active_messages,
-        relay_connected: false, // TODO: track relay connections in state
+        relay_connected: false, // Relay connection state is not yet wired into shared state
     })
 }
 

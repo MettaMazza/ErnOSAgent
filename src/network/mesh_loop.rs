@@ -248,7 +248,7 @@ impl MeshCoordinator {
                 peer_id: p.peer_id.0.clone(),
                 display_name: format!("ErnOS-{}", &p.peer_id.0[..8.min(p.peer_id.0.len())]),
                 trust_level: trust,
-                latency_ms: None, // TODO: track RTT per peer
+                latency_ms: None, // Per-peer RTT metrics are not yet collected here
                 last_seen: p.last_seen.clone(),
                 connected: true,
             }
