@@ -10,8 +10,8 @@
 //! runs the full ReAct loop + Observer audit, so the mobile client gets 26B quality
 //! without needing the model locally.
 
-use crate::model::spec::{ModelSpec, ModelSummary, Modality};
-use crate::provider::{Message, ProviderStatus, StreamEvent, ToolDefinition, Provider};
+use crate::model::spec::{Modality, ModelSpec, ModelSummary};
+use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -41,10 +41,7 @@ pub enum RelayMessage {
 
     // ── Desktop → Mobile ──
     /// A streamed token from inference.
-    StreamToken {
-        content: String,
-        is_thinking: bool,
-    },
+    StreamToken { content: String, is_thinking: bool },
     /// A tool call detected in desktop inference.
     ToolCall {
         id: String,
@@ -72,9 +69,7 @@ pub enum RelayMessage {
         adapter_version: Option<String>,
     },
     /// Error from desktop.
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 /// Connection state to a desktop ErnOS instance.
@@ -122,7 +117,9 @@ impl DesktopRelayProvider {
             is_connected: false,
         };
 
-        let mut lock = self.connection.lock()
+        let mut lock = self
+            .connection
+            .lock()
             .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
         *lock = Some(conn.clone());
 
@@ -211,7 +208,8 @@ impl Provider for DesktopRelayProvider {
     }
 
     async fn get_model_spec(&self, _model: &str) -> Result<ModelSpec> {
-        let conn = self.connection_info()
+        let conn = self
+            .connection_info()
             .ok_or_else(|| anyhow::anyhow!("Not connected to desktop"))?;
 
         Ok(ModelSpec {
@@ -252,7 +250,8 @@ impl Provider for DesktopRelayProvider {
 
         // Serialize the chat request and attempt to send via WebSocket.
         // When not connected, the error is propagated back through the stream channel.
-        let last_message = messages.last()
+        let last_message = messages
+            .last()
             .map(|m| m.content.clone())
             .unwrap_or_default();
 
@@ -261,7 +260,9 @@ impl Provider for DesktopRelayProvider {
             images: vec![],
             audio: None,
             session_id: String::new(),
-            tools: tools.map(|t| t.iter().map(|td| td.function.name.clone()).collect()).unwrap_or_default(),
+            tools: tools
+                .map(|t| t.iter().map(|td| td.function.name.clone()).collect())
+                .unwrap_or_default(),
         };
 
         match self.send_message(&relay_msg).await {
@@ -324,9 +325,7 @@ impl Provider for DesktopRelayProvider {
             } else {
                 None
             },
-            models_loaded: conn
-                .map(|c| vec![c.model_name])
-                .unwrap_or_default(),
+            models_loaded: conn.map(|c| vec![c.model_name]).unwrap_or_default(),
         })
     }
 }
@@ -354,7 +353,10 @@ mod tests {
         let json = r#"{"type":"StreamToken","content":"Hello","is_thinking":false}"#;
         let msg: RelayMessage = serde_json::from_str(json).unwrap();
         match msg {
-            RelayMessage::StreamToken { content, is_thinking } => {
+            RelayMessage::StreamToken {
+                content,
+                is_thinking,
+            } => {
                 assert_eq!(content, "Hello");
                 assert!(!is_thinking);
             }
@@ -367,7 +369,11 @@ mod tests {
         let json = r#"{"type":"DiscoverResponse","name":"Studio","model_name":"gemma4:26b","model_params":"26B MoE","context_length":256000}"#;
         let msg: RelayMessage = serde_json::from_str(json).unwrap();
         match msg {
-            RelayMessage::DiscoverResponse { model_name, context_length, .. } => {
+            RelayMessage::DiscoverResponse {
+                model_name,
+                context_length,
+                ..
+            } => {
                 assert_eq!(model_name, "gemma4:26b");
                 assert_eq!(context_length, 256_000);
             }
@@ -389,7 +395,10 @@ mod tests {
         let provider = DesktopRelayProvider::new();
 
         rt.block_on(async {
-            let conn = provider.connect_qr("ernos://192.168.1.100:3000").await.unwrap();
+            let conn = provider
+                .connect_qr("ernos://192.168.1.100:3000")
+                .await
+                .unwrap();
             assert_eq!(conn.address, "ws://192.168.1.100:3000/ws/relay");
         });
     }

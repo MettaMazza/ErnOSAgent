@@ -19,10 +19,7 @@ use std::sync::Arc;
 /// 3. Runs the full ReAct loop (tools + Observer audit)
 /// 4. Captures the response
 /// 5. Returns the result
-pub async fn execute_job(
-    job: &ScheduledJob,
-    state: &SharedState,
-) -> JobResult {
+pub async fn execute_job(job: &ScheduledJob, state: &SharedState) -> JobResult {
     let start = std::time::Instant::now();
 
     tracing::info!(
@@ -32,8 +29,17 @@ pub async fn execute_job(
     );
 
     // Extract everything we need from state
-    let (provider, model, system_prompt, identity_prompt, tools, data_dir, context_length,
-         cancel_token, autonomy_cancel) = {
+    let (
+        provider,
+        model,
+        system_prompt,
+        identity_prompt,
+        tools,
+        data_dir,
+        context_length,
+        cancel_token,
+        autonomy_cancel,
+    ) = {
         let st = state.read().await;
         // Get all tool definitions, then filter by autonomy toggles
         let mut tool_defs = tool_schemas::all_tool_definitions();
@@ -83,10 +89,7 @@ pub async fn execute_job(
     let messages = vec![
         Message {
             role: "system".to_string(),
-            content: format!(
-                "{}\n{}\n\n{}",
-                system_prompt, identity_prompt, job_header
-            ),
+            content: format!("{}\n{}\n\n{}", system_prompt, identity_prompt, job_header),
             images: Vec::new(),
         },
         Message {
@@ -184,14 +187,19 @@ pub async fn execute_job(
                     thinking_buf.push_str(text);
                     None // Aggregate, don't send individual tokens
                 }
-                crate::react::r#loop::ReactEvent::ToolExecuting { name, arguments, .. } => {
+                crate::react::r#loop::ReactEvent::ToolExecuting {
+                    name, arguments, ..
+                } => {
                     // Flush thinking before tool call
                     let mut msg = String::new();
                     if !thinking_buf.is_empty() {
                         let thought = std::mem::take(&mut thinking_buf);
                         msg.push_str(&format!("💭 **Thinking**\n```\n{}\n```\n", thought));
                     }
-                    msg.push_str(&format!("🔧 **Calling**: `{}`\n```json\n{}\n```", name, arguments));
+                    msg.push_str(&format!(
+                        "🔧 **Calling**: `{}`\n```json\n{}\n```",
+                        name, arguments
+                    ));
                     Some(msg)
                 }
                 crate::react::r#loop::ReactEvent::ToolCompleted { name, result } => {
@@ -201,7 +209,10 @@ pub async fn execute_job(
                     } else {
                         result.output.clone()
                     };
-                    Some(format!("{} **{}** completed\n```\n{}\n```", icon, name, output))
+                    Some(format!(
+                        "{} **{}** completed\n```\n{}\n```",
+                        icon, name, output
+                    ))
                 }
                 crate::react::r#loop::ReactEvent::ResponseReady { text } => {
                     let mut msg = String::new();
@@ -313,25 +324,27 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
     // Load recent autonomy sessions for dedup
     let activity_path = data_dir.join("memory/autonomy/activity.jsonl");
     if let Ok(content) = std::fs::read_to_string(&activity_path) {
-        let lines: Vec<&str> = content.lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
+        let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
         if !lines.is_empty() {
             let start = lines.len().saturating_sub(10);
-            
+
             let mut recent_sessions = Vec::new();
             for line in &lines[start..] {
                 if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
-                    let summary = entry.get("summary")
+                    let summary = entry
+                        .get("summary")
                         .and_then(|v| v.as_str())
                         .unwrap_or("(no summary)")
                         .to_string();
-                    let tools = entry.get("tools_used")
+                    let tools = entry
+                        .get("tools_used")
                         .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter()
-                            .filter_map(|t| t.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", "))
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|t| t.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
                         .unwrap_or_default();
                     recent_sessions.push((tools, summary));
                 }
@@ -342,8 +355,8 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
             for session in recent_sessions {
                 if let Some((last_session, count)) = grouped.last_mut() {
                     if last_session.0 == session.0 && last_session.1 == session.1 {
-                         *count += 1;
-                         continue;
+                        *count += 1;
+                        continue;
                     }
                 }
                 grouped.push((session, 1));
@@ -359,7 +372,10 @@ fn build_autonomy_context(data_dir: &std::path::Path) -> String {
                     // Out of sight, out of mind: heavily obfuscate to break the Pink Elephant loop
                     ctx.push_str(&format!("  • ⚠️ System Warning: A specific automated action was repeated {} times consecutively. It has been completely omitted from this log to prevent repeating it. Execute a new, creative task.\n", count));
                 } else if count > 1 {
-                    ctx.push_str(&format!("  • [x{}] Tools: {} | {}\n", count, tools, summary));
+                    ctx.push_str(&format!(
+                        "  • [x{}] Tools: {} | {}\n",
+                        count, tools, summary
+                    ));
                 } else {
                     ctx.push_str(&format!("  • Tools: {} | {}\n", tools, summary));
                 }
@@ -392,7 +408,8 @@ fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, job_name: &str
     // Count existing entries for cycle number
     let cycle = std::fs::read_to_string(&path)
         .map(|c| c.lines().filter(|l| !l.trim().is_empty()).count())
-        .unwrap_or(0) + 1;
+        .unwrap_or(0)
+        + 1;
 
     let entry = serde_json::json!({
         "timestamp": Utc::now().to_rfc3339(),
@@ -417,11 +434,7 @@ fn log_autonomy_session(data_dir: &std::path::Path, job_id: &str, job_name: &str
 }
 
 /// Forward autonomy job results to a Discord channel if configured.
-async fn forward_to_autonomy_channel(
-    state: &SharedState,
-    job: &ScheduledJob,
-    result: &JobResult,
-) {
+async fn forward_to_autonomy_channel(state: &SharedState, job: &ScheduledJob, result: &JobResult) {
     let channel_id = {
         let st = state.read().await;
         st.config.platform.discord.autonomy_channel_id.clone()
@@ -444,7 +457,9 @@ async fn forward_to_autonomy_channel(
 
     // Truncate output for Discord (max ~1900 chars to stay under 2000 limit)
     let output_preview = if result.output.len() > 1800 {
-        let end = result.output.char_indices()
+        let end = result
+            .output
+            .char_indices()
             .take_while(|(i, _)| *i <= 1800)
             .last()
             .map(|(i, _)| i)
@@ -502,7 +517,11 @@ fn log_live_event(
             "event": "thinking",
             "text": text,
         }),
-        ReactEvent::ToolExecuting { name, id, arguments } => serde_json::json!({
+        ReactEvent::ToolExecuting {
+            name,
+            id,
+            arguments,
+        } => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
             "job": job_name,
             "event": "tool_executing",
@@ -523,7 +542,11 @@ fn log_live_event(
             "job": job_name,
             "event": "audit_running",
         }),
-        ReactEvent::AuditCompleted { verdict, reason, confidence } => serde_json::json!({
+        ReactEvent::AuditCompleted {
+            verdict,
+            reason,
+            confidence,
+        } => serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
             "job": job_name,
             "event": "audit_completed",

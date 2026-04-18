@@ -37,7 +37,11 @@ macro_rules! skip_if_no_server {
 #[tokio::test]
 async fn test_observer_config_returns_state() {
     skip_if_no_server!();
-    let resp = client().get("http://localhost:3000/api/observer").send().await.unwrap();
+    let resp = client()
+        .get("http://localhost:3000/api/observer")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("enabled").is_some(), "Should have 'enabled' field");
@@ -49,11 +53,16 @@ async fn test_observer_toggle() {
     skip_if_no_server!();
     let resp = client()
         .post("http://localhost:3000/api/observer/toggle")
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("enabled").is_some());
     // Toggle back
-    let _ = client().post("http://localhost:3000/api/observer/toggle").send().await;
+    let _ = client()
+        .post("http://localhost:3000/api/observer/toggle")
+        .send()
+        .await;
     eprintln!("[e2e] ✅ POST /api/observer/toggle PASSED");
 }

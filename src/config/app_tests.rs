@@ -14,7 +14,12 @@ mod tests {
     fn test_default_config_has_data_dir() {
         let config = AppConfig::default();
         assert!(
-            config.general.data_dir.to_str().unwrap().contains("ernosagent"),
+            config
+                .general
+                .data_dir
+                .to_str()
+                .unwrap()
+                .contains("ernosagent"),
             "Default data dir should contain 'ernosagent'"
         );
     }

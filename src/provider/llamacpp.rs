@@ -9,7 +9,7 @@
 //! API client for chat, model spec derivation, and streaming inference.
 //! Supports control vectors for model steering.
 
-use crate::model::spec::{ModelCapabilities, ModelSpec, ModelSummary, Modality};
+use crate::model::spec::{Modality, ModelCapabilities, ModelSpec, ModelSummary};
 use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
@@ -79,10 +79,7 @@ impl LlamaCppProvider {
     }
 
     /// Build the full command-line arguments for llama-server.
-    pub fn build_server_args(
-        &self,
-        steering_args: &[String],
-    ) -> Vec<String> {
+    pub fn build_server_args(&self, steering_args: &[String]) -> Vec<String> {
         let mut args = Vec::new();
 
         if !self.model_path.is_empty() {
@@ -174,7 +171,10 @@ impl LlamaCppProvider {
         if let Some(ref mut child) = *proc_guard {
             tracing::info!("Stopping llama-server");
             child.kill().await.context("Failed to kill llama-server")?;
-            child.wait().await.context("Failed to wait for llama-server exit")?;
+            child
+                .wait()
+                .await
+                .context("Failed to wait for llama-server exit")?;
             *proc_guard = None;
         }
         Ok(())
@@ -258,10 +258,7 @@ impl LlamaCppProvider {
     }
 
     /// Parse an OpenAI-compatible /v1/models response into ModelSummary entries.
-    fn parse_models_response(
-        &self,
-        body: &serde_json::Value,
-    ) -> Vec<ModelSummary> {
+    fn parse_models_response(&self, body: &serde_json::Value) -> Vec<ModelSummary> {
         let mut models = Vec::new();
 
         if let Some(data) = body.get("data").and_then(|d| d.as_array()) {
@@ -387,48 +384,58 @@ impl Provider for LlamaCppProvider {
 
         // Transform messages: if a message has images, convert to OpenAI multipart
         // content format (array of {type: "text"} and {type: "image_url"} parts).
-        let api_messages: Vec<serde_json::Value> = messages.iter().map(|msg| {
-            // Filter images: only keep valid base64 or data URIs.
-            // Raw HTTP URLs (from old Discord sessions) are invalid for llama-server
-            // and cause 400 errors. Skip them.
-            let valid_images: Vec<&String> = msg.images.iter().filter(|img| {
-                if img.starts_with("http://") || img.starts_with("https://") {
-                    let preview: String = img.chars().take(80).collect();
-                    tracing::warn!("Skipping raw URL in image field (not base64-encoded): {}...", preview);
-                    false
-                } else {
-                    true
-                }
-            }).collect();
+        let api_messages: Vec<serde_json::Value> = messages
+            .iter()
+            .map(|msg| {
+                // Filter images: only keep valid base64 or data URIs.
+                // Raw HTTP URLs (from old Discord sessions) are invalid for llama-server
+                // and cause 400 errors. Skip them.
+                let valid_images: Vec<&String> = msg
+                    .images
+                    .iter()
+                    .filter(|img| {
+                        if img.starts_with("http://") || img.starts_with("https://") {
+                            let preview: String = img.chars().take(80).collect();
+                            tracing::warn!(
+                                "Skipping raw URL in image field (not base64-encoded): {}...",
+                                preview
+                            );
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                    .collect();
 
-            if valid_images.is_empty() {
-                serde_json::json!({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
-            } else {
-                let mut parts = vec![serde_json::json!({
-                    "type": "text",
-                    "text": msg.content,
-                })];
-                for img_b64 in &valid_images {
-                    // If it already has a data: prefix, use as-is; otherwise add one
-                    let url = if img_b64.starts_with("data:") {
-                        (*img_b64).clone()
-                    } else {
-                        format!("data:image/png;base64,{}", img_b64)
-                    };
-                    parts.push(serde_json::json!({
-                        "type": "image_url",
-                        "image_url": { "url": url }
-                    }));
+                if valid_images.is_empty() {
+                    serde_json::json!({
+                        "role": msg.role,
+                        "content": msg.content,
+                    })
+                } else {
+                    let mut parts = vec![serde_json::json!({
+                        "type": "text",
+                        "text": msg.content,
+                    })];
+                    for img_b64 in &valid_images {
+                        // If it already has a data: prefix, use as-is; otherwise add one
+                        let url = if img_b64.starts_with("data:") {
+                            (*img_b64).clone()
+                        } else {
+                            format!("data:image/png;base64,{}", img_b64)
+                        };
+                        parts.push(serde_json::json!({
+                            "type": "image_url",
+                            "image_url": { "url": url }
+                        }));
+                    }
+                    serde_json::json!({
+                        "role": msg.role,
+                        "content": parts,
+                    })
                 }
-                serde_json::json!({
-                    "role": msg.role,
-                    "content": parts,
-                })
-            }
-        }).collect();
+            })
+            .collect();
 
         let mut body = serde_json::json!({
             "model": model,
@@ -458,11 +465,7 @@ impl Provider for LlamaCppProvider {
         if !resp.status().is_success() {
             let status = resp.status();
             let error_body = resp.text().await.unwrap_or_default();
-            bail!(
-                "llama-server returned error {}: {}",
-                status,
-                error_body
-            );
+            bail!("llama-server returned error {}: {}", status, error_body);
         }
 
         // Delegate SSE stream parsing to shared parser
@@ -573,4 +576,3 @@ impl Provider for LlamaCppProvider {
 #[cfg(test)]
 #[path = "llamacpp_tests.rs"]
 mod tests;
-

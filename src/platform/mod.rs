@@ -9,12 +9,12 @@
 //! Platform adapter system — Discord, Telegram, WhatsApp, Custom Webhook.
 
 pub mod adapter;
-pub mod registry;
+pub mod custom;
 pub mod discord;
+pub mod registry;
+pub mod router;
 pub mod telegram;
 pub mod whatsapp;
-pub mod custom;
-pub mod router;
 
 pub use adapter::PlatformAdapter;
 

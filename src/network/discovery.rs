@@ -63,7 +63,9 @@ impl PeerRegistry {
 
     /// Get peer list for gossip (up to N peers, excluding the requester).
     pub async fn peer_list_for_gossip(&self, exclude: &PeerId, limit: usize) -> Vec<PeerInfo> {
-        self.peers.read().await
+        self.peers
+            .read()
+            .await
             .values()
             .filter(|p| p.peer_id != *exclude)
             .take(limit)
@@ -154,9 +156,9 @@ mod tests {
         registry.upsert(peer_info("peer_b", "127.0.0.1:9001")).await;
         registry.upsert(peer_info("peer_c", "127.0.0.1:9002")).await;
 
-        let gossip = registry.peer_list_for_gossip(
-            &PeerId("peer_a".to_string()), 10
-        ).await;
+        let gossip = registry
+            .peer_list_for_gossip(&PeerId("peer_a".to_string()), 10)
+            .await;
         assert_eq!(gossip.len(), 2);
         assert!(gossip.iter().all(|p| p.peer_id.0 != "peer_a"));
     }
@@ -165,12 +167,14 @@ mod tests {
     async fn test_gossip_limits() {
         let registry = PeerRegistry::new();
         for i in 0..20 {
-            registry.upsert(peer_info(&format!("peer_{}", i), "127.0.0.1:9000")).await;
+            registry
+                .upsert(peer_info(&format!("peer_{}", i), "127.0.0.1:9000"))
+                .await;
         }
 
-        let gossip = registry.peer_list_for_gossip(
-            &PeerId("peer_0".to_string()), 5
-        ).await;
+        let gossip = registry
+            .peer_list_for_gossip(&PeerId("peer_0".to_string()), 5)
+            .await;
         assert!(gossip.len() <= 5);
     }
 

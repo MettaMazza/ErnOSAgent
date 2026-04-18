@@ -12,15 +12,15 @@
 //! the ErnOS mobile app. All logic stays in Rust; native UI shells
 //! (Android Compose, iOS SwiftUI) interact only through the UniFFI API.
 
-pub mod model_manager;
-pub mod provider_local;
-pub mod provider_relay;
-pub mod provider_hybrid;
-pub mod provider_chain;
 pub mod desktop_discovery;
 pub mod engine;
 pub mod llama_ffi;
+pub mod model_manager;
 pub mod native_build;
+pub mod provider_chain;
+pub mod provider_hybrid;
+pub mod provider_local;
+pub mod provider_relay;
 pub mod uniffi_scaffolding;
 
 /// Inference mode selector.

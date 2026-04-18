@@ -49,8 +49,8 @@ pub async fn reload_inference_model() {
 /// Send an unload request to the local Ollama instance.
 #[cfg(target_os = "macos")]
 async fn unload_ollama() -> anyhow::Result<()> {
-    let ollama_host = std::env::var("OLLAMA_HOST")
-        .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
+    let ollama_host =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
 
     let client = reqwest::Client::new();
 

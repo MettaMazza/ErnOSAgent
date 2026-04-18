@@ -32,7 +32,10 @@ pub enum Violation {
 impl Violation {
     /// Whether this violation triggers instant quarantine.
     pub fn is_critical(&self) -> bool {
-        matches!(self, Self::PoisonAttempt | Self::BinaryHashChanged | Self::InvalidSignature)
+        matches!(
+            self,
+            Self::PoisonAttempt | Self::BinaryHashChanged | Self::InvalidSignature
+        )
     }
 }
 
@@ -97,10 +100,13 @@ impl SanctionEngine {
     pub fn load(mesh_dir: &Path) -> Result<Self> {
         let store_path = mesh_dir.join("quarantine.json");
         let quarantine = if store_path.exists() {
-            let content = std::fs::read_to_string(&store_path)
-                .with_context(|| format!("Failed to read quarantine store from {}", store_path.display()))?;
-            serde_json::from_str(&content)
-                .with_context(|| "Failed to parse quarantine store")?
+            let content = std::fs::read_to_string(&store_path).with_context(|| {
+                format!(
+                    "Failed to read quarantine store from {}",
+                    store_path.display()
+                )
+            })?;
+            serde_json::from_str(&content).with_context(|| "Failed to parse quarantine store")?
         } else {
             QuarantineStore::default()
         };
@@ -129,9 +135,7 @@ impl SanctionEngine {
             details: details.to_string(),
         };
 
-        let peer_violations = self.violations
-            .entry(peer_id.0.clone())
-            .or_default();
+        let peer_violations = self.violations.entry(peer_id.0.clone()).or_default();
         peer_violations.records.push(record);
 
         let total = peer_violations.records.len() as u32;
@@ -172,7 +176,7 @@ impl SanctionEngine {
         if let Some(entry) = self.quarantine.entries.get(&peer_id.0) {
             // Check if quarantine has expired
             if let Ok(expires) = chrono::DateTime::parse_from_rfc3339(&entry.expires_at) {
-                return expires > chrono::Utc::now()
+                return expires > chrono::Utc::now();
             }
         }
         false
@@ -180,7 +184,8 @@ impl SanctionEngine {
 
     /// Get violation count for a peer.
     pub fn violation_count(&self, peer_id: &PeerId) -> u32 {
-        self.violations.get(&peer_id.0)
+        self.violations
+            .get(&peer_id.0)
             .map(|v| v.records.len() as u32)
             .unwrap_or(0)
     }
@@ -193,7 +198,9 @@ impl SanctionEngine {
     /// Get count of currently quarantined peers.
     pub fn quarantined_count(&self) -> usize {
         let now = chrono::Utc::now();
-        self.quarantine.entries.values()
+        self.quarantine
+            .entries
+            .values()
             .filter(|e| {
                 chrono::DateTime::parse_from_rfc3339(&e.expires_at)
                     .map(|t| t > now)
@@ -216,8 +223,12 @@ impl SanctionEngine {
     pub fn save(&self) -> Result<()> {
         let json = serde_json::to_string_pretty(&self.quarantine)
             .context("Failed to serialise quarantine store")?;
-        std::fs::write(&self.store_path, json)
-            .with_context(|| format!("Failed to write quarantine store to {}", self.store_path.display()))?;
+        std::fs::write(&self.store_path, json).with_context(|| {
+            format!(
+                "Failed to write quarantine store to {}",
+                self.store_path.display()
+            )
+        })?;
         Ok(())
     }
 
@@ -237,13 +248,16 @@ impl SanctionEngine {
         let now = chrono::Utc::now();
         let expires = now + chrono::Duration::seconds(self.quarantine_duration_secs as i64);
 
-        self.quarantine.entries.insert(peer_id.0.clone(), QuarantineEntry {
-            peer_id: peer_id.clone(),
-            reason: reason.to_string(),
-            quarantined_at: now.to_rfc3339(),
-            expires_at: expires.to_rfc3339(),
-            violation_count,
-        });
+        self.quarantine.entries.insert(
+            peer_id.0.clone(),
+            QuarantineEntry {
+                peer_id: peer_id.clone(),
+                reason: reason.to_string(),
+                quarantined_at: now.to_rfc3339(),
+                expires_at: expires.to_rfc3339(),
+                violation_count,
+            },
+        );
 
         tracing::error!(
             peer = %peer_id,
@@ -262,8 +276,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_sanctions_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_sanctions_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }
@@ -283,9 +297,7 @@ mod tests {
         let mut engine = SanctionEngine::load(&dir).unwrap();
         let peer = PeerId("minor".to_string());
 
-        let quarantined = engine.record_violation(
-            &peer, Violation::MalformedMessage, "test"
-        );
+        let quarantined = engine.record_violation(&peer, Violation::MalformedMessage, "test");
         assert!(!quarantined);
         assert!(!engine.is_quarantined(&peer));
         assert_eq!(engine.violation_count(&peer), 1);
@@ -297,9 +309,8 @@ mod tests {
         let mut engine = SanctionEngine::load(&dir).unwrap();
         let peer = PeerId("critical".to_string());
 
-        let quarantined = engine.record_violation(
-            &peer, Violation::PoisonAttempt, "attempted poisoning"
-        );
+        let quarantined =
+            engine.record_violation(&peer, Violation::PoisonAttempt, "attempted poisoning");
         assert!(quarantined);
         assert!(engine.is_quarantined(&peer));
     }
@@ -320,14 +331,15 @@ mod tests {
 
         for i in 0..4 {
             let qd = engine.record_violation(
-                &peer, Violation::MalformedMessage, &format!("violation {}", i)
+                &peer,
+                Violation::MalformedMessage,
+                &format!("violation {}", i),
             );
             assert!(!qd, "Should not quarantine before threshold");
         }
 
-        let quarantined = engine.record_violation(
-            &peer, Violation::MalformedMessage, "threshold breach"
-        );
+        let quarantined =
+            engine.record_violation(&peer, Violation::MalformedMessage, "threshold breach");
         assert!(quarantined, "Should quarantine at threshold");
         assert!(engine.is_quarantined(&peer));
     }
@@ -337,12 +349,8 @@ mod tests {
         let dir = temp_dir();
         let mut engine = SanctionEngine::load(&dir).unwrap();
 
-        engine.record_violation(
-            &PeerId("a".into()), Violation::PoisonAttempt, "test"
-        );
-        engine.record_violation(
-            &PeerId("b".into()), Violation::PoisonAttempt, "test"
-        );
+        engine.record_violation(&PeerId("a".into()), Violation::PoisonAttempt, "test");
+        engine.record_violation(&PeerId("b".into()), Violation::PoisonAttempt, "test");
 
         assert_eq!(engine.quarantined_count(), 2);
     }

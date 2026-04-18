@@ -32,21 +32,19 @@ impl JobStore {
         }
         let data = std::fs::read_to_string(&self.path)
             .with_context(|| format!("Failed to read scheduler file: {}", self.path.display()))?;
-        let jobs: Vec<ScheduledJob> = serde_json::from_str(&data)
-            .with_context(|| "Failed to parse scheduler JSON")?;
+        let jobs: Vec<ScheduledJob> =
+            serde_json::from_str(&data).with_context(|| "Failed to parse scheduler JSON")?;
         tracing::info!(count = jobs.len(), "Loaded scheduled jobs");
         Ok(jobs)
     }
 
     /// Save all jobs to disk (atomic write).
     pub fn save(&self, jobs: &[ScheduledJob]) -> Result<()> {
-        let json = serde_json::to_string_pretty(jobs)
-            .context("Failed to serialize jobs")?;
+        let json = serde_json::to_string_pretty(jobs).context("Failed to serialize jobs")?;
 
         // Write to tmp file first, then rename for crash safety
         let tmp_path = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp_path, &json)
-            .with_context(|| "Failed to write scheduler temp file")?;
+        std::fs::write(&tmp_path, &json).with_context(|| "Failed to write scheduler temp file")?;
         std::fs::rename(&tmp_path, &self.path)
             .with_context(|| "Failed to rename scheduler file")?;
 
@@ -65,13 +63,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let store = JobStore::new(tmp.path()).unwrap();
 
-        let jobs = vec![
-            ScheduledJob::new(
-                "Test Job".to_string(),
-                "Say hello".to_string(),
-                JobSchedule::Interval(3600),
-            ),
-        ];
+        let jobs = vec![ScheduledJob::new(
+            "Test Job".to_string(),
+            "Say hello".to_string(),
+            JobSchedule::Interval(3600),
+        )];
 
         store.save(&jobs).unwrap();
         let loaded = store.load().unwrap();
@@ -94,7 +90,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let store = JobStore::new(tmp.path()).unwrap();
 
-        let jobs1 = vec![ScheduledJob::new("A".into(), "x".into(), JobSchedule::Interval(60))];
+        let jobs1 = vec![ScheduledJob::new(
+            "A".into(),
+            "x".into(),
+            JobSchedule::Interval(60),
+        )];
         store.save(&jobs1).unwrap();
 
         let jobs2 = vec![

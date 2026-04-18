@@ -15,11 +15,13 @@
 //! Tier 7: Wikipedia API (structured factual fallback)
 //! Tier 8: Google News RSS (news fallback, no CAPTCHA)
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 
 fn web_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("search");
 
@@ -28,17 +30,24 @@ fn web_tool(call: &ToolCall) -> ToolResult {
     match action {
         "search" => waterfall_search(call),
         "visit" => web_visit(call),
-        other => error_result(call, &format!(
-            "Unknown action: '{}'. Valid: search, visit", other
-        )),
+        other => error_result(
+            call,
+            &format!("Unknown action: '{}'. Valid: search, visit", other),
+        ),
     }
 }
 
 // ── Tier 0: Direct URL Visit ──────────────────────────────────────
 
 fn web_visit(call: &ToolCall) -> ToolResult {
-    let url = call.arguments.get("url").and_then(|v| v.as_str()).unwrap_or("");
-    if url.is_empty() { return error_result(call, "Missing required argument: url"); }
+    let url = call
+        .arguments
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if url.is_empty() {
+        return error_result(call, "Missing required argument: url");
+    }
 
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return error_result(call, "URL must start with http:// or https://");
@@ -48,7 +57,10 @@ fn web_visit(call: &ToolCall) -> ToolResult {
 
     let result = blocking_async(async {
         let client = build_client()?;
-        let resp = client.get(url).send().await
+        let resp = client
+            .get(url)
+            .send()
+            .await
             .map_err(|e| format!("Request failed: {}", e))?;
 
         let status = resp.status();
@@ -56,7 +68,8 @@ fn web_visit(call: &ToolCall) -> ToolResult {
             return Err(format!("HTTP Error: {}", status));
         }
 
-        let content_type = resp.headers()
+        let content_type = resp
+            .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
@@ -73,7 +86,9 @@ fn web_visit(call: &ToolCall) -> ToolResult {
             ));
         }
 
-        let html = resp.text().await
+        let html = resp
+            .text()
+            .await
             .map_err(|e| format!("Failed to read response: {}", e))?;
         Ok::<String, String>(html)
     });
@@ -83,9 +98,11 @@ fn web_visit(call: &ToolCall) -> ToolResult {
             let text = strip_html(&html);
             let cleaned: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
             ToolResult {
-                tool_call_id: call.id.clone(), name: call.name.clone(),
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
                 output: format!("--- WEBPAGE CONTENT ({}) ---\n{}", url, cleaned),
-                success: true, error: None,
+                success: true,
+                error: None,
             }
         }
         Err(e) => error_result(call, &e),
@@ -95,8 +112,14 @@ fn web_visit(call: &ToolCall) -> ToolResult {
 // ── 7-Tier Waterfall Search ───────────────────────────────────────
 
 fn waterfall_search(call: &ToolCall) -> ToolResult {
-    let query = call.arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-    if query.is_empty() { return error_result(call, "Missing required argument: query"); }
+    let query = call
+        .arguments
+        .get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if query.is_empty() {
+        return error_result(call, "Missing required argument: query");
+    }
 
     tracing::info!(query = %query, "web_tool: starting 8-tier waterfall search");
 
@@ -109,7 +132,9 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
                 tracing::info!(tier = 1, provider = "brave", "web_tool: ✅ search success");
                 return ok_result(call, results);
             }
-            Err(e) => tracing::warn!(tier = 1, error = %e, "web_tool: ⚠️ Brave failed, falling through"),
+            Err(e) => {
+                tracing::warn!(tier = 1, error = %e, "web_tool: ⚠️ Brave failed, falling through")
+            }
         }
     } else {
         tracing::info!("web_tool: Tier 1 skipped — no BRAVE_API_KEY");
@@ -124,7 +149,9 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
                 tracing::info!(tier = 2, provider = "serper", "web_tool: ✅ search success");
                 return ok_result(call, results);
             }
-            Err(e) => tracing::warn!(tier = 2, error = %e, "web_tool: ⚠️ Serper failed, falling through"),
+            Err(e) => {
+                tracing::warn!(tier = 2, error = %e, "web_tool: ⚠️ Serper failed, falling through")
+            }
         }
     } else {
         tracing::info!("web_tool: Tier 2 skipped — no SERPER_API_KEY");
@@ -139,7 +166,9 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
                 tracing::info!(tier = 3, provider = "tavily", "web_tool: ✅ search success");
                 return ok_result(call, results);
             }
-            Err(e) => tracing::warn!(tier = 3, error = %e, "web_tool: ⚠️ Tavily failed, falling through"),
+            Err(e) => {
+                tracing::warn!(tier = 3, error = %e, "web_tool: ⚠️ Tavily failed, falling through")
+            }
         }
     } else {
         tracing::info!("web_tool: Tier 3 skipped — no TAVILY_API_KEY");
@@ -151,10 +180,16 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
         tracing::info!("web_tool: Tier 4 — trying SerpAPI…");
         match serpapi_search(query, &serpapi_key) {
             Ok(results) => {
-                tracing::info!(tier = 4, provider = "serpapi", "web_tool: ✅ search success");
+                tracing::info!(
+                    tier = 4,
+                    provider = "serpapi",
+                    "web_tool: ✅ search success"
+                );
                 return ok_result(call, results);
             }
-            Err(e) => tracing::warn!(tier = 4, error = %e, "web_tool: ⚠️ SerpAPI failed, falling through"),
+            Err(e) => {
+                tracing::warn!(tier = 4, error = %e, "web_tool: ⚠️ SerpAPI failed, falling through")
+            }
         }
     } else {
         tracing::info!("web_tool: Tier 4 skipped — no SERPAPI_API_KEY");
@@ -164,37 +199,59 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
     tracing::info!("web_tool: Tier 5 — trying DuckDuckGo…");
     match duckduckgo_search(query) {
         Ok(results) => {
-            tracing::info!(tier = 5, provider = "duckduckgo", "web_tool: ✅ search success");
+            tracing::info!(
+                tier = 5,
+                provider = "duckduckgo",
+                "web_tool: ✅ search success"
+            );
             return ok_result(call, results);
         }
-        Err(e) => tracing::warn!(tier = 5, error = %e, "web_tool: ⚠️ DDG failed/CAPTCHA, falling through"),
+        Err(e) => {
+            tracing::warn!(tier = 5, error = %e, "web_tool: ⚠️ DDG failed/CAPTCHA, falling through")
+        }
     }
 
     // ── Tier 6: Google Web scrape ──
     tracing::info!("web_tool: Tier 6 — trying Google Web scrape…");
     match google_web_scrape(query) {
         Ok(results) => {
-            tracing::info!(tier = 6, provider = "google_scrape", "web_tool: ✅ search success");
+            tracing::info!(
+                tier = 6,
+                provider = "google_scrape",
+                "web_tool: ✅ search success"
+            );
             return ok_result(call, results);
         }
-        Err(e) => tracing::warn!(tier = 6, error = %e, "web_tool: ⚠️ Google scrape failed, falling through"),
+        Err(e) => {
+            tracing::warn!(tier = 6, error = %e, "web_tool: ⚠️ Google scrape failed, falling through")
+        }
     }
 
     // ── Tier 7: Wikipedia API ──
     tracing::info!("web_tool: Tier 7 — trying Wikipedia API…");
     match wikipedia_search(query) {
         Ok(results) => {
-            tracing::info!(tier = 7, provider = "wikipedia", "web_tool: ✅ search success");
+            tracing::info!(
+                tier = 7,
+                provider = "wikipedia",
+                "web_tool: ✅ search success"
+            );
             return ok_result(call, results);
         }
-        Err(e) => tracing::warn!(tier = 7, error = %e, "web_tool: ⚠️ Wikipedia failed, falling through"),
+        Err(e) => {
+            tracing::warn!(tier = 7, error = %e, "web_tool: ⚠️ Wikipedia failed, falling through")
+        }
     }
 
     // ── Tier 8: Google News RSS ──
     tracing::info!("web_tool: Tier 8 — trying Google News RSS…");
     match google_news_rss(query) {
         Ok(results) => {
-            tracing::info!(tier = 8, provider = "google_rss", "web_tool: ✅ search success");
+            tracing::info!(
+                tier = 8,
+                provider = "google_rss",
+                "web_tool: ✅ search success"
+            );
             return ok_result(call, results);
         }
         Err(e) => tracing::warn!(tier = 8, error = %e, "web_tool: ⚠️ Google RSS failed"),
@@ -220,11 +277,15 @@ fn waterfall_search(call: &ToolCall) -> ToolResult {
 fn resolve_env_key(primary: &str, aliases: &[&str]) -> String {
     // Check env vars first
     if let Ok(key) = std::env::var(primary) {
-        if !key.is_empty() { return key; }
+        if !key.is_empty() {
+            return key;
+        }
     }
     for alias in aliases {
         if let Ok(key) = std::env::var(alias) {
-            if !key.is_empty() { return key; }
+            if !key.is_empty() {
+                return key;
+            }
         }
     }
 
@@ -232,14 +293,18 @@ fn resolve_env_key(primary: &str, aliases: &[&str]) -> String {
     for env_path in &[".env", "../.env", "../HIVE/.env"] {
         if let Ok(content) = std::fs::read_to_string(env_path) {
             for line in content.lines() {
-                let check_keys: Vec<&str> = std::iter::once(primary).chain(aliases.iter().copied()).collect();
+                let check_keys: Vec<&str> = std::iter::once(primary)
+                    .chain(aliases.iter().copied())
+                    .collect();
                 for key_name in &check_keys {
                     let prefix = format!("{}=", key_name);
                     if line.starts_with(&prefix) {
                         let parts: Vec<&str> = line.splitn(2, '=').collect();
                         if parts.len() == 2 {
                             let key = parts[1].trim_matches('"').trim_matches('\'').to_string();
-                            if !key.is_empty() { return key; }
+                            if !key.is_empty() {
+                                return key;
+                            }
                         }
                     }
                 }
@@ -260,29 +325,39 @@ fn brave_search(query: &str, api_key: &str) -> Result<String, String> {
             urlencoding::encode(query)
         );
 
-        let resp = client.get(&url)
+        let resp = client
+            .get(&url)
             .header("Accept", "application/json")
             .header("Accept-Encoding", "gzip")
             .header("X-Subscription-Token", api_key)
-            .send().await
+            .send()
+            .await
             .map_err(|e| format!("Brave API request failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("Brave API status: {}", resp.status()));
         }
 
-        let raw = resp.text().await
+        let raw = resp
+            .text()
+            .await
             .map_err(|e| format!("Failed to read Brave response: {}", e))?;
 
-        let body: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|e| format!("Failed to parse Brave JSON: {}", e))?;
+        let body: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("Failed to parse Brave JSON: {}", e))?;
 
         let mut results = Vec::new();
         if let Some(web) = body.get("web").and_then(|w| w.get("results")) {
             if let Some(items) = web.as_array() {
                 for item in items.iter().take(8) {
-                    let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("Untitled");
-                    let desc = item.get("description").and_then(|d| d.as_str()).unwrap_or("");
+                    let title = item
+                        .get("title")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("Untitled");
+                    let desc = item
+                        .get("description")
+                        .and_then(|d| d.as_str())
+                        .unwrap_or("");
                     let url = item.get("url").and_then(|u| u.as_str()).unwrap_or("");
                     results.push(format!("• {}\n  {}\n  {}", title, desc, url));
                 }
@@ -293,7 +368,11 @@ fn brave_search(query: &str, api_key: &str) -> Result<String, String> {
             return Err("Brave returned no results".to_string());
         }
 
-        Ok(format!("--- BRAVE SEARCH RESULTS for '{}' ---\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "--- BRAVE SEARCH RESULTS for '{}' ---\n{}",
+            query,
+            results.join("\n\n")
+        ))
     })
 }
 
@@ -305,18 +384,22 @@ fn serper_search(query: &str, api_key: &str) -> Result<String, String> {
 
         let body = serde_json::json!({ "q": query, "num": 10 });
 
-        let resp = client.post("https://google.serper.dev/search")
+        let resp = client
+            .post("https://google.serper.dev/search")
             .header("X-API-KEY", api_key)
             .header("Content-Type", "application/json")
             .json(&body)
-            .send().await
+            .send()
+            .await
             .map_err(|e| format!("Serper request failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("Serper API status: {}", resp.status()));
         }
 
-        let data: serde_json::Value = resp.json().await
+        let data: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| format!("Serper JSON parse failed: {}", e))?;
 
         let mut results = Vec::new();
@@ -332,7 +415,11 @@ fn serper_search(query: &str, api_key: &str) -> Result<String, String> {
 
         // Answer box
         if let Some(ab) = data.get("answerBox") {
-            let answer = ab.get("answer").or(ab.get("snippet")).and_then(|a| a.as_str()).unwrap_or("");
+            let answer = ab
+                .get("answer")
+                .or(ab.get("snippet"))
+                .and_then(|a| a.as_str())
+                .unwrap_or("");
             if !answer.is_empty() {
                 results.push(format!("💡 Answer Box: {}", answer));
             }
@@ -341,7 +428,10 @@ fn serper_search(query: &str, api_key: &str) -> Result<String, String> {
         // Organic results
         if let Some(organic) = data.get("organic").and_then(|o| o.as_array()) {
             for item in organic.iter().take(8) {
-                let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("Untitled");
+                let title = item
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Untitled");
                 let snippet = item.get("snippet").and_then(|s| s.as_str()).unwrap_or("");
                 let link = item.get("link").and_then(|l| l.as_str()).unwrap_or("");
                 results.push(format!("• {}\n  {}\n  {}", title, snippet, link));
@@ -352,7 +442,11 @@ fn serper_search(query: &str, api_key: &str) -> Result<String, String> {
             return Err("Serper returned no results".to_string());
         }
 
-        Ok(format!("--- SERPER SEARCH RESULTS for '{}' ---\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "--- SERPER SEARCH RESULTS for '{}' ---\n{}",
+            query,
+            results.join("\n\n")
+        ))
     })
 }
 
@@ -370,17 +464,21 @@ fn tavily_search(query: &str, api_key: &str) -> Result<String, String> {
             "include_answer": true,
         });
 
-        let resp = client.post("https://api.tavily.com/search")
+        let resp = client
+            .post("https://api.tavily.com/search")
             .header("Content-Type", "application/json")
             .json(&body)
-            .send().await
+            .send()
+            .await
             .map_err(|e| format!("Tavily request failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("Tavily API status: {}", resp.status()));
         }
 
-        let data: serde_json::Value = resp.json().await
+        let data: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| format!("Tavily JSON parse failed: {}", e))?;
 
         let mut results = Vec::new();
@@ -395,7 +493,10 @@ fn tavily_search(query: &str, api_key: &str) -> Result<String, String> {
         // Individual results
         if let Some(items) = data.get("results").and_then(|r| r.as_array()) {
             for item in items.iter().take(8) {
-                let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("Untitled");
+                let title = item
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Untitled");
                 let content = item.get("content").and_then(|c| c.as_str()).unwrap_or("");
                 let url = item.get("url").and_then(|u| u.as_str()).unwrap_or("");
                 results.push(format!("• {}\n  {}\n  {}", title, content, url));
@@ -406,7 +507,11 @@ fn tavily_search(query: &str, api_key: &str) -> Result<String, String> {
             return Err("Tavily returned no results".to_string());
         }
 
-        Ok(format!("--- TAVILY SEARCH RESULTS for '{}' ---\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "--- TAVILY SEARCH RESULTS for '{}' ---\n{}",
+            query,
+            results.join("\n\n")
+        ))
     })
 }
 
@@ -421,21 +526,27 @@ fn serpapi_search(query: &str, api_key: &str) -> Result<String, String> {
             urlencoding::encode(api_key),
         );
 
-        let resp = client.get(&url).send().await
+        let resp = client
+            .get(&url)
+            .send()
+            .await
             .map_err(|e| format!("SerpAPI request failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("SerpAPI status: {}", resp.status()));
         }
 
-        let data: serde_json::Value = resp.json().await
+        let data: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| format!("SerpAPI JSON parse failed: {}", e))?;
 
         let mut results = Vec::new();
 
         // Answer box
         if let Some(ab) = data.get("answer_box") {
-            let answer = ab.get("answer")
+            let answer = ab
+                .get("answer")
                 .or(ab.get("snippet"))
                 .or(ab.get("result"))
                 .and_then(|a| a.as_str())
@@ -462,12 +573,16 @@ fn serpapi_search(query: &str, api_key: &str) -> Result<String, String> {
             }
             if let Some(games) = sports.get("games").and_then(|g| g.as_array()) {
                 for game in games.iter().take(5) {
-                    let teams_str = if let Some(teams) = game.get("teams").and_then(|t| t.as_array()) {
-                        teams.iter()
-                            .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
-                            .collect::<Vec<_>>()
-                            .join(" vs ")
-                    } else { String::new() };
+                    let teams_str =
+                        if let Some(teams) = game.get("teams").and_then(|t| t.as_array()) {
+                            teams
+                                .iter()
+                                .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
+                                .collect::<Vec<_>>()
+                                .join(" vs ")
+                        } else {
+                            String::new()
+                        };
                     let status = game.get("status").and_then(|s| s.as_str()).unwrap_or("");
                     let date = game.get("date").and_then(|d| d.as_str()).unwrap_or("");
                     if !teams_str.is_empty() {
@@ -480,7 +595,10 @@ fn serpapi_search(query: &str, api_key: &str) -> Result<String, String> {
         // Organic results
         if let Some(organic) = data.get("organic_results").and_then(|o| o.as_array()) {
             for item in organic.iter().take(8) {
-                let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("Untitled");
+                let title = item
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("Untitled");
                 let snippet = item.get("snippet").and_then(|s| s.as_str()).unwrap_or("");
                 let link = item.get("link").and_then(|l| l.as_str()).unwrap_or("");
                 results.push(format!("• {}\n  {}\n  {}", title, snippet, link));
@@ -491,7 +609,11 @@ fn serpapi_search(query: &str, api_key: &str) -> Result<String, String> {
             return Err("SerpAPI returned no results".to_string());
         }
 
-        Ok(format!("--- SERPAPI SEARCH RESULTS for '{}' ---\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "--- SERPAPI SEARCH RESULTS for '{}' ---\n{}",
+            query,
+            results.join("\n\n")
+        ))
     })
 }
 
@@ -505,7 +627,10 @@ fn duckduckgo_search(query: &str) -> Result<String, String> {
             urlencoding::encode(query)
         );
 
-        let resp = client.get(&url).send().await
+        let resp = client
+            .get(&url)
+            .send()
+            .await
             .map_err(|e| format!("DDG request failed: {}", e))?;
 
         let status = resp.status();
@@ -513,7 +638,9 @@ fn duckduckgo_search(query: &str) -> Result<String, String> {
             return Err(format!("DDG bot-detection status: {}", status));
         }
 
-        let html = resp.text().await
+        let html = resp
+            .text()
+            .await
             .map_err(|e| format!("Failed to read DDG response: {}", e))?;
 
         if html.contains("anomaly.js") || html.contains("challenge-form") {
@@ -523,11 +650,17 @@ fn duckduckgo_search(query: &str) -> Result<String, String> {
         let text = strip_html(&html);
         let word_count = text.split_whitespace().count();
         if word_count < 50 {
-            return Err(format!("DDG too little content ({} words — likely captcha)", word_count));
+            return Err(format!(
+                "DDG too little content ({} words — likely captcha)",
+                word_count
+            ));
         }
 
         let cleaned: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-        Ok(format!("--- DDG SEARCH RESULTS for '{}' ---\n{}", query, cleaned))
+        Ok(format!(
+            "--- DDG SEARCH RESULTS for '{}' ---\n{}",
+            query, cleaned
+        ))
     })
 }
 
@@ -541,7 +674,10 @@ fn google_web_scrape(query: &str) -> Result<String, String> {
             urlencoding::encode(query)
         );
 
-        let resp = client.get(&url).send().await
+        let resp = client
+            .get(&url)
+            .send()
+            .await
             .map_err(|e| format!("Google scrape request failed: {}", e))?;
 
         let status = resp.status();
@@ -549,22 +685,33 @@ fn google_web_scrape(query: &str) -> Result<String, String> {
             return Err(format!("Google bot-detection status: {}", status));
         }
 
-        let html = resp.text().await
+        let html = resp
+            .text()
+            .await
             .map_err(|e| format!("Failed to read Google response: {}", e))?;
 
         // CAPTCHA detection
-        if html.contains("unusual traffic") || html.contains("captcha") || html.contains("recaptcha") {
+        if html.contains("unusual traffic")
+            || html.contains("captcha")
+            || html.contains("recaptcha")
+        {
             return Err("Google returned CAPTCHA page".to_string());
         }
 
         let text = strip_html(&html);
         let word_count = text.split_whitespace().count();
         if word_count < 80 {
-            return Err(format!("Google too little content ({} words — likely blocked)", word_count));
+            return Err(format!(
+                "Google too little content ({} words — likely blocked)",
+                word_count
+            ));
         }
 
         let cleaned: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-        Ok(format!("--- GOOGLE SEARCH RESULTS for '{}' ---\n{}", query, cleaned))
+        Ok(format!(
+            "--- GOOGLE SEARCH RESULTS for '{}' ---\n{}",
+            query, cleaned
+        ))
     })
 }
 
@@ -580,14 +727,19 @@ fn wikipedia_search(query: &str) -> Result<String, String> {
             urlencoding::encode(query)
         );
 
-        let resp = client.get(&search_url).send().await
+        let resp = client
+            .get(&search_url)
+            .send()
+            .await
             .map_err(|e| format!("Wikipedia search failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("Wikipedia API status: {}", resp.status()));
         }
 
-        let data: serde_json::Value = resp.json().await
+        let data: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| format!("Wikipedia JSON failed: {}", e))?;
 
         let mut results = Vec::new();
@@ -598,8 +750,16 @@ fn wikipedia_search(query: &str) -> Result<String, String> {
                 let snippet = item.get("snippet").and_then(|s| s.as_str()).unwrap_or("");
                 // Strip HTML from snippet (Wikipedia returns HTML-formatted snippets)
                 let clean_snippet = strip_html(snippet);
-                let url = format!("https://en.wikipedia.org/wiki/{}", urlencoding::encode(title));
-                results.push(format!("• {}\n  {}\n  {}", title, clean_snippet.trim(), url));
+                let url = format!(
+                    "https://en.wikipedia.org/wiki/{}",
+                    urlencoding::encode(title)
+                );
+                results.push(format!(
+                    "• {}\n  {}\n  {}",
+                    title,
+                    clean_snippet.trim(),
+                    url
+                ));
             }
         }
 
@@ -608,7 +768,10 @@ fn wikipedia_search(query: &str) -> Result<String, String> {
         }
 
         // Step 2: Get the first article's extract for a direct summary
-        if let Some(first_title) = data.pointer("/query/search/0/title").and_then(|t| t.as_str()) {
+        if let Some(first_title) = data
+            .pointer("/query/search/0/title")
+            .and_then(|t| t.as_str())
+        {
             let extract_url = format!(
                 "https://en.wikipedia.org/w/api.php?action=query&titles={}&prop=extracts&exintro=true&explaintext=true&format=json",
                 urlencoding::encode(first_title)
@@ -616,13 +779,22 @@ fn wikipedia_search(query: &str) -> Result<String, String> {
 
             if let Ok(resp) = client.get(&extract_url).send().await {
                 if let Ok(extract_data) = resp.json::<serde_json::Value>().await {
-                    if let Some(pages) = extract_data.pointer("/query/pages").and_then(|p| p.as_object()) {
+                    if let Some(pages) = extract_data
+                        .pointer("/query/pages")
+                        .and_then(|p| p.as_object())
+                    {
                         for (_id, page) in pages {
                             if let Some(extract) = page.get("extract").and_then(|e| e.as_str()) {
                                 if !extract.is_empty() {
                                     // Truncate to ~1500 chars for context efficiency
                                     let truncated: String = extract.chars().take(1500).collect();
-                                    results.insert(0, format!("📋 Wikipedia Summary: {}\n{}", first_title, truncated));
+                                    results.insert(
+                                        0,
+                                        format!(
+                                            "📋 Wikipedia Summary: {}\n{}",
+                                            first_title, truncated
+                                        ),
+                                    );
                                 }
                             }
                         }
@@ -631,7 +803,11 @@ fn wikipedia_search(query: &str) -> Result<String, String> {
             }
         }
 
-        Ok(format!("--- WIKIPEDIA RESULTS for '{}' ---\n{}", query, results.join("\n\n")))
+        Ok(format!(
+            "--- WIKIPEDIA RESULTS for '{}' ---\n{}",
+            query,
+            results.join("\n\n")
+        ))
     })
 }
 
@@ -645,14 +821,19 @@ fn google_news_rss(query: &str) -> Result<String, String> {
             urlencoding::encode(query)
         );
 
-        let resp = client.get(&url).send().await
+        let resp = client
+            .get(&url)
+            .send()
+            .await
             .map_err(|e| format!("Google RSS request failed: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!("Google RSS status: {}", resp.status()));
         }
 
-        let xml = resp.text().await
+        let xml = resp
+            .text()
+            .await
             .map_err(|e| format!("Failed to read RSS: {}", e))?;
 
         let mut items: Vec<String> = Vec::new();
@@ -662,16 +843,25 @@ fn google_news_rss(query: &str) -> Result<String, String> {
             let link = xml_tag_content(chunk, "link");
             let pubdate = xml_tag_content(chunk, "pubDate");
             if !title.is_empty() {
-                items.push(format!("• {}\n  {}\n  {} | {}", title, description, link, pubdate));
+                items.push(format!(
+                    "• {}\n  {}\n  {} | {}",
+                    title, description, link, pubdate
+                ));
             }
-            if items.len() >= 8 { break; }
+            if items.len() >= 8 {
+                break;
+            }
         }
 
         if items.is_empty() {
             return Err("Google News RSS returned no items".to_string());
         }
 
-        Ok(format!("--- GOOGLE NEWS RSS for '{}' ---\n{}", query, items.join("\n\n")))
+        Ok(format!(
+            "--- GOOGLE NEWS RSS for '{}' ---\n{}",
+            query,
+            items.join("\n\n")
+        ))
     })
 }
 
@@ -689,15 +879,16 @@ fn blocking_async<F, T>(future: F) -> T
 where
     F: std::future::Future<Output = T>,
 {
-    tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(future)
-    })
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))
 }
 
 fn ok_result(call: &ToolCall, output: String) -> ToolResult {
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
-        output, success: true, error: None,
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
     }
 }
 
@@ -736,7 +927,9 @@ fn strip_html(html: &str) -> String {
     let style_close: Vec<char> = "</style>".chars().collect();
 
     fn starts_with_at(hay: &[char], needle: &[char], pos: usize) -> bool {
-        if pos + needle.len() > hay.len() { return false; }
+        if pos + needle.len() > hay.len() {
+            return false;
+        }
         hay[pos..pos + needle.len()] == *needle
     }
 
@@ -793,7 +986,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -801,7 +1000,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "web_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "web_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

@@ -9,11 +9,11 @@
 mod tests {
     use crate::config::AppConfig;
     use crate::platform::adapter::PlatformAdapter;
+    use crate::platform::custom::{CustomWebhookAdapter, CustomWebhookConfig};
     use crate::platform::discord::DiscordAdapter;
+    use crate::platform::registry::PlatformRegistry;
     use crate::platform::telegram::TelegramAdapter;
     use crate::platform::whatsapp::WhatsAppAdapter;
-    use crate::platform::custom::{CustomWebhookAdapter, CustomWebhookConfig};
-    use crate::platform::registry::PlatformRegistry;
 
     #[test]
     fn test_discord_adapter_creation() {
@@ -68,7 +68,9 @@ mod tests {
         registry.register(Box::new(DiscordAdapter::new(&config.platform.discord)));
         registry.register(Box::new(TelegramAdapter::new(&config.platform.telegram)));
         registry.register(Box::new(WhatsAppAdapter::new(&config.platform.whatsapp)));
-        registry.register(Box::new(CustomWebhookAdapter::new(CustomWebhookConfig::default())));
+        registry.register(Box::new(CustomWebhookAdapter::new(
+            CustomWebhookConfig::default(),
+        )));
         let statuses = registry.statuses();
         assert_eq!(statuses.len(), 4);
     }

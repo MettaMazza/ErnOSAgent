@@ -56,7 +56,12 @@ pub trait PlatformAdapter: Send + Sync {
     async fn send_message(&self, channel_id: &str, content: &str) -> Result<()>;
 
     /// Reply to a specific message (native threading). Falls back to send_message.
-    async fn reply_to_message(&self, channel_id: &str, message_id: &str, content: &str) -> Result<()> {
+    async fn reply_to_message(
+        &self,
+        channel_id: &str,
+        message_id: &str,
+        content: &str,
+    ) -> Result<()> {
         let _ = message_id; // Default: ignore message_id, just send
         self.send_message(channel_id, content).await
     }

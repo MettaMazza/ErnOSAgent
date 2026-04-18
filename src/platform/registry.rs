@@ -13,7 +13,9 @@ pub struct PlatformRegistry {
 
 impl PlatformRegistry {
     pub fn new() -> Self {
-        Self { adapters: Vec::new() }
+        Self {
+            adapters: Vec::new(),
+        }
     }
 
     pub fn register(&mut self, adapter: Box<dyn PlatformAdapter>) {
@@ -30,7 +32,8 @@ impl PlatformRegistry {
         if statuses.is_empty() {
             return "No platforms configured".to_string();
         }
-        statuses.iter()
+        statuses
+            .iter()
             .map(|s| {
                 let icon = if s.connected { "🟢" } else { "🔴" };
                 format!("{} {}", icon, s.name)
@@ -108,7 +111,8 @@ impl PlatformRegistry {
             }
         }
         // Remove old, push new
-        self.adapters.retain(|a| !a.name().eq_ignore_ascii_case(&name));
+        self.adapters
+            .retain(|a| !a.name().eq_ignore_ascii_case(&name));
         tracing::info!(platform = %name, "Platform adapter replaced with new config");
         self.adapters.push(new_adapter);
     }

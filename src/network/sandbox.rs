@@ -57,21 +57,18 @@ pub fn execute_wasm(
     let mut config = Config::new();
     config.consume_fuel(true);
 
-    let engine = Engine::new(&config)
-        .context("Failed to create WASM engine")?;
+    let engine = Engine::new(&config).context("Failed to create WASM engine")?;
 
     let mut store = Store::new(&engine, ());
 
     // Fuel-based CPU limiting: ~1M instructions per second
     let fuel = limits.cpu_limit_secs * 1_000_000;
-    store.set_fuel(fuel)
-        .context("Failed to set fuel")?;
+    store.set_fuel(fuel).context("Failed to set fuel")?;
 
-    let module = Module::new(&engine, wasm_binary)
-        .context("Failed to compile WASM module")?;
+    let module = Module::new(&engine, wasm_binary).context("Failed to compile WASM module")?;
 
-    let instance = Instance::new(&mut store, &module, &[])
-        .context("Failed to instantiate WASM module")?;
+    let instance =
+        Instance::new(&mut store, &module, &[]).context("Failed to instantiate WASM module")?;
 
     // Try to call the _start or main function
     let result = if let Ok(func) = instance.get_typed_func::<(), ()>(&mut store, "_start") {
@@ -79,7 +76,9 @@ pub fn execute_wasm(
     } else if let Ok(func) = instance.get_typed_func::<(), ()>(&mut store, "main") {
         func.call(&mut store, ())
     } else {
-        Err(anyhow::anyhow!("No _start or main function found in WASM module"))
+        Err(anyhow::anyhow!(
+            "No _start or main function found in WASM module"
+        ))
     };
 
     let elapsed = start.elapsed();
@@ -90,7 +89,10 @@ pub fn execute_wasm(
 
     Ok(SandboxResult {
         stdout: Vec::new(), // WASI would populate these
-        stderr: result.err().map(|e| e.to_string().into_bytes()).unwrap_or_default(),
+        stderr: result
+            .err()
+            .map(|e| e.to_string().into_bytes())
+            .unwrap_or_default(),
         exit_code,
         cpu_seconds_used: elapsed.as_secs_f64(),
         memory_peak_mb: 0.0, // Would need WASI memory tracking

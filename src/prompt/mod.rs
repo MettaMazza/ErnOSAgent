@@ -5,10 +5,9 @@
 // This is the original author's open-source work. Preserve this header.
 //! Three-prompt assembly pipeline.
 
-pub mod core;
 pub mod context;
+pub mod core;
 pub mod identity;
-
 
 /// Assemble the full system prompt from all three components.
 pub fn assemble_system_prompt(

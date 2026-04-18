@@ -61,56 +61,74 @@ pub async fn execute_discord_tool(
 
 /// Read recent messages from a Discord channel.
 #[cfg(feature = "discord")]
-async fn read_channel(
-    args: &serde_json::Map<String, Value>,
-    http: &Arc<Http>,
-) -> ToolResult {
+async fn read_channel(args: &serde_json::Map<String, Value>, http: &Arc<Http>) -> ToolResult {
     let channel_id = match args.get("channel_id").and_then(|v| v.as_str()) {
         Some(id) => match id.parse::<u64>() {
             Ok(n) => ChannelId::new(n),
             Err(_) => return err("discord_read_channel", format!("Invalid channel_id: {id}")),
         },
-        None => return err("discord_read_channel", "Missing required argument: channel_id".to_string()),
+        None => {
+            return err(
+                "discord_read_channel",
+                "Missing required argument: channel_id".to_string(),
+            )
+        }
     };
 
-    let count = args.get("count")
+    let count = args
+        .get("count")
         .and_then(|v| v.as_u64())
         .unwrap_or(10)
         .min(50) as u8;
 
-    match channel_id.messages(http, serenity::builder::GetMessages::new().limit(count)).await {
+    match channel_id
+        .messages(http, serenity::builder::GetMessages::new().limit(count))
+        .await
+    {
         Ok(messages) => {
-            let formatted: Vec<String> = messages.iter().rev().map(|m| {
-                format!(
-                    "[{}] {}: {}",
-                    m.timestamp.format("%H:%M"),
-                    m.author.name,
-                    m.content
-                )
-            }).collect();
+            let formatted: Vec<String> = messages
+                .iter()
+                .rev()
+                .map(|m| {
+                    format!(
+                        "[{}] {}: {}",
+                        m.timestamp.format("%H:%M"),
+                        m.author.name,
+                        m.content
+                    )
+                })
+                .collect();
 
-            ok("discord_read_channel", if formatted.is_empty() {
-                "No messages found in channel.".to_string()
-            } else {
-                formatted.join("\n")
-            })
+            ok(
+                "discord_read_channel",
+                if formatted.is_empty() {
+                    "No messages found in channel.".to_string()
+                } else {
+                    formatted.join("\n")
+                },
+            )
         }
-        Err(e) => err("discord_read_channel", format!("Failed to read channel: {e}")),
+        Err(e) => err(
+            "discord_read_channel",
+            format!("Failed to read channel: {e}"),
+        ),
     }
 }
 
 /// Add an emoji reaction to a Discord message.
 #[cfg(feature = "discord")]
-async fn add_reaction(
-    args: &serde_json::Map<String, Value>,
-    http: &Arc<Http>,
-) -> ToolResult {
+async fn add_reaction(args: &serde_json::Map<String, Value>, http: &Arc<Http>) -> ToolResult {
     let channel_id = match args.get("channel_id").and_then(|v| v.as_str()) {
         Some(id) => match id.parse::<u64>() {
             Ok(n) => ChannelId::new(n),
             Err(_) => return err("discord_add_reaction", format!("Invalid channel_id: {id}")),
         },
-        None => return err("discord_add_reaction", "Missing required argument: channel_id".to_string()),
+        None => {
+            return err(
+                "discord_add_reaction",
+                "Missing required argument: channel_id".to_string(),
+            )
+        }
     };
 
     let message_id = match args.get("message_id").and_then(|v| v.as_str()) {
@@ -118,50 +136,78 @@ async fn add_reaction(
             Ok(n) => MessageId::new(n),
             Err(_) => return err("discord_add_reaction", format!("Invalid message_id: {id}")),
         },
-        None => return err("discord_add_reaction", "Missing required argument: message_id".to_string()),
+        None => {
+            return err(
+                "discord_add_reaction",
+                "Missing required argument: message_id".to_string(),
+            )
+        }
     };
 
     let emoji = match args.get("emoji").and_then(|v| v.as_str()) {
         Some(e) => e.to_string(),
-        None => return err("discord_add_reaction", "Missing required argument: emoji".to_string()),
+        None => {
+            return err(
+                "discord_add_reaction",
+                "Missing required argument: emoji".to_string(),
+            )
+        }
     };
 
     let reaction_type = serenity::model::channel::ReactionType::Unicode(emoji.clone());
-    match http.create_reaction(channel_id, message_id, &reaction_type).await {
-        Ok(()) => ok("discord_add_reaction", format!("Added reaction {emoji} to message {message_id}")),
-        Err(e) => err("discord_add_reaction", format!("Failed to add reaction: {e}")),
+    match http
+        .create_reaction(channel_id, message_id, &reaction_type)
+        .await
+    {
+        Ok(()) => ok(
+            "discord_add_reaction",
+            format!("Added reaction {emoji} to message {message_id}"),
+        ),
+        Err(e) => err(
+            "discord_add_reaction",
+            format!("Failed to add reaction: {e}"),
+        ),
     }
 }
 
 /// List visible channels in the guild.
 #[cfg(feature = "discord")]
-async fn list_channels(
-    args: &serde_json::Map<String, Value>,
-    http: &Arc<Http>,
-) -> ToolResult {
+async fn list_channels(args: &serde_json::Map<String, Value>, http: &Arc<Http>) -> ToolResult {
     let guild_id = match args.get("guild_id").and_then(|v| v.as_str()) {
         Some(id) => match id.parse::<u64>() {
             Ok(n) => serenity::model::id::GuildId::new(n),
             Err(_) => return err("discord_list_channels", format!("Invalid guild_id: {id}")),
         },
-        None => return err("discord_list_channels", "Missing required argument: guild_id".to_string()),
+        None => {
+            return err(
+                "discord_list_channels",
+                "Missing required argument: guild_id".to_string(),
+            )
+        }
     };
 
     match guild_id.channels(http).await {
         Ok(channels) => {
-            let mut text_channels: Vec<String> = channels.values()
+            let mut text_channels: Vec<String> = channels
+                .values()
                 .filter(|c| c.kind == serenity::model::channel::ChannelType::Text)
                 .map(|c| format!("#{} ({})", c.name, c.id))
                 .collect();
             text_channels.sort();
 
-            ok("discord_list_channels", if text_channels.is_empty() {
-                "No text channels found.".to_string()
-            } else {
-                text_channels.join("\n")
-            })
+            ok(
+                "discord_list_channels",
+                if text_channels.is_empty() {
+                    "No text channels found.".to_string()
+                } else {
+                    text_channels.join("\n")
+                },
+            )
         }
-        Err(e) => err("discord_list_channels", format!("Failed to list channels: {e}")),
+        Err(e) => err(
+            "discord_list_channels",
+            format!("Failed to list channels: {e}"),
+        ),
     }
 }
 

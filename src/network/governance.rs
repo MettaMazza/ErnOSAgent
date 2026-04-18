@@ -36,9 +36,9 @@ impl GovernancePhase {
     /// Minimum votes required for a ban in this phase.
     pub fn ban_threshold(&self, total_peers: usize) -> usize {
         match self {
-            Self::Seed => (total_peers / 2) + 1,      // Simple majority
-            Self::Growing => (total_peers * 2) / 3,    // 2/3 quorum
-            Self::Mature => (total_peers * 3) / 4,     // 3/4 supermajority
+            Self::Seed => (total_peers / 2) + 1,    // Simple majority
+            Self::Growing => (total_peers * 2) / 3, // 2/3 quorum
+            Self::Mature => (total_peers * 3) / 4,  // 3/4 supermajority
         }
     }
 }
@@ -131,17 +131,20 @@ impl GovernanceEngine {
         proposer: PeerId,
     ) -> String {
         let key = format!("ban_{}_{}", target.0, chrono::Utc::now().timestamp());
-        self.proposals.insert(key.clone(), BanProposal {
-            target,
-            reason,
-            evidence_hash,
-            proposer: proposer.clone(),
-            proposed_at: chrono::Utc::now().to_rfc3339(),
-            votes_for: vec![proposer],
-            votes_against: Vec::new(),
-            resolved: false,
-            approved: false,
-        });
+        self.proposals.insert(
+            key.clone(),
+            BanProposal {
+                target,
+                reason,
+                evidence_hash,
+                proposer: proposer.clone(),
+                proposed_at: chrono::Utc::now().to_rfc3339(),
+                votes_for: vec![proposer],
+                votes_against: Vec::new(),
+                resolved: false,
+                approved: false,
+            },
+        );
         key
     }
 
@@ -172,9 +175,9 @@ impl GovernanceEngine {
         }
 
         // Check if rejection is certain
-        let remaining = self.total_peers.saturating_sub(
-            proposal.votes_for.len() + proposal.votes_against.len()
-        );
+        let remaining = self
+            .total_peers
+            .saturating_sub(proposal.votes_for.len() + proposal.votes_against.len());
         if proposal.votes_for.len() + remaining < threshold {
             proposal.resolved = true;
             proposal.approved = false;
@@ -197,10 +200,8 @@ impl GovernanceEngine {
 
     /// Register a resource advertisement.
     pub fn register_resource(&mut self, ad: ResourceAd) {
-        self.resource_ads.insert(
-            format!("{}_{}", ad.issuer.0, ad.resource_type),
-            ad,
-        );
+        self.resource_ads
+            .insert(format!("{}_{}", ad.issuer.0, ad.resource_type), ad);
     }
 
     /// Get current governance phase.
@@ -238,8 +239,14 @@ mod tests {
     #[test]
     fn test_phase_from_peer_count() {
         assert_eq!(GovernancePhase::from_peer_count(3), GovernancePhase::Seed);
-        assert_eq!(GovernancePhase::from_peer_count(10), GovernancePhase::Growing);
-        assert_eq!(GovernancePhase::from_peer_count(50), GovernancePhase::Mature);
+        assert_eq!(
+            GovernancePhase::from_peer_count(10),
+            GovernancePhase::Growing
+        );
+        assert_eq!(
+            GovernancePhase::from_peer_count(50),
+            GovernancePhase::Mature
+        );
     }
 
     #[test]
@@ -272,7 +279,10 @@ mod tests {
     fn test_double_vote_prevented() {
         let mut engine = GovernanceEngine::new(5);
         let key = engine.propose_ban(
-            PeerId("bad".into()), "test".into(), "h".into(), PeerId("p".into()),
+            PeerId("bad".into()),
+            "test".into(),
+            "h".into(),
+            PeerId("p".into()),
         );
 
         engine.vote(&key, PeerId("v1".into()), true);

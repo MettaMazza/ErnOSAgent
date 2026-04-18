@@ -138,7 +138,13 @@ pub async fn audit_response(
     //   - Take everything up to (but not including) the last user message
     //   - Replace the last user turn with the audit instruction
     // This preserves the system message and all prior turns exactly.
-    let audit_messages = build_observer_messages(live_context, candidate_response, tool_context, capabilities, user_message);
+    let audit_messages = build_observer_messages(
+        live_context,
+        candidate_response,
+        tool_context,
+        capabilities,
+        user_message,
+    );
 
     // Extract the audit instruction (last user message) for training capture
     let audit_instruction = audit_messages
@@ -215,14 +221,13 @@ fn build_observer_messages(
 ) -> Vec<Message> {
     // Filter out HUD neural state messages — the Observer doesn't need them
     // and they weren't in the context before HUD was added.
-    let filtered_context: Vec<&Message> = live_context.iter()
+    let filtered_context: Vec<&Message> = live_context
+        .iter()
         .filter(|m| !m.content.starts_with("[HUD — Neural State"))
         .collect();
 
     // Find the index of the last user message
-    let last_user_idx = filtered_context
-        .iter()
-        .rposition(|m| m.role == "user");
+    let last_user_idx = filtered_context.iter().rposition(|m| m.role == "user");
 
     let tool_display = if tool_context.is_empty() {
         "[No tools were executed in THIS TURN. \
@@ -233,7 +238,8 @@ fn build_observer_messages(
     };
 
     // Check if the user's original message had images attached
-    let user_images_count = filtered_context.iter()
+    let user_images_count = filtered_context
+        .iter()
         .filter(|m| m.role == "user")
         .last()
         .map(|m| m.images.len())
@@ -264,7 +270,10 @@ fn build_observer_messages(
     match last_user_idx {
         Some(idx) => {
             // Build: all messages up to last user (exclusive), then the audit instruction
-            let mut msgs: Vec<Message> = filtered_context[..idx].iter().map(|m| (*m).clone()).collect();
+            let mut msgs: Vec<Message> = filtered_context[..idx]
+                .iter()
+                .map(|m| (*m).clone())
+                .collect();
             msgs.push(Message {
                 role: "user".to_string(),
                 content: audit_instruction,
@@ -274,11 +283,15 @@ fn build_observer_messages(
         }
         None => {
             // No user message in context — fall back to minimal 2-message form
-            tracing::warn!("Observer: no user message found in live context — using minimal fallback");
+            tracing::warn!(
+                "Observer: no user message found in live context — using minimal fallback"
+            );
             vec![
                 Message {
                     role: "system".to_string(),
-                    content: "You are a strict quality auditor. Respond ONLY with the requested JSON.".to_string(),
+                    content:
+                        "You are a strict quality auditor. Respond ONLY with the requested JSON."
+                            .to_string(),
                     images: Vec::new(),
                 },
                 Message {
@@ -302,9 +315,7 @@ pub fn format_rejection_feedback(result: &AuditResult) -> String {
          How to fix it: {}\n\
          \n\
          You MUST rewrite your response immediately incorporating this feedback.",
-        result.failure_category,
-        result.what_went_wrong,
-        result.how_to_fix,
+        result.failure_category, result.what_went_wrong, result.how_to_fix,
     )
 }
 
@@ -372,10 +383,26 @@ mod tests {
     #[test]
     fn test_observer_messages_preserve_system_and_history() {
         let live = vec![
-            Message { role: "system".to_string(), content: "You are Ernos.".to_string(), images: vec![] },
-            Message { role: "user".to_string(), content: "Turn 1 question".to_string(), images: vec![] },
-            Message { role: "assistant".to_string(), content: "Turn 1 answer".to_string(), images: vec![] },
-            Message { role: "user".to_string(), content: "Turn 2 question".to_string(), images: vec![] },
+            Message {
+                role: "system".to_string(),
+                content: "You are Ernos.".to_string(),
+                images: vec![],
+            },
+            Message {
+                role: "user".to_string(),
+                content: "Turn 1 question".to_string(),
+                images: vec![],
+            },
+            Message {
+                role: "assistant".to_string(),
+                content: "Turn 1 answer".to_string(),
+                images: vec![],
+            },
+            Message {
+                role: "user".to_string(),
+                content: "Turn 2 question".to_string(),
+                images: vec![],
+            },
         ];
         let msgs = build_observer_messages(&live, "candidate reply", "", "none", "Turn 2 question");
 
@@ -398,26 +425,42 @@ mod tests {
         assert!(last.content.contains("USER'S ORIGINAL MESSAGE"));
         assert!(last.content.contains("Turn 2 question"));
         // But the raw turn was replaced — it's not a standalone message
-        assert_eq!(msgs.len(), 4, "system + turn1_user + turn1_assistant + audit = 4 (last user turn replaced)");
+        assert_eq!(
+            msgs.len(),
+            4,
+            "system + turn1_user + turn1_assistant + audit = 4 (last user turn replaced)"
+        );
     }
 
     #[test]
     fn test_observer_messages_no_tools_marker() {
         let live = vec![
-            Message { role: "system".to_string(), content: "sys".to_string(), images: vec![] },
-            Message { role: "user".to_string(), content: "hi".to_string(), images: vec![] },
+            Message {
+                role: "system".to_string(),
+                content: "sys".to_string(),
+                images: vec![],
+            },
+            Message {
+                role: "user".to_string(),
+                content: "hi".to_string(),
+                images: vec![],
+            },
         ];
         let msgs = build_observer_messages(&live, "hello", "", "none", "hi");
         let last = msgs.last().unwrap();
-        assert!(last.content.contains("[No tools were executed in THIS TURN"));
+        assert!(last
+            .content
+            .contains("[No tools were executed in THIS TURN"));
     }
 
     #[test]
     fn test_observer_messages_fallback_when_no_user_message() {
         // If context has no user message, should fall back to 2-message form
-        let live = vec![
-            Message { role: "system".to_string(), content: "sys".to_string(), images: vec![] },
-        ];
+        let live = vec![Message {
+            role: "system".to_string(),
+            content: "sys".to_string(),
+            images: vec![],
+        }];
         let msgs = build_observer_messages(&live, "candidate", "", "none", "");
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0].role, "system");

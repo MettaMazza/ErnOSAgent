@@ -30,7 +30,11 @@ impl OllamaProvider {
     }
 
     /// Parse the /api/show response into a ModelSpec.
-    pub(crate) fn parse_show_response(&self, model_name: &str, body: &serde_json::Value) -> ModelSpec {
+    pub(crate) fn parse_show_response(
+        &self,
+        model_name: &str,
+        body: &serde_json::Value,
+    ) -> ModelSpec {
         let details = body.get("details").cloned().unwrap_or_default();
         let model_info = body.get("model_info").cloned().unwrap_or_default();
 
@@ -41,7 +45,8 @@ impl OllamaProvider {
         let has_vision = families.iter().any(|f| f == "clip" || f == "mllama");
         let (temperature, top_k, top_p) = Self::parse_model_parameters(body);
 
-        let template = body.get("template")
+        let template = body
+            .get("template")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
@@ -72,16 +77,38 @@ impl OllamaProvider {
         }
     }
 
-    fn parse_model_details(details: &serde_json::Value) -> (String, Vec<String>, String, String, String) {
-        let family = details.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    fn parse_model_details(
+        details: &serde_json::Value,
+    ) -> (String, Vec<String>, String, String, String) {
+        let family = details
+            .get("family")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let families: Vec<String> = details
             .get("families")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
-        let parameter_size = details.get("parameter_size").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let quantization_level = details.get("quantization_level").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let format = details.get("format").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let parameter_size = details
+            .get("parameter_size")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let quantization_level = details
+            .get("quantization_level")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let format = details
+            .get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         (family, families, parameter_size, quantization_level, format)
     }
 

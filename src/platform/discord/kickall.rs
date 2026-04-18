@@ -63,10 +63,7 @@ pub async fn handle_kickall(
     let owner_id = command.user.id;
 
     // Send the farewell notice to the channel (visible to everyone)
-    if let Err(e) = channel_id
-        .say(&http, FAREWELL_MESSAGE)
-        .await
-    {
+    if let Err(e) = channel_id.say(&http, FAREWELL_MESSAGE).await {
         tracing::error!(error = %e, "Failed to send kickall farewell message");
     }
 
@@ -113,7 +110,10 @@ pub async fn handle_kickall(
 
         // Send a final warning
         let _ = channel_id
-            .say(&http, "⏰ **24 hours have passed. Executing server shutdown. Goodbye.**")
+            .say(
+                &http,
+                "⏰ **24 hours have passed. Executing server shutdown. Goodbye.**",
+            )
             .await;
 
         // Execute the kicks
@@ -179,10 +179,7 @@ async fn execute_kickall(
     let mut total_failed = 0_usize;
 
     loop {
-        let members: Vec<Member> = match guild_id
-            .members(http, Some(1000), after)
-            .await
-        {
+        let members: Vec<Member> = match guild_id.members(http, Some(1000), after).await {
             Ok(m) => m,
             Err(e) => {
                 tracing::error!(error = %e, "Failed to fetch guild members for kickall");
@@ -215,7 +212,10 @@ async fn execute_kickall(
             }
 
             let reason = "Server shutdown — /kickall executed by owner";
-            match guild_id.kick_with_reason(http, member.user.id, reason).await {
+            match guild_id
+                .kick_with_reason(http, member.user.id, reason)
+                .await
+            {
                 Ok(()) => {
                     total_kicked += 1;
                     tracing::info!(

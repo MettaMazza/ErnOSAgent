@@ -52,7 +52,7 @@ pub struct TrainConfig {
 impl Default for TrainConfig {
     fn default() -> Self {
         Self {
-            num_features: 131_072,  // 128K — Anthropic-scale, feasible on M3 Ultra Metal
+            num_features: 131_072, // 128K — Anthropic-scale, feasible on M3 Ultra Metal
             model_dim: 0,          // auto-detected
             l1_coefficient: 1e-4,
             learning_rate: 3e-4,
@@ -109,7 +109,9 @@ impl SaeTrainer {
     /// - b_dec: zeros
     pub fn new(config: TrainConfig) -> Result<Self> {
         let device = Device::new_metal(0).unwrap_or_else(|_| {
-            tracing::warn!("Metal GPU not available — falling back to CPU (training will be slower)");
+            tracing::warn!(
+                "Metal GPU not available — falling back to CPU (training will be slower)"
+            );
             Device::Cpu
         });
 
@@ -144,9 +146,7 @@ impl SaeTrainer {
             data.insert("W_enc".to_string(), w_enc);
 
             // b_enc: [num_features] — zeros
-            let b_enc = Var::from_tensor(
-                &Tensor::zeros(nf, DType::F32, &device)?
-            )?;
+            let b_enc = Var::from_tensor(&Tensor::zeros(nf, DType::F32, &device)?)?;
             data.insert("b_enc".to_string(), b_enc);
 
             // W_dec: [model_dim, num_features] — unit-norm columns (init on CPU, move to Metal)
@@ -159,9 +159,7 @@ impl SaeTrainer {
             data.insert("W_dec".to_string(), w_dec);
 
             // b_dec: [model_dim] — zeros
-            let b_dec = Var::from_tensor(
-                &Tensor::zeros(md, DType::F32, &device)?
-            )?;
+            let b_dec = Var::from_tensor(&Tensor::zeros(md, DType::F32, &device)?)?;
             data.insert("b_dec".to_string(), b_dec);
         }
 
@@ -255,7 +253,9 @@ impl SaeTrainer {
         let recon_loss = residual.sqr()?.mean_all()?;
 
         // L1 sparsity loss: λ * mean(|h|)
-        let l1_loss = h.abs()?.mean_all()?
+        let l1_loss = h
+            .abs()?
+            .mean_all()?
             .affine(self.config.l1_coefficient, 0.0)?;
 
         // Total loss
@@ -323,13 +323,15 @@ impl SaeTrainer {
             };
 
             // First moment
-            let m = self.adam_m
+            let m = self
+                .adam_m
                 .entry(name.clone())
                 .or_insert_with(|| Tensor::zeros_like(&grad).expect("m init"));
             *m = (m.affine(beta1, 0.0)? + grad.affine(1.0 - beta1, 0.0)?)?;
 
             // Second moment
-            let v = self.adam_v
+            let v = self
+                .adam_v
                 .entry(name.clone())
                 .or_insert_with(|| Tensor::zeros_like(&grad).expect("v init"));
             *v = (v.affine(beta2, 0.0)? + grad.sqr()?.affine(1.0 - beta2, 0.0)?)?;
@@ -370,7 +372,8 @@ impl SaeTrainer {
     /// Dead features get their encoder direction set to a random activation
     /// from the batch, and decoder column re-normalized. Resets usage counters.
     pub fn resample_dead_features(&mut self, activations: &[Vec<f32>]) -> Result<usize> {
-        let dead_indices: Vec<usize> = self.feature_usage
+        let dead_indices: Vec<usize> = self
+            .feature_usage
             .iter()
             .enumerate()
             .filter(|(_, &count)| count == 0)
@@ -491,14 +494,28 @@ impl SaeTrainer {
     /// Export trained weights to an inference-ready SparseAutoencoder.
     pub fn export_sae(&self) -> Result<SparseAutoencoder> {
         let vars = self.var_map.data().lock().unwrap();
-        let w_enc = vars.get("W_enc").context("Missing W_enc")?
-            .as_tensor().flatten_all()?.to_vec1::<f32>()?;
-        let b_enc = vars.get("b_enc").context("Missing b_enc")?
-            .as_tensor().to_vec1::<f32>()?;
-        let w_dec = vars.get("W_dec").context("Missing W_dec")?
-            .as_tensor().flatten_all()?.to_vec1::<f32>()?;
-        let b_dec = vars.get("b_dec").context("Missing b_dec")?
-            .as_tensor().to_vec1::<f32>()?;
+        let w_enc = vars
+            .get("W_enc")
+            .context("Missing W_enc")?
+            .as_tensor()
+            .flatten_all()?
+            .to_vec1::<f32>()?;
+        let b_enc = vars
+            .get("b_enc")
+            .context("Missing b_enc")?
+            .as_tensor()
+            .to_vec1::<f32>()?;
+        let w_dec = vars
+            .get("W_dec")
+            .context("Missing W_dec")?
+            .as_tensor()
+            .flatten_all()?
+            .to_vec1::<f32>()?;
+        let b_dec = vars
+            .get("b_dec")
+            .context("Missing b_dec")?
+            .as_tensor()
+            .to_vec1::<f32>()?;
 
         Ok(SparseAutoencoder::new(
             w_enc,
@@ -587,7 +604,11 @@ mod tests {
 
         // Create some random activations
         let activations: Vec<Vec<f32>> = (0..8)
-            .map(|i| (0..32).map(|j| ((i * 32 + j) as f32 / 256.0) - 0.5).collect())
+            .map(|i| {
+                (0..32)
+                    .map(|j| ((i * 32 + j) as f32 / 256.0) - 0.5)
+                    .collect()
+            })
             .collect();
 
         let stats1 = trainer.train_step(&activations).unwrap();
@@ -619,9 +640,7 @@ mod tests {
         };
 
         let mut trainer = SaeTrainer::new(config.clone()).unwrap();
-        let activations: Vec<Vec<f32>> = (0..4)
-            .map(|_| vec![0.1f32; 16])
-            .collect();
+        let activations: Vec<Vec<f32>> = (0..4).map(|_| vec![0.1f32; 16]).collect();
         trainer.train_step(&activations).unwrap();
 
         let ckpt_path = trainer.checkpoint().unwrap();

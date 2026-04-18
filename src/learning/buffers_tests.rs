@@ -14,9 +14,15 @@ fn test_golden_buffer_write_read() {
     let buffer = GoldenBuffer::open(&path).unwrap();
     assert_eq!(buffer.count(), 0);
 
-    buffer.record("sys", "hello", "hi there", "sess1", "gemma4").unwrap();
-    buffer.record("sys", "what is rust", "a language", "sess1", "gemma4").unwrap();
-    buffer.record("sys", "code this", "fn main() {}", "sess2", "gemma4").unwrap();
+    buffer
+        .record("sys", "hello", "hi there", "sess1", "gemma4")
+        .unwrap();
+    buffer
+        .record("sys", "what is rust", "a language", "sess1", "gemma4")
+        .unwrap();
+    buffer
+        .record("sys", "code this", "fn main() {}", "sess2", "gemma4")
+        .unwrap();
 
     assert_eq!(buffer.count(), 3);
 
@@ -67,7 +73,15 @@ fn test_preference_buffer_write_read() {
 
     let buffer = PreferenceBuffer::open(&path).unwrap();
     buffer
-        .record("sys", "hello", "bad response", "good response", "ghost_tooling", "sess1", "gemma4")
+        .record(
+            "sys",
+            "hello",
+            "bad response",
+            "good response",
+            "ghost_tooling",
+            "sess1",
+            "gemma4",
+        )
         .unwrap();
 
     assert_eq!(buffer.count(), 1);
@@ -85,8 +99,12 @@ fn test_preference_buffer_drain() {
     let path = tmp.path().join("preference.jsonl");
 
     let buffer = PreferenceBuffer::open(&path).unwrap();
-    buffer.record("sys", "m", "bad", "good", "sycophancy", "s", "m").unwrap();
-    buffer.record("sys", "m", "bad2", "good2", "ghost_tooling", "s", "m").unwrap();
+    buffer
+        .record("sys", "m", "bad", "good", "sycophancy", "s", "m")
+        .unwrap();
+    buffer
+        .record("sys", "m", "bad2", "good2", "ghost_tooling", "s", "m")
+        .unwrap();
 
     let drained = buffer.drain().unwrap();
     assert_eq!(drained.len(), 2);
@@ -98,9 +116,18 @@ fn test_combined_buffers() {
     let tmp = TempDir::new().unwrap();
     let buffers = TrainingBuffers::open(tmp.path()).unwrap();
 
-    buffers.golden.record("sys", "msg", "resp", "s", "m").unwrap();
-    buffers.preference.record("sys", "msg", "bad", "good", "cat", "s", "m").unwrap();
-    buffers.rejection.record("sys", "msg", "bad", "ghost_tooling", "s", "m").unwrap();
+    buffers
+        .golden
+        .record("sys", "msg", "resp", "s", "m")
+        .unwrap();
+    buffers
+        .preference
+        .record("sys", "msg", "bad", "good", "cat", "s", "m")
+        .unwrap();
+    buffers
+        .rejection
+        .record("sys", "msg", "bad", "ghost_tooling", "s", "m")
+        .unwrap();
 
     assert_eq!(buffers.golden.count(), 1);
     assert_eq!(buffers.preference.count(), 1);

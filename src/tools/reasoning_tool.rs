@@ -8,8 +8,8 @@
 //! Stores reasoning traces (thinking tokens, tool decisions, outcomes)
 //! in `memory/reasoning/traces.jsonl` for later review and search.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -30,11 +30,15 @@ fn traces_path() -> PathBuf {
 
 fn load_traces() -> Vec<ReasoningTrace> {
     let path = traces_path();
-    if !path.exists() { return Vec::new(); }
+    if !path.exists() {
+        return Vec::new();
+    }
 
-    std::fs::read_to_string(&path).ok()
+    std::fs::read_to_string(&path)
+        .ok()
         .map(|content| {
-            content.lines()
+            content
+                .lines()
                 .filter(|l| !l.trim().is_empty())
                 .filter_map(|l| serde_json::from_str(l).ok())
                 .collect()
@@ -47,7 +51,7 @@ fn append_trace(trace: &ReasoningTrace) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    
+
     // Auto-rotation: If file is > 2MB, truncate to last 1000 lines
     if let Ok(metadata) = std::fs::metadata(&path) {
         if metadata.len() > 2 * 1024 * 1024 {
@@ -68,7 +72,11 @@ fn append_trace(trace: &ReasoningTrace) {
 
     if let Ok(json) = serde_json::to_string(trace) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let _ = writeln!(f, "{}", json);
         }
     }
@@ -77,7 +85,9 @@ fn append_trace(trace: &ReasoningTrace) {
 static TRACE_TURN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 fn reasoning_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("review");
 
@@ -88,14 +98,20 @@ fn reasoning_tool(call: &ToolCall) -> ToolResult {
         "search" => reasoning_search(call),
         "store" => reasoning_store(call),
         "stats" => reasoning_stats(call),
-        other => error_result(call, &format!(
-            "Unknown action: '{}'. Valid: review, search, store, stats", other
-        )),
+        other => error_result(
+            call,
+            &format!(
+                "Unknown action: '{}'. Valid: review, search, store, stats",
+                other
+            ),
+        ),
     }
 }
 
 fn reasoning_review(call: &ToolCall) -> ToolResult {
-    let limit = call.arguments.get("limit")
+    let limit = call
+        .arguments
+        .get("limit")
         .and_then(|v| v.as_u64())
         .unwrap_or(5) as usize;
 
@@ -106,9 +122,18 @@ fn reasoning_review(call: &ToolCall) -> ToolResult {
     let output = if recent.is_empty() {
         "No reasoning traces available.".to_string()
     } else {
-        let mut out = format!("REASONING TRACES ({} of {} total)\n\n", recent.len(), traces.len());
+        let mut out = format!(
+            "REASONING TRACES ({} of {} total)\n\n",
+            recent.len(),
+            traces.len()
+        );
         for (i, trace) in recent.iter().enumerate() {
-            out.push_str(&format!("--- TRACE {} (turn {}, {}) ---\n", start + i + 1, trace.turn, trace.timestamp));
+            out.push_str(&format!(
+                "--- TRACE {} (turn {}, {}) ---\n",
+                start + i + 1,
+                trace.turn,
+                trace.timestamp
+            ));
             out.push_str(&format!("Thinking:\n{}\n", trace.thinking_content));
             if !trace.tool_decisions.is_empty() {
                 out.push_str(&format!("Decisions: {}\n", trace.tool_decisions.join(", ")));
@@ -121,24 +146,41 @@ fn reasoning_review(call: &ToolCall) -> ToolResult {
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn reasoning_search(call: &ToolCall) -> ToolResult {
-    let query = call.arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-    if query.is_empty() { return error_result(call, "Missing required argument: query"); }
+    let query = call
+        .arguments
+        .get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if query.is_empty() {
+        return error_result(call, "Missing required argument: query");
+    }
 
-    let limit = call.arguments.get("limit")
+    let limit = call
+        .arguments
+        .get("limit")
         .and_then(|v| v.as_u64())
         .unwrap_or(10) as usize;
 
     let traces = load_traces();
     let query_lower = query.to_lowercase();
-    let matches: Vec<&ReasoningTrace> = traces.iter()
+    let matches: Vec<&ReasoningTrace> = traces
+        .iter()
         .filter(|t| {
             t.thinking_content.to_lowercase().contains(&query_lower)
-            || t.outcome.to_lowercase().contains(&query_lower)
-            || t.tool_decisions.iter().any(|d| d.to_lowercase().contains(&query_lower))
+                || t.outcome.to_lowercase().contains(&query_lower)
+                || t.tool_decisions
+                    .iter()
+                    .any(|d| d.to_lowercase().contains(&query_lower))
         })
         .take(limit)
         .collect();
@@ -148,26 +190,45 @@ fn reasoning_search(call: &ToolCall) -> ToolResult {
     } else {
         let mut out = format!("Found {} trace(s) matching '{}':\n\n", matches.len(), query);
         for trace in &matches {
-            out.push_str(&format!("--- Turn {} ({}) ---\n", trace.turn, trace.timestamp));
+            out.push_str(&format!(
+                "--- Turn {} ({}) ---\n",
+                trace.turn, trace.timestamp
+            ));
             let preview: String = trace.thinking_content.chars().take(300).collect();
             out.push_str(&format!("{}\n\n", preview));
         }
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn reasoning_store(call: &ToolCall) -> ToolResult {
-    let thinking = call.arguments.get("thinking").and_then(|v| v.as_str()).unwrap_or("");
-    if thinking.is_empty() { return error_result(call, "Missing required argument: thinking"); }
+    let thinking = call
+        .arguments
+        .get("thinking")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if thinking.is_empty() {
+        return error_result(call, "Missing required argument: thinking");
+    }
 
-    let decisions: Vec<String> = call.arguments.get("decisions")
+    let decisions: Vec<String> = call
+        .arguments
+        .get("decisions")
         .and_then(|v| v.as_str())
         .map(|s| s.split(',').map(|d| d.trim().to_string()).collect())
         .unwrap_or_default();
 
-    let outcome = call.arguments.get("outcome")
+    let outcome = call
+        .arguments
+        .get("outcome")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
@@ -175,7 +236,14 @@ fn reasoning_store(call: &ToolCall) -> ToolResult {
     let turn = TRACE_TURN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     let trace = ReasoningTrace {
-        id: format!("trace_{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x")),
+        id: format!(
+            "trace_{}",
+            uuid::Uuid::new_v4()
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("x")
+        ),
         timestamp: chrono::Utc::now().to_rfc3339(),
         turn,
         context_hash: format!("{:x}", {
@@ -192,32 +260,51 @@ fn reasoning_store(call: &ToolCall) -> ToolResult {
     append_trace(&trace);
 
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
-        output: format!("✅ Reasoning trace stored (id: {}, turn: {})", trace.id, trace.turn),
-        success: true, error: None,
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!(
+            "✅ Reasoning trace stored (id: {}, turn: {})",
+            trace.id, trace.turn
+        ),
+        success: true,
+        error: None,
     }
 }
 
 fn reasoning_stats(call: &ToolCall) -> ToolResult {
     let traces = load_traces();
-    let avg_len = if traces.is_empty() { 0 } else {
-        traces.iter().map(|t| t.thinking_content.len()).sum::<usize>() / traces.len()
+    let avg_len = if traces.is_empty() {
+        0
+    } else {
+        traces
+            .iter()
+            .map(|t| t.thinking_content.len())
+            .sum::<usize>()
+            / traces.len()
     };
 
-    let first_ts = traces.first().map(|t| t.timestamp.as_str()).unwrap_or("N/A");
+    let first_ts = traces
+        .first()
+        .map(|t| t.timestamp.as_str())
+        .unwrap_or("N/A");
     let last_ts = traces.last().map(|t| t.timestamp.as_str()).unwrap_or("N/A");
 
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
         output: format!(
             "REASONING TRACE STATS\n\
             Total traces: {}\n\
             Avg trace length: {} chars\n\
             First trace: {}\n\
             Latest trace: {}",
-            traces.len(), avg_len, first_ts, last_ts
+            traces.len(),
+            avg_len,
+            first_ts,
+            last_ts
         ),
-        success: true, error: None,
+        success: true,
+        error: None,
     }
 }
 
@@ -226,7 +313,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -234,7 +327,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "reasoning_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "reasoning_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

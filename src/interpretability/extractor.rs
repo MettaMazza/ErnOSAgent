@@ -35,7 +35,6 @@ pub struct ActivationResult {
     pub dim: usize,
 }
 
-
 /// Extract activations via llama.cpp's /v1/embeddings endpoint.
 ///
 /// This returns the last-layer representation, which is sufficient for
@@ -78,7 +77,9 @@ pub async fn extract_via_embeddings(
     }
     // Parse native endpoint response: [{"index":0,"embedding":[[f32...]]}]
     // Embedding can be nested [[f32...]] or flat [f32...]
-    let parsed: serde_json::Value = resp.json().await
+    let parsed: serde_json::Value = resp
+        .json()
+        .await
         .context("Failed to parse embedding response")?;
 
     let emb_field = parsed
@@ -91,10 +92,16 @@ pub async fn extract_via_embeddings(
     let values: Vec<f32> = if let Some(outer) = emb_field.as_array() {
         if let Some(inner) = outer.first().and_then(|v| v.as_array()) {
             // Nested: [[f32...]]
-            inner.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+            inner
+                .iter()
+                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                .collect()
         } else {
             // Flat: [f32...]
-            outer.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+            outer
+                .iter()
+                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                .collect()
         }
     } else {
         anyhow::bail!("Embedding field is not an array");

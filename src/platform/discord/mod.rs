@@ -11,21 +11,21 @@
 //! Conditionally compiled with `#[cfg(feature = "discord")]`.
 
 #[cfg(feature = "discord")]
-mod handler;
-#[cfg(feature = "discord")]
-mod delivery;
+mod commands;
 #[cfg(feature = "discord")]
 mod components;
 #[cfg(feature = "discord")]
-pub mod telemetry;
+mod delivery;
 #[cfg(feature = "discord")]
-mod commands;
+mod handler;
 #[cfg(feature = "discord")]
 mod kickall;
 #[cfg(feature = "discord")]
 pub mod onboarding;
 #[cfg(feature = "discord")]
 pub mod sentinel;
+#[cfg(feature = "discord")]
+pub mod telemetry;
 
 use crate::platform::adapter::{PlatformAdapter, PlatformMessage, PlatformStatus};
 use anyhow::Result;
@@ -71,14 +71,18 @@ impl DiscordAdapter {
 #[cfg(feature = "discord")]
 #[async_trait]
 impl PlatformAdapter for DiscordAdapter {
-    fn name(&self) -> &str { "Discord" }
+    fn name(&self) -> &str {
+        "Discord"
+    }
 
     fn is_configured(&self) -> bool {
         !self.config.token.is_empty()
     }
 
     async fn connect(&mut self) -> Result<()> {
-        if self.connected { return Ok(()); }
+        if self.connected {
+            return Ok(());
+        }
         if self.config.token.is_empty() {
             anyhow::bail!("Discord token not configured — set it in the Platforms tab");
         }
@@ -95,7 +99,9 @@ impl PlatformAdapter for DiscordAdapter {
         );
 
         // Configure onboarding if channel and role are set
-        if !self.config.onboarding_channel_id.is_empty() && !self.config.new_member_role_id.is_empty() {
+        if !self.config.onboarding_channel_id.is_empty()
+            && !self.config.new_member_role_id.is_empty()
+        {
             event_handler = event_handler.with_onboarding(
                 &self.config.onboarding_channel_id,
                 &self.config.new_member_role_id,
@@ -130,7 +136,9 @@ impl PlatformAdapter for DiscordAdapter {
         if let Some((_stx, srx)) = sentinel_tx {
             let http = client.http.clone();
             let guild_id: u64 = self.config.guild_id.parse().unwrap_or(0);
-            let admin_ids: Vec<String> = self.config.admin_user_id
+            let admin_ids: Vec<String> = self
+                .config
+                .admin_user_id
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -143,16 +151,18 @@ impl PlatformAdapter for DiscordAdapter {
                     host: std::env::var("OLLAMA_HOST")
                         .unwrap_or_else(|_| "http://localhost:11434".to_string()),
                     port: std::env::var("OLLAMA_PORT")
-                        .ok().and_then(|v| v.parse().ok())
+                        .ok()
+                        .and_then(|v| v.parse().ok())
                         .unwrap_or(11434),
                     keep_alive: -1,
                 };
                 std::sync::Arc::new(crate::provider::ollama::OllamaProvider::new(&ollama_config))
             };
-            let model = std::env::var("ERNOSAGENT_MODEL")
-                .unwrap_or_else(|_| "gemma4:26b".to_string());
+            let model =
+                std::env::var("ERNOSAGENT_MODEL").unwrap_or_else(|_| "gemma4:26b".to_string());
 
-            let state = std::sync::Arc::new(tokio::sync::RwLock::new(sentinel::SentinelState::new()));
+            let state =
+                std::sync::Arc::new(tokio::sync::RwLock::new(sentinel::SentinelState::new()));
 
             tokio::spawn(sentinel::run_sentinel_worker(
                 srx, provider, model, http, guild_id, state, admin_ids,
@@ -164,14 +174,17 @@ impl PlatformAdapter for DiscordAdapter {
         let shutdown_flag = std::sync::Arc::new(tokio::sync::RwLock::new(false));
         self.shutdown = Some(shutdown_flag.clone());
 
-        let onboarding_enabled = !self.config.onboarding_channel_id.is_empty() && !self.config.new_member_role_id.is_empty();
+        let onboarding_enabled = !self.config.onboarding_channel_id.is_empty()
+            && !self.config.new_member_role_id.is_empty();
         if onboarding_enabled {
             let bg_http = client.http.clone();
             let bg_guild_id = self.config.guild_id.parse().unwrap_or(0);
             let bg_new_role_id = self.config.new_member_role_id.parse().unwrap_or(0);
             let bg_member_role_id = self.config.member_role_id.parse().unwrap_or(0);
             let bg_onboarding_channel = self.config.onboarding_channel_id.parse().unwrap_or(0);
-            let bg_admins: Vec<String> = self.config.admin_user_id
+            let bg_admins: Vec<String> = self
+                .config
+                .admin_user_id
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -184,12 +197,25 @@ impl PlatformAdapter for DiscordAdapter {
                     if *bg_shutdown.read().await {
                         break;
                     }
-                    
-                    onboarding::process_onboarding_decisions(&bg_http, bg_guild_id, bg_new_role_id).await;
-                    onboarding::auto_interview_members(&bg_http, bg_guild_id, bg_onboarding_channel, &bg_admins).await;
+
+                    onboarding::process_onboarding_decisions(&bg_http, bg_guild_id, bg_new_role_id)
+                        .await;
+                    onboarding::auto_interview_members(
+                        &bg_http,
+                        bg_guild_id,
+                        bg_onboarding_channel,
+                        &bg_admins,
+                    )
+                    .await;
                     onboarding::enforce_onboarding_timeouts(&bg_http, bg_guild_id).await;
-                    onboarding::enforce_role_expiries(&bg_http, bg_guild_id, bg_new_role_id, bg_member_role_id).await;
-                    
+                    onboarding::enforce_role_expiries(
+                        &bg_http,
+                        bg_guild_id,
+                        bg_new_role_id,
+                        bg_member_role_id,
+                    )
+                    .await;
+
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
                 tracing::info!("Onboarding background task stopped");
@@ -229,8 +255,15 @@ impl PlatformAdapter for DiscordAdapter {
         self.reply_to_message(channel_id, "", content).await
     }
 
-    async fn reply_to_message(&self, channel_id: &str, message_id: &str, content: &str) -> Result<()> {
-        let http = self.http.as_ref()
+    async fn reply_to_message(
+        &self,
+        channel_id: &str,
+        message_id: &str,
+        content: &str,
+    ) -> Result<()> {
+        let http = self
+            .http
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Discord not connected"))?;
 
         delivery::send_with_resilience(http, channel_id, message_id, content).await
@@ -265,23 +298,35 @@ pub struct DiscordAdapter {
 impl DiscordAdapter {
     pub fn new(_config: &crate::config::DiscordConfig) -> Self {
         let (_tx, rx) = mpsc::channel(1);
-        Self { connected: false, rx: Some(rx) }
+        Self {
+            connected: false,
+            rx: Some(rx),
+        }
     }
 }
 
 #[cfg(not(feature = "discord"))]
 #[async_trait]
 impl PlatformAdapter for DiscordAdapter {
-    fn name(&self) -> &str { "Discord" }
-    fn is_configured(&self) -> bool { false }
+    fn name(&self) -> &str {
+        "Discord"
+    }
+    fn is_configured(&self) -> bool {
+        false
+    }
     async fn connect(&mut self) -> Result<()> {
         anyhow::bail!("Discord support requires the 'discord' feature flag. Rebuild with: cargo build --features discord")
     }
-    async fn disconnect(&mut self) -> Result<()> { self.connected = false; Ok(()) }
+    async fn disconnect(&mut self) -> Result<()> {
+        self.connected = false;
+        Ok(())
+    }
     async fn send_message(&self, _channel_id: &str, _content: &str) -> Result<()> {
         anyhow::bail!("Discord not available — rebuild with --features discord")
     }
-    fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>> { self.rx.take() }
+    fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>> {
+        self.rx.take()
+    }
     fn status(&self) -> PlatformStatus {
         PlatformStatus {
             name: "Discord".to_string(),
@@ -312,9 +357,7 @@ pub(crate) fn chunk_message(content: &str, max_len: usize) -> Vec<String> {
                 }
                 b
             };
-            remaining[..boundary]
-                .rfind('\n')
-                .unwrap_or(boundary)
+            remaining[..boundary].rfind('\n').unwrap_or(boundary)
         };
         let (chunk, rest) = remaining.split_at(split_at);
         chunks.push(chunk.to_string());

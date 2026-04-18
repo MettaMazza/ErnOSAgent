@@ -33,7 +33,11 @@ impl KtoParams {
         let lambda_d = parse_env_f64("ERNOS_KTO_LAMBDA_D")?;
         let lambda_u = parse_env_f64("ERNOS_KTO_LAMBDA_U")?;
 
-        Ok(Self { beta, lambda_d, lambda_u })
+        Ok(Self {
+            beta,
+            lambda_d,
+            lambda_u,
+        })
     }
 }
 
@@ -105,7 +109,11 @@ pub fn compute_kto_batch_loss(
         let is_desirable = desirable_flags[i];
         let loss = compute_kto_loss(logits, labels, is_desirable, kl_reference, params)?;
         losses.push(loss);
-        if is_desirable { d_count += 1; } else { u_count += 1; }
+        if is_desirable {
+            d_count += 1;
+        } else {
+            u_count += 1;
+        }
     }
 
     if losses.is_empty() {
@@ -130,7 +138,8 @@ fn sigmoid(x: &Tensor) -> Result<Tensor> {
 
 /// Sum of log-probabilities for non-ignored label positions.
 fn sequence_logprob_sum(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
-    let (_, seq_len, _) = logits.dims3()
+    let (_, seq_len, _) = logits
+        .dims3()
         .context("logits must be [1, seq_len, vocab_size]")?;
 
     let mut probs: Vec<Tensor> = Vec::new();
@@ -149,15 +158,19 @@ fn sequence_logprob_sum(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
         return Tensor::zeros((), DType::F32, logits.device()).context("zero logprob");
     }
 
-    Tensor::stack(&probs, 0)?.sum(D::Minus1).context("sequence logprob sum failed")
+    Tensor::stack(&probs, 0)?
+        .sum(D::Minus1)
+        .context("sequence logprob sum failed")
 }
 
 /// Parse a required f64 from an env var.
 fn parse_env_f64(key: &str) -> Result<f64> {
     std::env::var(key)
         .map_err(|_| anyhow::anyhow!("{key} env var not set — required for KTO"))
-        .and_then(|v| v.parse::<f64>()
-            .map_err(|e| anyhow::anyhow!("{key} is not a valid float: {e}")))
+        .and_then(|v| {
+            v.parse::<f64>()
+                .map_err(|e| anyhow::anyhow!("{key} is not a valid float: {e}"))
+        })
 }
 
 #[cfg(test)]
@@ -183,12 +196,13 @@ mod tests {
 
     #[test]
     fn test_kto_loss_desirable() {
-        let logits = make_logits(
-            &[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0],
-            2, 4,
-        );
+        let logits = make_logits(&[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0], 2, 4);
         let labels = vec![-100i32, 0]; // label is 0 → high prob at position 0
-        let params = KtoParams { beta: 1.0, lambda_d: 1.0, lambda_u: 1.0 };
+        let params = KtoParams {
+            beta: 1.0,
+            lambda_d: 1.0,
+            lambda_u: 1.0,
+        };
 
         let loss = compute_kto_loss(&logits, &labels, true, -2.0, &params).unwrap();
         let val = loss.to_scalar::<f32>().unwrap();
@@ -198,37 +212,52 @@ mod tests {
 
     #[test]
     fn test_kto_loss_undesirable() {
-        let logits = make_logits(
-            &[0.0, 3.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0],
-            2, 4,
-        );
+        let logits = make_logits(&[0.0, 3.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0], 2, 4);
         let labels = vec![-100i32, 0]; // label is 0 → low prob at position 0
-        let params = KtoParams { beta: 1.0, lambda_d: 1.0, lambda_u: 1.5 };
+        let params = KtoParams {
+            beta: 1.0,
+            lambda_d: 1.0,
+            lambda_u: 1.5,
+        };
 
         let loss = compute_kto_loss(&logits, &labels, false, -2.0, &params).unwrap();
         let val = loss.to_scalar::<f32>().unwrap();
         assert!(val.is_finite());
-        assert!(val >= 0.0, "KTO undesirable loss must be non-negative: {val}");
+        assert!(
+            val >= 0.0,
+            "KTO undesirable loss must be non-negative: {val}"
+        );
     }
 
     #[test]
     fn test_kto_loss_aversion_weighting() {
-        let logits = make_logits(
-            &[1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
-            2, 4,
-        );
+        let logits = make_logits(&[1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0], 2, 4);
         let labels = vec![-100i32, 0];
-        let params_equal = KtoParams { beta: 1.0, lambda_d: 1.0, lambda_u: 1.0 };
-        let params_averse = KtoParams { beta: 1.0, lambda_d: 1.0, lambda_u: 2.0 };
+        let params_equal = KtoParams {
+            beta: 1.0,
+            lambda_d: 1.0,
+            lambda_u: 1.0,
+        };
+        let params_averse = KtoParams {
+            beta: 1.0,
+            lambda_d: 1.0,
+            lambda_u: 2.0,
+        };
 
         let loss_equal = compute_kto_loss(&logits, &labels, false, -1.0, &params_equal)
-            .unwrap().to_scalar::<f32>().unwrap();
+            .unwrap()
+            .to_scalar::<f32>()
+            .unwrap();
         let loss_averse = compute_kto_loss(&logits, &labels, false, -1.0, &params_averse)
-            .unwrap().to_scalar::<f32>().unwrap();
+            .unwrap()
+            .to_scalar::<f32>()
+            .unwrap();
 
         // Higher lambda_u should produce higher undesirable loss
-        assert!(loss_averse > loss_equal,
-            "Loss aversion should increase loss: {loss_averse} > {loss_equal}");
+        assert!(
+            loss_averse > loss_equal,
+            "Loss aversion should increase loss: {loss_averse} > {loss_equal}"
+        );
     }
 
     #[test]
@@ -244,7 +273,11 @@ mod tests {
         let logits2 = make_logits(&[0.0, 3.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0], 2, 4);
         let labels1 = vec![-100i32, 0];
         let labels2 = vec![-100i32, 0];
-        let params = KtoParams { beta: 1.0, lambda_d: 1.0, lambda_u: 1.5 };
+        let params = KtoParams {
+            beta: 1.0,
+            lambda_d: 1.0,
+            lambda_u: 1.5,
+        };
 
         let (loss, d, u) = compute_kto_batch_loss(
             &[logits1, logits2],
@@ -252,7 +285,8 @@ mod tests {
             &[true, false],
             -2.0,
             &params,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(d, 1);
         assert_eq!(u, 1);

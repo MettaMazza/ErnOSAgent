@@ -5,10 +5,10 @@
 // This is the original author's open-source work. Preserve this header.
 //! Model specification types — auto-derived from provider APIs, never hardcoded.
 
-pub mod spec;
 pub mod registry;
 pub mod router;
+pub mod spec;
 
-pub use spec::{ModelCapabilities, ModelSpec, Modality};
 pub use registry::ModelRegistry;
 pub use router::ModalityRouter;
+pub use spec::{Modality, ModelCapabilities, ModelSpec};

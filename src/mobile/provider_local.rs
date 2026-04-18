@@ -10,8 +10,8 @@
 //! This eliminates the HTTP overhead and allows the ReAct loop, Observer audit,
 //! and all learning pipeline to work identically on mobile.
 
-use crate::model::spec::{ModelSpec, ModelSummary, Modality};
-use crate::provider::{Message, ProviderStatus, StreamEvent, ToolDefinition, Provider};
+use crate::model::spec::{Modality, ModelSpec, ModelSummary};
+use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
@@ -82,7 +82,10 @@ impl MobileLocalProvider {
             n_threads,
         };
 
-        let mut lock = self.state.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+        let mut lock = self
+            .state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
         *lock = Some(state);
 
         tracing::info!(
@@ -97,7 +100,10 @@ impl MobileLocalProvider {
 
     /// Unload the current model from memory.
     pub fn unload_model(&self) -> Result<()> {
-        let mut lock = self.state.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+        let mut lock = self
+            .state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
         if lock.is_some() {
             tracing::info!("Mobile local: model unloaded");
         }
@@ -107,10 +113,7 @@ impl MobileLocalProvider {
 
     /// Check if a model is currently loaded.
     pub fn is_loaded(&self) -> bool {
-        self.state
-            .lock()
-            .map(|s| s.is_some())
-            .unwrap_or(false)
+        self.state.lock().map(|s| s.is_some()).unwrap_or(false)
     }
 
     /// Get the loaded model name.
@@ -125,7 +128,10 @@ impl MobileLocalProvider {
     pub fn supports_multimodal(&self) -> bool {
         self.state
             .lock()
-            .map(|s| s.as_ref().map_or(false, |state| state.mmproj_path.is_some()))
+            .map(|s| {
+                s.as_ref()
+                    .map_or(false, |state| state.mmproj_path.is_some())
+            })
             .unwrap_or(false)
     }
 }
@@ -141,7 +147,10 @@ impl Provider for MobileLocalProvider {
     }
 
     async fn list_models(&self) -> Result<Vec<ModelSummary>> {
-        let lock = self.state.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+        let lock = self
+            .state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
         match lock.as_ref() {
             Some(state) => Ok(vec![ModelSummary {
                 name: state.model_name.clone(),
@@ -163,8 +172,13 @@ impl Provider for MobileLocalProvider {
     }
 
     async fn get_model_spec(&self, _model: &str) -> Result<ModelSpec> {
-        let lock = self.state.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
-        let state = lock.as_ref().ok_or_else(|| anyhow::anyhow!("No model loaded"))?;
+        let lock = self
+            .state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+        let state = lock
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No model loaded"))?;
 
         Ok(ModelSpec {
             name: state.model_name.clone(),
@@ -192,8 +206,13 @@ impl Provider for MobileLocalProvider {
     ) -> Result<()> {
         // Capture state info before async work to avoid holding MutexGuard across await
         let model_name = {
-            let lock = self.state.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
-            let state = lock.as_ref().ok_or_else(|| anyhow::anyhow!("No model loaded"))?;
+            let lock = self
+                .state
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+            let state = lock
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("No model loaded"))?;
             state.model_name.clone()
         };
 
@@ -266,7 +285,11 @@ impl Provider for MobileLocalProvider {
         Ok(ProviderStatus {
             available: is_loaded,
             latency_ms: Some(0), // Local — no network latency
-            error: if is_loaded { None } else { Some("No model loaded".to_string()) },
+            error: if is_loaded {
+                None
+            } else {
+                Some("No model loaded".to_string())
+            },
             models_loaded: models,
         })
     }
@@ -370,12 +393,26 @@ mod tests {
 
         // Without mmproj → text only
         provider.load_model(&model_path, None, -1, 4).unwrap();
-        assert!(provider.supports_modality("test", Modality::Text).await.unwrap());
-        assert!(!provider.supports_modality("test", Modality::Image).await.unwrap());
+        assert!(provider
+            .supports_modality("test", Modality::Text)
+            .await
+            .unwrap());
+        assert!(!provider
+            .supports_modality("test", Modality::Image)
+            .await
+            .unwrap());
 
         // With mmproj → text + image + audio
-        provider.load_model(&model_path, Some(&mmproj), -1, 4).unwrap();
-        assert!(provider.supports_modality("test", Modality::Image).await.unwrap());
-        assert!(provider.supports_modality("test", Modality::Audio).await.unwrap());
+        provider
+            .load_model(&model_path, Some(&mmproj), -1, 4)
+            .unwrap();
+        assert!(provider
+            .supports_modality("test", Modality::Image)
+            .await
+            .unwrap());
+        assert!(provider
+            .supports_modality("test", Modality::Audio)
+            .await
+            .unwrap());
     }
 }

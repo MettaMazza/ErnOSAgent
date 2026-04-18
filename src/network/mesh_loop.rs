@@ -11,11 +11,12 @@
 //! Feature-gated behind `mesh`, runtime-gated via `config.mesh.enabled`.
 
 use crate::network::capabilities::CapabilityRegistry;
+use crate::network::code_propagation::CodePropagation;
 use crate::network::compute::ComputePool;
 use crate::network::content_filter::ContentFilter;
 use crate::network::crypto::KeyStore;
-use crate::network::discovery::PeerRegistry;
 use crate::network::dht::DHT;
+use crate::network::discovery::PeerRegistry;
 use crate::network::governance::GovernanceEngine;
 use crate::network::identity::PeerIdentity;
 use crate::network::knowledge_sync::{KnowledgeSync, KnowledgeSyncConfig};
@@ -23,11 +24,10 @@ use crate::network::mesh_fs::MeshFS;
 use crate::network::neutralise::IntegrityWatchdog;
 use crate::network::peer_id::PeerId;
 use crate::network::sanctions::SanctionEngine;
-use crate::network::trust::TrustGate;
 use crate::network::transport::MeshTransport;
+use crate::network::trust::TrustGate;
 use crate::network::web_proxy::WebProxy;
 use crate::network::weight_exchange::WeightExchange;
-use crate::network::code_propagation::CodePropagation;
 use crate::network::wire::Attestation;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -131,15 +131,16 @@ impl MeshCoordinator {
 
         // Init transport (optional — only if port is set)
         let transport = if config.enabled {
-            Some(MeshTransport::bind(config.port).await
-                .with_context(|| format!("Failed to bind mesh transport on port {}", config.port))?)
+            Some(MeshTransport::bind(config.port).await.with_context(|| {
+                format!("Failed to bind mesh transport on port {}", config.port)
+            })?)
         } else {
             None
         };
 
         // Init integrity watchdog
-        let watchdog = IntegrityWatchdog::init(mesh_dir)
-            .context("Failed to init integrity watchdog")?;
+        let watchdog =
+            IntegrityWatchdog::init(mesh_dir).context("Failed to init integrity watchdog")?;
 
         // Build local attestation
         let attestation = Attestation {
@@ -150,10 +151,10 @@ impl MeshCoordinator {
         };
 
         // Init subsystems
-        let trust_gate = TrustGate::load(mesh_dir, attestation)
-            .context("Failed to init trust gate")?;
-        let sanction_engine = SanctionEngine::load(mesh_dir)
-            .context("Failed to init sanction engine")?;
+        let trust_gate =
+            TrustGate::load(mesh_dir, attestation).context("Failed to init trust gate")?;
+        let sanction_engine =
+            SanctionEngine::load(mesh_dir).context("Failed to init sanction engine")?;
         let content_filter = ContentFilter::new(config.rate_limit, config.rate_window_secs);
         let compute_pool = ComputePool::new(config.equality_threshold);
         let knowledge_sync = KnowledgeSync::new(KnowledgeSyncConfig::default());
@@ -242,17 +243,20 @@ impl MeshCoordinator {
     /// Get a list of individual peer details for the dashboard.
     pub async fn peer_list(&self) -> Vec<PeerDetail> {
         let peers = self.peer_registry.all_peers().await;
-        peers.into_iter().map(|p| {
-            let trust = format!("{}", self.trust_gate.trust_level(&p.peer_id));
-            PeerDetail {
-                peer_id: p.peer_id.0.clone(),
-                display_name: format!("ErnOS-{}", &p.peer_id.0[..8.min(p.peer_id.0.len())]),
-                trust_level: trust,
-                latency_ms: None, // Per-peer RTT metrics are not yet collected here
-                last_seen: p.last_seen.clone(),
-                connected: true,
-            }
-        }).collect()
+        peers
+            .into_iter()
+            .map(|p| {
+                let trust = format!("{}", self.trust_gate.trust_level(&p.peer_id));
+                PeerDetail {
+                    peer_id: p.peer_id.0.clone(),
+                    display_name: format!("ErnOS-{}", &p.peer_id.0[..8.min(p.peer_id.0.len())]),
+                    trust_level: trust,
+                    latency_ms: None, // Per-peer RTT metrics are not yet collected here
+                    last_seen: p.last_seen.clone(),
+                    connected: true,
+                }
+            })
+            .collect()
     }
 }
 
@@ -275,8 +279,11 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_mesh_coord_test_{}_{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!(
+            "ernos_mesh_coord_test_{}_{}",
+            std::process::id(),
+            n
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }

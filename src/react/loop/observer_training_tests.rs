@@ -12,7 +12,7 @@
 use crate::learning::buffers::TrainingBuffers;
 use crate::learning::observer_buffer::ObserverAuditExample;
 use crate::learning::teacher::{Teacher, TeacherConfig, TrainingKind};
-use crate::observer::audit::{AuditResult, AuditOutput};
+use crate::observer::audit::{AuditOutput, AuditResult};
 use crate::observer::Verdict;
 use tempfile::TempDir;
 
@@ -100,7 +100,10 @@ fn test_capture_rejection_writes_to_buffer() {
 
     let entries = buffers.rejection.read_all().unwrap();
     assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].rejected_response, "this is the rejected response");
+    assert_eq!(
+        entries[0].rejected_response,
+        "this is the rejected response"
+    );
     assert_eq!(entries[0].failure_category, "ghost_tooling");
     assert_eq!(entries[0].session_id, "session_1");
 }
@@ -140,12 +143,14 @@ fn test_rejection_buffer_included_in_status() {
     let tmp = TempDir::new().unwrap();
     let buffers = make_buffers(tmp.path());
 
-    super::learning::capture_rejection(
-        &buffers, "s", "u", "bad", "ghost", "s1", "m",
-    );
+    super::learning::capture_rejection(&buffers, "s", "u", "bad", "ghost", "s1", "m");
 
     let status = buffers.status();
-    assert!(status.contains("Rejections: 1"), "Status missing rejection count: {}", status);
+    assert!(
+        status.contains("Rejections: 1"),
+        "Status missing rejection count: {}",
+        status
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -192,19 +197,43 @@ fn test_retroactive_labeling_marks_blocked_as_correct() {
     let buffers = make_buffers(tmp.path());
 
     // Simulate: 3 rejections then 1 pass
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost_tooling", "sess_retro", None),
-    ).unwrap();
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "sycophancy", "sess_retro", None),
-    ).unwrap();
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "factual_error", "sess_retro", None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "ghost_tooling",
+            "sess_retro",
+            None,
+        ))
+        .unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "sycophancy",
+            "sess_retro",
+            None,
+        ))
+        .unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "factual_error",
+            "sess_retro",
+            None,
+        ))
+        .unwrap();
     // The ALLOWED comes in with was_correct = Some(true) already set
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "sess_retro", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "ALLOWED",
+            "none",
+            "sess_retro",
+            Some(true),
+        ))
+        .unwrap();
 
     assert_eq!(buffers.observer.count(), 4);
 
@@ -215,8 +244,12 @@ fn test_retroactive_labeling_marks_blocked_as_correct() {
     // Verify all entries are now marked correct
     let entries = buffers.observer.read_all().unwrap();
     for entry in &entries {
-        assert_eq!(entry.was_correct, Some(true),
-            "Entry {} should be marked correct", entry.parsed_verdict);
+        assert_eq!(
+            entry.was_correct,
+            Some(true),
+            "Entry {} should be marked correct",
+            entry.parsed_verdict
+        );
     }
 }
 
@@ -227,17 +260,35 @@ fn test_retroactive_labeling_only_affects_target_session() {
     let buffers = make_buffers(tmp.path());
 
     // Session A: 2 blocked
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost_tooling", "sess_A", None),
-    ).unwrap();
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "sycophancy", "sess_A", None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "ghost_tooling",
+            "sess_A",
+            None,
+        ))
+        .unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "sycophancy",
+            "sess_A",
+            None,
+        ))
+        .unwrap();
 
     // Session B: 1 blocked (different session)
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "factual_error", "sess_B", None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "factual_error",
+            "sess_B",
+            None,
+        ))
+        .unwrap();
 
     // Only mark session A
     let updated = buffers.observer.mark_session_correct("sess_A").unwrap();
@@ -257,9 +308,15 @@ fn test_retroactive_labeling_idempotent() {
     let tmp = TempDir::new().unwrap();
     let buffers = make_buffers(tmp.path());
 
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost_tooling", "sess_idem", None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "ghost_tooling",
+            "sess_idem",
+            None,
+        ))
+        .unwrap();
 
     let first = buffers.observer.mark_session_correct("sess_idem").unwrap();
     assert_eq!(first, 1);
@@ -274,12 +331,17 @@ fn test_observer_buffer_included_in_status() {
     let tmp = TempDir::new().unwrap();
     let buffers = make_buffers(tmp.path());
 
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "s1", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example("ALLOWED", "none", "s1", Some(true)))
+        .unwrap();
 
     let status = buffers.status();
-    assert!(status.contains("Observer: 1"), "Status missing observer count: {}", status);
+    assert!(
+        status.contains("Observer: 1"),
+        "Status missing observer count: {}",
+        status
+    );
 }
 
 #[test]
@@ -289,12 +351,21 @@ fn test_full_training_data_flow_single_pass() {
     let buffers = make_buffers(tmp.path());
 
     // Golden capture (what handle_reply does on first-try pass)
-    buffers.golden.record("sys", "hello", "hi there", "sess1", "gemma4").unwrap();
+    buffers
+        .golden
+        .record("sys", "hello", "hi there", "sess1", "gemma4")
+        .unwrap();
 
     // Observer audit capture (what handle_reply does after run_observer_audit)
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "sess1", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "ALLOWED",
+            "none",
+            "sess1",
+            Some(true),
+        ))
+        .unwrap();
 
     assert_eq!(buffers.golden.count(), 1);
     assert_eq!(buffers.observer.count(), 1);
@@ -313,29 +384,68 @@ fn test_full_training_data_flow_reject_then_pass() {
 
     // Rejection 1
     super::learning::capture_rejection(
-        &buffers, "sys", "hello", "bad response 1", "ghost_tooling", session, "gemma4",
+        &buffers,
+        "sys",
+        "hello",
+        "bad response 1",
+        "ghost_tooling",
+        session,
+        "gemma4",
     );
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost_tooling", session, None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "ghost_tooling",
+            session,
+            None,
+        ))
+        .unwrap();
 
     // Rejection 2
     super::learning::capture_rejection(
-        &buffers, "sys", "hello", "bad response 2", "sycophancy", session, "gemma4",
+        &buffers,
+        "sys",
+        "hello",
+        "bad response 2",
+        "sycophancy",
+        session,
+        "gemma4",
     );
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "sycophancy", session, None),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "sycophancy",
+            session,
+            None,
+        ))
+        .unwrap();
 
     // Pass (ALLOWED after rejections)
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", session, Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "ALLOWED",
+            "none",
+            session,
+            Some(true),
+        ))
+        .unwrap();
 
     // Preference pair (what handle_reply captures)
-    buffers.preference.record(
-        "sys", "hello", "bad response 2", "good response", "sycophancy", session, "gemma4",
-    ).unwrap();
+    buffers
+        .preference
+        .record(
+            "sys",
+            "hello",
+            "bad response 2",
+            "good response",
+            "sycophancy",
+            session,
+            "gemma4",
+        )
+        .unwrap();
 
     // Retroactive labeling
     let updated = buffers.observer.mark_session_correct(session).unwrap();
@@ -349,8 +459,11 @@ fn test_full_training_data_flow_reject_then_pass() {
     // Verify all observer entries are marked correct
     let observer_entries = buffers.observer.read_all().unwrap();
     for entry in &observer_entries {
-        assert_eq!(entry.was_correct, Some(true),
-            "All entries should be correct after retroactive labeling");
+        assert_eq!(
+            entry.was_correct,
+            Some(true),
+            "All entries should be correct after retroactive labeling"
+        );
     }
 }
 
@@ -367,18 +480,28 @@ async fn test_should_train_observer_sft_threshold() {
     let buffers = make_buffers(&config.training_dir);
 
     // Add 1 observer entry — below threshold (threshold is 2)
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "s1", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example("ALLOWED", "none", "s1", Some(true)))
+        .unwrap();
     assert!(teacher.should_train(&buffers).await.is_none());
 
     // Add 2nd — now at threshold
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost_tooling", "s1", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "BLOCKED",
+            "ghost_tooling",
+            "s1",
+            Some(true),
+        ))
+        .unwrap();
     let kind = teacher.should_train(&buffers).await;
-    assert_eq!(kind, Some(TrainingKind::ObserverSft),
-        "Observer SFT should trigger when observer buffer hits golden_threshold");
+    assert_eq!(
+        kind,
+        Some(TrainingKind::ObserverSft),
+        "Observer SFT should trigger when observer buffer hits golden_threshold"
+    );
 }
 
 #[tokio::test]
@@ -395,16 +518,21 @@ async fn test_observer_sft_prioritised_over_golden() {
     buffers.golden.record("s", "u2", "a2", "sess", "m").unwrap();
 
     // Fill observer above threshold
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "s1", Some(true)),
-    ).unwrap();
-    buffers.observer.record(
-        &make_observer_example("BLOCKED", "ghost", "s1", Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example("ALLOWED", "none", "s1", Some(true)))
+        .unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example("BLOCKED", "ghost", "s1", Some(true)))
+        .unwrap();
 
     let kind = teacher.should_train(&buffers).await;
-    assert_eq!(kind, Some(TrainingKind::ObserverSft),
-        "ObserverSft should be prioritised over Sft when both are available");
+    assert_eq!(
+        kind,
+        Some(TrainingKind::ObserverSft),
+        "ObserverSft should be prioritised over Sft when both are available"
+    );
 }
 
 #[tokio::test]
@@ -419,8 +547,11 @@ async fn test_golden_triggers_when_no_observer_data() {
     buffers.golden.record("s", "u2", "a2", "sess", "m").unwrap();
 
     let kind = teacher.should_train(&buffers).await;
-    assert_eq!(kind, Some(TrainingKind::Sft),
-        "Sft should trigger when only golden data reaches threshold");
+    assert_eq!(
+        kind,
+        Some(TrainingKind::Sft),
+        "Sft should trigger when only golden data reaches threshold"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -431,8 +562,8 @@ async fn test_golden_triggers_when_no_observer_data() {
 fn test_distillation_generates_lessons_from_preference_pairs() {
     // Verify that distill_from_failures generates lessons when
     // a failure category appears enough times.
-    use crate::learning::distill::{DistillConfig, distill_from_failures};
     use crate::learning::buffers::PreferencePair;
+    use crate::learning::distill::{distill_from_failures, DistillConfig};
     use crate::memory::lessons::LessonStore;
 
     let mut store = LessonStore::new();
@@ -442,52 +573,67 @@ fn test_distillation_generates_lessons_from_preference_pairs() {
     };
 
     // Create 3 preference pairs with the same failure category
-    let pairs: Vec<PreferencePair> = (0..3).map(|i| PreferencePair {
-        system_prompt: "sys".to_string(),
-        user_message: format!("msg_{}", i),
-        rejected_response: format!("bad_{}", i),
-        chosen_response: format!("good_{}", i),
-        failure_category: "ghost_tooling".to_string(),
-        session_id: "s1".to_string(),
-        model_id: "gemma4".to_string(),
-        timestamp: chrono::Utc::now(),
-    }).collect();
+    let pairs: Vec<PreferencePair> = (0..3)
+        .map(|i| PreferencePair {
+            system_prompt: "sys".to_string(),
+            user_message: format!("msg_{}", i),
+            rejected_response: format!("bad_{}", i),
+            chosen_response: format!("good_{}", i),
+            failure_category: "ghost_tooling".to_string(),
+            session_id: "s1".to_string(),
+            model_id: "gemma4".to_string(),
+            timestamp: chrono::Utc::now(),
+        })
+        .collect();
 
     let generated = distill_from_failures(&pairs, &mut store, &config);
-    assert!(generated > 0, "Should have generated at least 1 lesson for ghost_tooling");
+    assert!(
+        generated > 0,
+        "Should have generated at least 1 lesson for ghost_tooling"
+    );
 
     let lessons = store.all();
     assert!(!lessons.is_empty());
-    assert!(lessons.iter().any(|l| l.source.contains("ghost_tooling")),
-        "Lesson should reference the ghost_tooling failure category");
+    assert!(
+        lessons.iter().any(|l| l.source.contains("ghost_tooling")),
+        "Lesson should reference the ghost_tooling failure category"
+    );
 }
 
 #[test]
 fn test_distillation_does_not_duplicate_lessons() {
     // Running distill twice on the same category should not create duplicates.
-    use crate::learning::distill::{DistillConfig, distill_from_failures};
     use crate::learning::buffers::PreferencePair;
+    use crate::learning::distill::{distill_from_failures, DistillConfig};
     use crate::memory::lessons::LessonStore;
 
     let mut store = LessonStore::new();
-    let config = DistillConfig { threshold: 2, max_confidence: 0.9 };
+    let config = DistillConfig {
+        threshold: 2,
+        max_confidence: 0.9,
+    };
 
-    let pairs: Vec<PreferencePair> = (0..3).map(|i| PreferencePair {
-        system_prompt: "sys".to_string(),
-        user_message: format!("msg_{}", i),
-        rejected_response: format!("bad_{}", i),
-        chosen_response: format!("good_{}", i),
-        failure_category: "sycophancy".to_string(),
-        session_id: "s1".to_string(),
-        model_id: "gemma4".to_string(),
-        timestamp: chrono::Utc::now(),
-    }).collect();
+    let pairs: Vec<PreferencePair> = (0..3)
+        .map(|i| PreferencePair {
+            system_prompt: "sys".to_string(),
+            user_message: format!("msg_{}", i),
+            rejected_response: format!("bad_{}", i),
+            chosen_response: format!("good_{}", i),
+            failure_category: "sycophancy".to_string(),
+            session_id: "s1".to_string(),
+            model_id: "gemma4".to_string(),
+            timestamp: chrono::Utc::now(),
+        })
+        .collect();
 
     let first = distill_from_failures(&pairs, &mut store, &config);
     let second = distill_from_failures(&pairs, &mut store, &config);
 
     assert!(first > 0);
-    assert_eq!(second, 0, "Second distillation should produce 0 new lessons (already exists)");
+    assert_eq!(
+        second, 0,
+        "Second distillation should produce 0 new lessons (already exists)"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -512,13 +658,24 @@ async fn test_e2e_reject_correct_train_distill() {
     for i in 0..2 {
         // Rejection buffer capture
         super::learning::capture_rejection(
-            &buffers, "system", "what is rust?",
-            &format!("bad answer #{}", i), "factual_error", session, "gemma4",
+            &buffers,
+            "system",
+            "what is rust?",
+            &format!("bad answer #{}", i),
+            "factual_error",
+            session,
+            "gemma4",
         );
         // Observer audit capture (BLOCKED, was_correct = None)
-        buffers.observer.record(
-            &make_observer_example("BLOCKED", "factual_error", session, None),
-        ).unwrap();
+        buffers
+            .observer
+            .record(&make_observer_example(
+                "BLOCKED",
+                "factual_error",
+                session,
+                None,
+            ))
+            .unwrap();
     }
 
     assert_eq!(buffers.rejection.count(), 2);
@@ -526,14 +683,28 @@ async fn test_e2e_reject_correct_train_distill() {
 
     // ── Step 2: ALLOWED after rejections ──
     // Observer audit capture (ALLOWED, was_correct = true)
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", session, Some(true)),
-    ).unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example(
+            "ALLOWED",
+            "none",
+            session,
+            Some(true),
+        ))
+        .unwrap();
     // Preference pair
-    buffers.preference.record(
-        "system", "what is rust?", "bad answer #1", "Rust is a systems programming language",
-        "factual_error", session, "gemma4",
-    ).unwrap();
+    buffers
+        .preference
+        .record(
+            "system",
+            "what is rust?",
+            "bad answer #1",
+            "Rust is a systems programming language",
+            "factual_error",
+            session,
+            "gemma4",
+        )
+        .unwrap();
     // Retroactive labeling
     buffers.observer.mark_session_correct(session).unwrap();
 
@@ -556,10 +727,15 @@ async fn test_e2e_reject_correct_train_distill() {
     assert_eq!(drained.len(), 3);
 
     // Filter for was_correct = true (what ObserverSft would use)
-    let correct: Vec<_> = drained.iter()
+    let correct: Vec<_> = drained
+        .iter()
         .filter(|ex| ex.was_correct == Some(true))
         .collect();
-    assert_eq!(correct.len(), 3, "All 3 entries should be training-eligible");
+    assert_eq!(
+        correct.len(),
+        3,
+        "All 3 entries should be training-eligible"
+    );
 
     // After drain, buffer should be empty
     assert_eq!(buffers.observer.count(), 0);
@@ -570,13 +746,19 @@ async fn test_e2e_reject_correct_train_distill() {
     assert_eq!(pref_entries[0].failure_category, "factual_error");
 
     // ── Step 7: Run distillation on the preference data ──
-    use crate::learning::distill::{DistillConfig, distill_from_failures};
+    use crate::learning::distill::{distill_from_failures, DistillConfig};
     use crate::memory::lessons::LessonStore;
 
     let mut lesson_store = LessonStore::new();
-    let distill_config = DistillConfig { threshold: 1, max_confidence: 0.9 };
+    let distill_config = DistillConfig {
+        threshold: 1,
+        max_confidence: 0.9,
+    };
     let lessons = distill_from_failures(&pref_entries, &mut lesson_store, &distill_config);
-    assert!(lessons > 0, "Distillation should produce at least 1 lesson from factual_error");
+    assert!(
+        lessons > 0,
+        "Distillation should produce at least 1 lesson from factual_error"
+    );
 }
 
 #[test]
@@ -585,8 +767,14 @@ fn test_audit_output_preserves_raw_data() {
     // that would be discarded by the old AuditResult-only return.
     let output = make_audit_output(Verdict::Blocked, "ghost_tooling");
 
-    assert!(!output.raw_response.is_empty(), "Raw response must be preserved");
-    assert!(!output.audit_instruction.is_empty(), "Audit instruction must be preserved");
+    assert!(
+        !output.raw_response.is_empty(),
+        "Raw response must be preserved"
+    );
+    assert!(
+        !output.audit_instruction.is_empty(),
+        "Audit instruction must be preserved"
+    );
     assert!(!output.result.verdict.is_allowed());
     assert_eq!(output.result.failure_category, "ghost_tooling");
 }
@@ -598,15 +786,34 @@ fn test_training_buffers_status_includes_all_four() {
     let buffers = make_buffers(tmp.path());
 
     buffers.golden.record("s", "u", "a", "s1", "m").unwrap();
-    buffers.preference.record("s", "u", "bad", "good", "cat", "s1", "m").unwrap();
-    buffers.rejection.record("s", "u", "bad", "cat", "s1", "m").unwrap();
-    buffers.observer.record(
-        &make_observer_example("ALLOWED", "none", "s1", Some(true)),
-    ).unwrap();
+    buffers
+        .preference
+        .record("s", "u", "bad", "good", "cat", "s1", "m")
+        .unwrap();
+    buffers
+        .rejection
+        .record("s", "u", "bad", "cat", "s1", "m")
+        .unwrap();
+    buffers
+        .observer
+        .record(&make_observer_example("ALLOWED", "none", "s1", Some(true)))
+        .unwrap();
 
     let status = buffers.status();
     assert!(status.contains("Golden: 1"), "Missing golden: {}", status);
-    assert!(status.contains("Preference: 1"), "Missing preference: {}", status);
-    assert!(status.contains("Rejections: 1"), "Missing rejections: {}", status);
-    assert!(status.contains("Observer: 1"), "Missing observer: {}", status);
+    assert!(
+        status.contains("Preference: 1"),
+        "Missing preference: {}",
+        status
+    );
+    assert!(
+        status.contains("Rejections: 1"),
+        "Missing rejections: {}",
+        status
+    );
+    assert!(
+        status.contains("Observer: 1"),
+        "Missing observer: {}",
+        status
+    );
 }

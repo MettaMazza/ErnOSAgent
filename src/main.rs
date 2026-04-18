@@ -15,15 +15,14 @@
 //!   cargo run → Web UI (opens browser at localhost)
 
 use anyhow::{Context, Result};
-use ernosagent::{config, logging, memory, prompt, provider, session, steering, tools, web};
 use ernosagent::platform::adapter::PlatformAdapter;
+use ernosagent::{config, logging, memory, prompt, provider, session, steering, tools, web};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = config::AppConfig::load()
-        .context("Failed to load configuration")?;
+    let config = config::AppConfig::load().context("Failed to load configuration")?;
 
     // Ensure all data directories exist
     let dirs = [
@@ -62,7 +61,7 @@ async fn main() -> Result<()> {
 
     // Initialize live SAE for real-time interpretability
     // FORCE connection to the main generative server (port 8080) for raw SAE activations.
-    // The previously intended dedicated server on 8081 is now explicitly pooled via 
+    // The previously intended dedicated server on 8081 is now explicitly pooled via
     // Nomic for OAI compatibility and mathematically cannot provide raw unpooled residual states.
     {
         let embed_url = if !config.llamacpp.model_path.is_empty() {
@@ -78,7 +77,7 @@ async fn main() -> Result<()> {
 
 /// Run SAE training pipeline (activated via `cargo run -- --train-sae`).
 async fn run_sae_training(config: config::AppConfig) -> Result<()> {
-    use ernosagent::interpretability::train_runner::{TrainingRunConfig, run_sae_training};
+    use ernosagent::interpretability::train_runner::{run_sae_training, TrainingRunConfig};
     use ernosagent::interpretability::trainer::TrainConfig;
 
     tracing::info!("=== SAE Training Mode ===");
@@ -97,7 +96,7 @@ async fn run_sae_training(config: config::AppConfig) -> Result<()> {
         n_gpu_layers: config.llamacpp.n_gpu_layers,
         data_dir: data_dir.clone(),
         train_config: TrainConfig {
-            num_features: 131_072,  // 128K — Anthropic-scale, ~16hr on M3 Ultra
+            num_features: 131_072, // 128K — Anthropic-scale, ~16hr on M3 Ultra
             model_dim: 0,          // auto-detected from first activation
             l1_coefficient: 1e-4,
             learning_rate: 3e-4,
@@ -179,13 +178,19 @@ async fn run_sae_probe(config: config::AppConfig) -> Result<()> {
 
     let embed_child = tokio::process::Command::new(&config.llamacpp.server_binary)
         .args([
-            "--model", &config.llamacpp.model_path,
-            "--port", &embed_port.to_string(),
-            "--n-gpu-layers", &config.llamacpp.n_gpu_layers.to_string(),
+            "--model",
+            &config.llamacpp.model_path,
+            "--port",
+            &embed_port.to_string(),
+            "--n-gpu-layers",
+            &config.llamacpp.n_gpu_layers.to_string(),
             "--embeddings",
-            "--pooling", "mean",
-            "--batch-size", "8192",
-            "--ubatch-size", "8192",
+            "--pooling",
+            "mean",
+            "--batch-size",
+            "8192",
+            "--ubatch-size",
+            "8192",
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -210,15 +215,18 @@ async fn run_sae_probe(config: config::AppConfig) -> Result<()> {
     tracing::info!("Embedding server healthy — starting probe");
 
     // Run the probe
-    let feature_map = ernosagent::interpretability::probe::run_probe(
-        &sae,
-        &embed_url,
-        &output_dir,
-    ).await?;
+    let feature_map =
+        ernosagent::interpretability::probe::run_probe(&sae, &embed_url, &output_dir).await?;
 
     println!("\n✅ Feature probe complete!");
-    println!("   Mapped features: {}/{}", feature_map.mapped_count, sae.num_features);
-    println!("   Output: {}", output_dir.join("feature_map.json").display());
+    println!(
+        "   Mapped features: {}/{}",
+        feature_map.mapped_count, sae.num_features
+    );
+    println!(
+        "   Output: {}",
+        output_dir.join("feature_map.json").display()
+    );
     println!("   The system will now use these labels at startup.");
 
     // Kill the embedding server
@@ -236,9 +244,7 @@ async fn run_web(config: config::AppConfig) -> Result<()> {
 }
 
 /// Build the shared application state for the web server.
-async fn init_web_state(
-    config: config::AppConfig,
-) -> Result<Arc<RwLock<web::state::WebAppState>>> {
+async fn init_web_state(config: config::AppConfig) -> Result<Arc<RwLock<web::state::WebAppState>>> {
     // Provider — for llamacpp, auto-start the llama-server subprocess
     let provider: Arc<dyn provider::Provider> = match config.general.active_provider.as_str() {
         "llamacpp" => {
@@ -321,7 +327,9 @@ async fn init_web_state(
         } else {
             // Find the flux_server.py script
             let script_candidates = [
-                std::env::current_dir().unwrap_or_default().join("scripts/flux_server.py"),
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .join("scripts/flux_server.py"),
                 config.general.data_dir.join("scripts/flux_server.py"),
             ];
             let script_path = script_candidates.iter().find(|p| p.exists());
@@ -384,8 +392,8 @@ async fn init_web_state(
 
     // Prompts
     let core_prompt = prompt::core::build_core_prompt();
-    let identity_prompt = prompt::identity::load_identity(&config.persona_path())
-        .unwrap_or_else(|e| {
+    let identity_prompt =
+        prompt::identity::load_identity(&config.persona_path()).unwrap_or_else(|e| {
             tracing::warn!(error = %e, "Failed to load identity prompt");
             String::new()
         });
@@ -410,11 +418,13 @@ async fn init_web_state(
         let embed_url = format!("http://localhost:{}", config.llamacpp.port);
         if let Some(sae) = ernosagent::interpretability::live::sae() {
             tracing::info!("Generating identity vector (first run) — this takes ~10s");
-            match steering::identity_vector::generate_identity_vector(
-                sae, &embed_url, &vectors_dir
-            ).await {
+            match steering::identity_vector::generate_identity_vector(sae, &embed_url, &vectors_dir)
+                .await
+            {
                 Ok(path) => tracing::info!(path = %path.display(), "✅ Identity vector generated"),
-                Err(e) => tracing::warn!(error = %e, "Identity vector generation failed — will retry next startup"),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Identity vector generation failed — will retry next startup")
+                }
             }
         }
     }
@@ -446,7 +456,8 @@ async fn init_web_state(
         &config.neo4j.username,
         &config.neo4j.password,
         &config.neo4j.database,
-    ).await?;
+    )
+    .await?;
 
     let memory_summary = memory_mgr.status_summary().await;
     tracing::info!(status = %memory_summary, "Memory manager initialised");
@@ -455,7 +466,8 @@ async fn init_web_state(
 
     // Training data capture buffers (golden + preference)
     let training_dir = config.general.data_dir.join("training");
-    let training_buffers = match ernosagent::learning::buffers::TrainingBuffers::open(&training_dir) {
+    let training_buffers = match ernosagent::learning::buffers::TrainingBuffers::open(&training_dir)
+    {
         Ok(buffers) => {
             tracing::info!(
                 status = %buffers.status(),
@@ -487,9 +499,9 @@ async fn init_web_state(
 
     // Register stateful tools that need runtime data (synaptic graph, turing grid)
     {
-        let graph = Arc::new(crate::memory::synaptic::SynapticGraph::new(
-            Some(config.general.data_dir.clone()),
-        ));
+        let graph = Arc::new(crate::memory::synaptic::SynapticGraph::new(Some(
+            config.general.data_dir.clone(),
+        )));
         tools::synaptic_tool::register_tools(&mut executor, graph);
 
         let turing_state = tools::turing_tool::TuringState::new(&config.general.data_dir).await;
@@ -538,16 +550,17 @@ async fn init_web_state(
 
     // Adapter manifest (version tracking for trained models)
     let manifest_path = config.general.data_dir.join("adapter_manifest.json");
-    let adapter_manifest = match ernosagent::learning::manifest::AdapterManifest::open(&manifest_path) {
-        Ok(m) => {
-            tracing::info!(status = %m.status(), "Adapter manifest loaded");
-            Some(Arc::new(tokio::sync::Mutex::new(m)))
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to load adapter manifest");
-            None
-        }
-    };
+    let adapter_manifest =
+        match ernosagent::learning::manifest::AdapterManifest::open(&manifest_path) {
+            Ok(m) => {
+                tracing::info!(status = %m.status(), "Adapter manifest loaded");
+                Some(Arc::new(tokio::sync::Mutex::new(m)))
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to load adapter manifest");
+                None
+            }
+        };
 
     // Platform adapters (Discord, Telegram, etc.)
     let mut platform_registry = ernosagent::platform::registry::PlatformRegistry::new();
@@ -566,17 +579,22 @@ async fn init_web_state(
         let mut discord_cfg = config.platform.discord.clone();
         if let Some(saved) = saved_platforms.get("discord") {
             if let Some(token) = saved.get("token").and_then(|v| v.as_str()) {
-                if !token.is_empty() { discord_cfg.token = token.to_string(); }
+                if !token.is_empty() {
+                    discord_cfg.token = token.to_string();
+                }
             }
             if let Some(enabled) = saved.get("enabled").and_then(|v| v.as_bool()) {
                 discord_cfg.enabled = enabled;
             }
             if let Some(admin) = saved.get("admin_id").and_then(|v| v.as_str()) {
-                if !admin.is_empty() { discord_cfg.admin_user_id = admin.to_string(); }
+                if !admin.is_empty() {
+                    discord_cfg.admin_user_id = admin.to_string();
+                }
             }
             if let Some(ch) = saved.get("listen_channel").and_then(|v| v.as_str()) {
                 if !ch.is_empty() {
-                    discord_cfg.listen_channels = ch.split(',').map(|s| s.trim().to_string()).collect();
+                    discord_cfg.listen_channels =
+                        ch.split(',').map(|s| s.trim().to_string()).collect();
                 }
             }
         }
@@ -601,16 +619,21 @@ async fn init_web_state(
         let mut telegram_cfg = config.platform.telegram.clone();
         if let Some(saved) = saved_platforms.get("telegram") {
             if let Some(token) = saved.get("token").and_then(|v| v.as_str()) {
-                if !token.is_empty() { telegram_cfg.token = token.to_string(); }
+                if !token.is_empty() {
+                    telegram_cfg.token = token.to_string();
+                }
             }
             if let Some(enabled) = saved.get("enabled").and_then(|v| v.as_bool()) {
                 telegram_cfg.enabled = enabled;
             }
             if let Some(admin) = saved.get("admin_user_id").and_then(|v| v.as_str()) {
-                if !admin.is_empty() { telegram_cfg.admin_user_id = admin.to_string(); }
+                if !admin.is_empty() {
+                    telegram_cfg.admin_user_id = admin.to_string();
+                }
             }
         }
-        let mut telegram_adapter = ernosagent::platform::telegram::TelegramAdapter::new(&telegram_cfg);
+        let mut telegram_adapter =
+            ernosagent::platform::telegram::TelegramAdapter::new(&telegram_cfg);
         if telegram_cfg.enabled && !telegram_cfg.token.is_empty() {
             if let Err(e) = telegram_adapter.connect().await {
                 tracing::warn!(error = %e, "Telegram connect failed");
@@ -651,7 +674,6 @@ async fn init_web_state(
         autonomy_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     }));
 
-
     // Start the scheduler background loop
     if let Some(scheduler_handle) = scheduler {
         let state_for_scheduler = state.clone();
@@ -663,7 +685,8 @@ async fn init_web_state(
                 state_for_scheduler,
                 cancel,
                 idle_timer,
-            ).await;
+            )
+            .await;
         });
     }
 
@@ -677,18 +700,24 @@ async fn init_web_state(
             let mut st = state_for_router.write().await;
             for adapter in st.platform_registry.adapters_mut() {
                 if let Some(rx) = adapter.take_message_receiver() {
-                    tracing::info!(platform = adapter.name(), "Took message receiver for router");
+                    tracing::info!(
+                        platform = adapter.name(),
+                        "Took message receiver for router"
+                    );
                     receivers.push(rx);
                 }
             }
         }
         if !receivers.is_empty() {
-            let (merged_tx, mut merged_rx) = tokio::sync::mpsc::channel::<ernosagent::platform::adapter::PlatformMessage>(256);
+            let (merged_tx, mut merged_rx) =
+                tokio::sync::mpsc::channel::<ernosagent::platform::adapter::PlatformMessage>(256);
             for mut rx in receivers {
                 let tx = merged_tx.clone();
                 tokio::spawn(async move {
                     while let Some(msg) = rx.recv().await {
-                        if tx.send(msg).await.is_err() { break; }
+                        if tx.send(msg).await.is_err() {
+                            break;
+                        }
                     }
                 });
             }
@@ -704,7 +733,8 @@ async fn init_web_state(
                         // the scheduler from respawning idle jobs during processing.
                         {
                             let st = state.read().await;
-                            st.autonomy_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                            st.autonomy_cancel
+                                .store(true, std::sync::atomic::Ordering::SeqCst);
                             *st.idle_timer.lock().await = std::time::Instant::now();
                         }
                         tracing::info!(
@@ -724,7 +754,7 @@ async fn init_web_state(
                             };
                             if let Some(http) = http {
                                 let channel_id = serenity::model::id::ChannelId::new(
-                                    msg.channel_id.parse::<u64>().unwrap_or(0)
+                                    msg.channel_id.parse::<u64>().unwrap_or(0),
                                 );
                                 Some(ernosagent::platform::discord::telemetry::spawn_typing_indicator(http, channel_id))
                             } else {
@@ -746,7 +776,14 @@ async fn init_web_state(
                                 let st = state.read().await;
                                 for adapter in st.platform_registry.adapters_iter() {
                                     if adapter.name().to_lowercase() == msg.platform {
-                                         if let Err(e) = adapter.reply_to_message(&msg.channel_id, &msg.message_id, &reply).await {
+                                        if let Err(e) = adapter
+                                            .reply_to_message(
+                                                &msg.channel_id,
+                                                &msg.message_id,
+                                                &reply,
+                                            )
+                                            .await
+                                        {
                                             tracing::error!(platform = %msg.platform, error = %e, "Failed to send platform reply");
                                         }
                                         break;
@@ -777,4 +814,3 @@ async fn init_web_state(
 
     Ok(state)
 }
-

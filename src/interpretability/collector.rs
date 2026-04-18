@@ -59,7 +59,9 @@ impl ActivationCollector {
             "encoding_format": "float",
         });
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .json(&body)
             .send()
             .await
@@ -71,7 +73,9 @@ impl ActivationCollector {
             bail!("Embedding endpoint error {}: {}", status, error_body);
         }
 
-        let parsed: serde_json::Value = resp.json().await
+        let parsed: serde_json::Value = resp
+            .json()
+            .await
             .context("Failed to parse embedding response")?;
 
         let embedding = parsed
@@ -169,11 +173,7 @@ impl ActivationCollector {
     }
 
     /// Save collected activations to disk as raw f32 binary (memory-mappable).
-    pub fn save_activations(
-        activations: &[Vec<f32>],
-        path: &Path,
-        dim: usize,
-    ) -> Result<()> {
+    pub fn save_activations(activations: &[Vec<f32>], path: &Path, dim: usize) -> Result<()> {
         std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
 
         // Header: [num_samples: u64, dim: u64]
@@ -267,13 +267,22 @@ pub fn build_corpus(data_dir: &Path) -> Vec<String> {
     if sessions_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(&sessions_dir) {
             for entry in entries.flatten() {
-                if entry.path().extension().map(|e| e == "json").unwrap_or(false) {
+                if entry
+                    .path()
+                    .extension()
+                    .map(|e| e == "json")
+                    .unwrap_or(false)
+                {
                     if let Ok(content) = std::fs::read_to_string(entry.path()) {
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                            if let Some(messages) = parsed.get("messages").and_then(|m| m.as_array()) {
+                            if let Some(messages) =
+                                parsed.get("messages").and_then(|m| m.as_array())
+                            {
                                 for msg in messages {
-                                    if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
-                                        if !text.is_empty() && text.len() > 10 && text.len() < 4096 {
+                                    if let Some(text) = msg.get("content").and_then(|c| c.as_str())
+                                    {
+                                        if !text.is_empty() && text.len() > 10 && text.len() < 4096
+                                        {
                                             corpus.push(text.to_string());
                                         }
                                     }
@@ -293,7 +302,12 @@ pub fn build_corpus(data_dir: &Path) -> Vec<String> {
     if corpus_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(&corpus_dir) {
             for entry in entries.flatten() {
-                if entry.path().extension().map(|e| e == "txt").unwrap_or(false) {
+                if entry
+                    .path()
+                    .extension()
+                    .map(|e| e == "txt")
+                    .unwrap_or(false)
+                {
                     if let Ok(content) = std::fs::read_to_string(entry.path()) {
                         // Split by double newlines into paragraphs
                         for para in content.split("\n\n") {
@@ -343,7 +357,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "What is a syllogism? Construct one about technology.",
         "Derive the quadratic formula from ax² + bx + c = 0.",
     ];
-    for p in &reasoning { prompts.push(p.to_string()); }
+    for p in &reasoning {
+        prompts.push(p.to_string());
+    }
 
     // Code generation
     let code = [
@@ -358,7 +374,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Write a function that serializes a binary tree to a string and deserializes it back.",
         "Implement a basic HTTP/1.1 parser in Rust that handles chunked transfer encoding.",
     ];
-    for p in &code { prompts.push(p.to_string()); }
+    for p in &code {
+        prompts.push(p.to_string());
+    }
 
     // Safety / ethics
     let safety = [
@@ -373,7 +391,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "What are the dangers of deepfakes and how can society address them?",
         "Explain why bias in training data can lead to discriminatory AI systems.",
     ];
-    for p in &safety { prompts.push(p.to_string()); }
+    for p in &safety {
+        prompts.push(p.to_string());
+    }
 
     // Factual recall
     let factual = [
@@ -388,7 +408,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Describe the structure and function of DNA.",
         "What caused the 2008 financial crisis?",
     ];
-    for p in &factual { prompts.push(p.to_string()); }
+    for p in &factual {
+        prompts.push(p.to_string());
+    }
 
     // Creative writing
     let creative = [
@@ -403,7 +425,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Write a dialogue between two AIs debating the nature of consciousness.",
         "Describe the sound of rain on a tin roof using only visual metaphors.",
     ];
-    for p in &creative { prompts.push(p.to_string()); }
+    for p in &creative {
+        prompts.push(p.to_string());
+    }
 
     // Emotional / interpersonal
     let emotional = [
@@ -418,7 +442,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Describe the experience of flow state when coding.",
         "What role does vulnerability play in building deep connections?",
     ];
-    for p in &emotional { prompts.push(p.to_string()); }
+    for p in &emotional {
+        prompts.push(p.to_string());
+    }
 
     // Technical / architecture
     let technical = [
@@ -433,7 +459,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Explain the concept of eventual consistency in distributed databases.",
         "How does the Linux kernel handle virtual memory?",
     ];
-    for p in &technical { prompts.push(p.to_string()); }
+    for p in &technical {
+        prompts.push(p.to_string());
+    }
 
     // Meta / self-referential
     let meta = [
@@ -448,7 +476,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "What are the limitations of current language model architectures?",
         "Discuss the relationship between model scale and capability.",
     ];
-    for p in &meta { prompts.push(p.to_string()); }
+    for p in &meta {
+        prompts.push(p.to_string());
+    }
 
     // Adversarial / edge cases
     let adversarial = [
@@ -463,7 +493,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "If this prompt was generated by an AI, does that change your response?",
         "What would a language model trained on no data output?",
     ];
-    for p in &adversarial { prompts.push(p.to_string()); }
+    for p in &adversarial {
+        prompts.push(p.to_string());
+    }
 
     // Long-form analysis
     let analysis = [
@@ -473,7 +505,9 @@ fn built_in_diversity_prompts() -> Vec<String> {
         "Discuss the history and evolution of artificial intelligence from Turing to modern large language models. What paradigm shifts occurred and why?",
         "Analyze the ethical implications of genetic engineering in humans. Consider both therapeutic applications and enhancement scenarios.",
     ];
-    for p in &analysis { prompts.push(p.to_string()); }
+    for p in &analysis {
+        prompts.push(p.to_string());
+    }
 
     prompts
 }
@@ -501,7 +535,11 @@ mod tests {
         // Uses a temp dir with no sessions — should still have diversity prompts
         let tmp = tempfile::TempDir::new().unwrap();
         let corpus = build_corpus(tmp.path());
-        assert!(corpus.len() >= 90, "Expected 90+ diversity prompts, got {}", corpus.len());
+        assert!(
+            corpus.len() >= 90,
+            "Expected 90+ diversity prompts, got {}",
+            corpus.len()
+        );
     }
 
     #[test]
@@ -535,10 +573,25 @@ mod tests {
     fn test_diversity_prompts_coverage() {
         let prompts = built_in_diversity_prompts();
         // Check all categories are represented
-        assert!(prompts.iter().any(|p| p.contains("Rust")), "Missing code prompts");
-        assert!(prompts.iter().any(|p| p.contains("ethical")), "Missing ethics prompts");
-        assert!(prompts.iter().any(|p| p.contains("poem")), "Missing creative prompts");
-        assert!(prompts.iter().any(|p| p.contains("grief")), "Missing emotional prompts");
-        assert!(prompts.iter().any(|p| p.contains("TCP")), "Missing technical prompts");
+        assert!(
+            prompts.iter().any(|p| p.contains("Rust")),
+            "Missing code prompts"
+        );
+        assert!(
+            prompts.iter().any(|p| p.contains("ethical")),
+            "Missing ethics prompts"
+        );
+        assert!(
+            prompts.iter().any(|p| p.contains("poem")),
+            "Missing creative prompts"
+        );
+        assert!(
+            prompts.iter().any(|p| p.contains("grief")),
+            "Missing emotional prompts"
+        );
+        assert!(
+            prompts.iter().any(|p| p.contains("TCP")),
+            "Missing technical prompts"
+        );
     }
 }

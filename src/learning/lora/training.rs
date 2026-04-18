@@ -60,7 +60,11 @@ pub fn train_sft(
     for iter in 0..config.num_iterations {
         let sample = &samples[iter % samples.len()];
         let logits = super::forward::forward_with_lora(
-            &sample.input_ids, &base_vb, &var_map, config, &device,
+            &sample.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         let loss = cross_entropy_loss(&logits, &sample.labels)?;
@@ -87,7 +91,10 @@ pub fn train_sft(
     super::adapters::save_adapters(&var_map, config, avg_loss, config.num_iterations)?;
 
     let report = build_report(config, avg_loss, samples_processed, &start);
-    tracing::info!(avg_loss = format!("{:.4}", report.loss), "SFT training complete");
+    tracing::info!(
+        avg_loss = format!("{:.4}", report.loss),
+        "SFT training complete"
+    );
     Ok(report)
 }
 
@@ -134,17 +141,28 @@ pub fn train_orpo(
         let (chosen, rejected) = &pairs[iter % pairs.len()];
 
         let chosen_logits = super::forward::forward_with_lora(
-            &chosen.input_ids, &base_vb, &var_map, config, &device,
+            &chosen.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
         let rejected_logits = super::forward::forward_with_lora(
-            &rejected.input_ids, &base_vb, &var_map, config, &device,
+            &rejected.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         let sft_loss = cross_entropy_loss(&chosen_logits, &chosen.labels)?;
         let orpo_loss = compute_orpo_loss(
-            &chosen_logits, &rejected_logits,
-            &chosen.labels, &rejected.labels,
-            &sft_loss, orpo_beta,
+            &chosen_logits,
+            &rejected_logits,
+            &chosen.labels,
+            &rejected.labels,
+            &sft_loss,
+            orpo_beta,
         )?;
 
         let loss_val = orpo_loss.to_scalar::<f32>()?;
@@ -162,7 +180,10 @@ pub fn train_orpo(
     super::adapters::save_adapters(&var_map, config, avg_loss, config.num_iterations)?;
 
     let report = build_report(config, avg_loss, samples_processed, &start);
-    tracing::info!(avg_loss = format!("{:.4}", report.loss), "ORPO training complete");
+    tracing::info!(
+        avg_loss = format!("{:.4}", report.loss),
+        "ORPO training complete"
+    );
     Ok(report)
 }
 

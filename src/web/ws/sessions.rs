@@ -9,12 +9,20 @@ use super::{send_json, MessageDto, ServerMessage};
 use crate::web::state::SharedState;
 use axum::extract::ws::WebSocket;
 
-pub(super) async fn handle_switch_session(socket: &mut WebSocket, state: &SharedState, session_id: &str) {
+pub(super) async fn handle_switch_session(
+    socket: &mut WebSocket,
+    state: &SharedState,
+    session_id: &str,
+) {
     let mut st = state.write().await;
     if let Err(e) = st.session_mgr.switch_to(session_id) {
-        let _ = send_json(socket, &ServerMessage::Error {
-            message: format!("Failed to switch session: {}", e),
-        }).await;
+        let _ = send_json(
+            socket,
+            &ServerMessage::Error {
+                message: format!("Failed to switch session: {}", e),
+            },
+        )
+        .await;
         return;
     }
 
@@ -22,9 +30,14 @@ pub(super) async fn handle_switch_session(socket: &mut WebSocket, state: &Shared
     let loaded = ServerMessage::SessionLoaded {
         session_id: session.id.clone(),
         title: session.title.clone(),
-        messages: session.messages.iter().map(|m| MessageDto {
-            role: m.role.clone(), content: m.content.clone(),
-        }).collect(),
+        messages: session
+            .messages
+            .iter()
+            .map(|m| MessageDto {
+                role: m.role.clone(),
+                content: m.content.clone(),
+            })
+            .collect(),
     };
     let _ = send_json(socket, &loaded).await;
 }
@@ -35,9 +48,13 @@ pub(super) async fn handle_new_session(socket: &mut WebSocket, state: &SharedSta
     let provider = st.config.general.active_provider.clone();
 
     if let Err(e) = st.session_mgr.new_session(&model, &provider) {
-        let _ = send_json(socket, &ServerMessage::Error {
-            message: format!("Failed to create session: {}", e),
-        }).await;
+        let _ = send_json(
+            socket,
+            &ServerMessage::Error {
+                message: format!("Failed to create session: {}", e),
+            },
+        )
+        .await;
         return;
     }
 

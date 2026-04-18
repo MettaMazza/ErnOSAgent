@@ -8,10 +8,7 @@
 use super::{ActionResult, TuringState};
 use crate::tools::schema::ToolCall;
 
-pub(super) async fn action_label(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_label(call: &ToolCall, state: &TuringState) -> ActionResult {
     let name = match call.arguments.get("name").and_then(|v| v.as_str()) {
         Some(n) if !n.is_empty() => n,
         _ => {
@@ -39,10 +36,7 @@ pub(super) async fn action_label(
     }
 }
 
-pub(super) async fn action_goto(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_goto(call: &ToolCall, state: &TuringState) -> ActionResult {
     let name = match call.arguments.get("name").and_then(|v| v.as_str()) {
         Some(n) if !n.is_empty() => n,
         _ => {
@@ -77,13 +71,22 @@ pub(super) async fn action_goto(
     }
 }
 
-pub(super) async fn action_link(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
-    let tx = call.arguments.get("target_x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let ty = call.arguments.get("target_y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let tz = call.arguments.get("target_z").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+pub(super) async fn action_link(call: &ToolCall, state: &TuringState) -> ActionResult {
+    let tx = call
+        .arguments
+        .get("target_x")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let ty = call
+        .arguments
+        .get("target_y")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let tz = call
+        .arguments
+        .get("target_z")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
 
     let mut g = state.grid.lock().await;
     let (x, y, z) = g.get_cursor();
@@ -118,13 +121,19 @@ pub(super) async fn action_history(state: &TuringState) -> ActionResult {
         Some(hist) if !hist.is_empty() => {
             let mut out = format!(
                 "--- Version History for Cell ({},{},{}) ({} entries) ---\n",
-                x, y, z, hist.len()
+                x,
+                y,
+                z,
+                hist.len()
             );
             for (i, snap) in hist.iter().enumerate() {
                 let preview: String = snap.content.chars().take(100).collect();
                 out.push_str(&format!(
                     "  v-{}: [{}] {} (at {})\n",
-                    i + 1, snap.format, preview, snap.timestamp
+                    i + 1,
+                    snap.format,
+                    preview,
+                    snap.timestamp
                 ));
             }
             (out, true, None)

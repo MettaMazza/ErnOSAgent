@@ -12,7 +12,8 @@ use candle_core::{DType, Tensor, D};
 /// Cross-entropy loss for causal language modelling.
 /// Ignores positions where labels == -100.
 pub(crate) fn cross_entropy_loss(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
-    let (_, seq_len, _) = logits.dims3()
+    let (_, seq_len, _) = logits
+        .dims3()
         .context("logits must be [1, seq_len, vocab_size]")?;
 
     let mut token_losses: Vec<Tensor> = Vec::new();
@@ -74,7 +75,9 @@ fn sequence_logprob(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
         return Tensor::zeros((), DType::F32, logits.device()).context("zero logprob");
     }
 
-    Tensor::stack(&probs, 0)?.sum(D::Minus1).context("sequence logprob sum failed")
+    Tensor::stack(&probs, 0)?
+        .sum(D::Minus1)
+        .context("sequence logprob sum failed")
 }
 
 /// Linear warmup + cosine decay learning rate schedule.

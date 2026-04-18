@@ -80,26 +80,35 @@ impl CodePropagation {
             return false;
         }
 
-        self.patches.insert(commit_hash.clone(), CodePatch {
-            commit_hash,
-            diff,
-            test_passed,
-            origin,
-            received_at: chrono::Utc::now().to_rfc3339(),
-            applied: false,
-            local_test_result: None,
-        });
+        self.patches.insert(
+            commit_hash.clone(),
+            CodePatch {
+                commit_hash,
+                diff,
+                test_passed,
+                origin,
+                received_at: chrono::Utc::now().to_rfc3339(),
+                applied: false,
+                local_test_result: None,
+            },
+        );
 
         true
     }
 
     /// Stage a patch to disk for manual or automated review.
     pub fn stage_patch(&self, commit_hash: &str) -> Result<PathBuf> {
-        let patch = self.patches.get(commit_hash)
+        let patch = self
+            .patches
+            .get(commit_hash)
             .ok_or_else(|| anyhow::anyhow!("Patch not found: {}", commit_hash))?;
 
-        std::fs::create_dir_all(&self.patches_dir)
-            .with_context(|| format!("Failed to create patches dir: {}", self.patches_dir.display()))?;
+        std::fs::create_dir_all(&self.patches_dir).with_context(|| {
+            format!(
+                "Failed to create patches dir: {}",
+                self.patches_dir.display()
+            )
+        })?;
 
         let path = self.patches_dir.join(format!("{}.patch", commit_hash));
         std::fs::write(&path, &patch.diff)
@@ -125,14 +134,19 @@ impl CodePropagation {
 
     /// Get all unapplied patches that passed origin tests.
     pub fn pending_patches(&self) -> Vec<&CodePatch> {
-        self.patches.values()
+        self.patches
+            .values()
             .filter(|p| !p.applied && p.test_passed && p.local_test_result.is_none())
             .collect()
     }
 
     /// Get stats.
     pub fn stats(&self) -> (u64, u64, u64) {
-        (self.patches_received, self.patches_applied, self.patches_rejected)
+        (
+            self.patches_received,
+            self.patches_applied,
+            self.patches_rejected,
+        )
     }
 
     /// Get a specific patch.
@@ -149,8 +163,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_code_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_code_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }
@@ -194,7 +208,12 @@ mod tests {
     fn test_stage_patch() {
         let dir = temp_dir();
         let mut prop = CodePropagation::new(&dir);
-        prop.receive_patch("abc123".into(), "+fn foo() {}".into(), true, PeerId("a".into()));
+        prop.receive_patch(
+            "abc123".into(),
+            "+fn foo() {}".into(),
+            true,
+            PeerId("a".into()),
+        );
 
         let path = prop.stage_patch("abc123").unwrap();
         assert!(path.exists());

@@ -14,8 +14,8 @@
 //! - `execution`: execute, pipeline, deploy_daemon
 //! - `navigation`: label, goto, link, history, undo
 
-mod grid_actions;
 mod execution;
+mod grid_actions;
 mod navigation;
 
 use crate::computer::alu::ALU;
@@ -97,11 +97,7 @@ pub(crate) fn execute_turing_tool(call: &ToolCall, state: &TuringState) -> ToolR
 pub(crate) type ActionResult = (String, bool, Option<String>);
 
 /// Dispatch to the correct action handler.
-async fn dispatch_action(
-    action: &str,
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+async fn dispatch_action(action: &str, call: &ToolCall, state: &TuringState) -> ActionResult {
     match action {
         "move" => grid_actions::action_move(call, state).await,
         "read" => grid_actions::action_read(state).await,

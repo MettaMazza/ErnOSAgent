@@ -64,7 +64,9 @@ impl ALU {
 
     /// Execute a single cell by dispatching to the appropriate interpreter.
     pub async fn execute_cell(&self, format: &str, content: &str) -> Result<String, String> {
-        self.init().await.map_err(|e| format!("Init error: {}", e))?;
+        self.init()
+            .await
+            .map_err(|e| format!("Init error: {}", e))?;
 
         match format.to_lowercase().as_str() {
             "python" | "py" => self.run_script(content, "python3", "py").await,
@@ -211,12 +213,7 @@ impl ALU {
                     previous_output = stdout;
                 }
                 Err(e) => {
-                    all_outputs.push(format!(
-                        "--- Cell {} ({}) FAILED ---\n{}",
-                        i + 1,
-                        format,
-                        e
-                    ));
+                    all_outputs.push(format!("--- Cell {} ({}) FAILED ---\n{}", i + 1, format, e));
                     return Err(format!(
                         "Pipeline halted at cell {} ({}).\n\n{}",
                         i + 1,
@@ -234,12 +231,7 @@ impl ALU {
     ///
     /// Writes code to a temp file, spawns the interpreter, captures output,
     /// enforces a 15-second timeout, and cleans up the temp file.
-    async fn run_script(
-        &self,
-        code: &str,
-        interpreter: &str,
-        ext: &str,
-    ) -> Result<String, String> {
+    async fn run_script(&self, code: &str, interpreter: &str, ext: &str) -> Result<String, String> {
         let script_id = format!(
             "script_{}.{}",
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
@@ -306,7 +298,9 @@ mod tests {
     async fn test_alu_execute_python_basic() {
         let dir = env::temp_dir().join("ernosagent_alu_test_py");
         let alu = ALU::new(Some(dir.clone()));
-        let res = alu.execute_cell("python", "print('hello from python')").await;
+        let res = alu
+            .execute_cell("python", "print('hello from python')")
+            .await;
         assert_eq!(res.unwrap(), "hello from python");
         let _ = fs::remove_dir_all(&dir).await;
     }
@@ -336,9 +330,7 @@ mod tests {
     async fn test_alu_execute_failure() {
         let dir = env::temp_dir().join("ernosagent_alu_test_fail");
         let alu = ALU::new(Some(dir.clone()));
-        let res = alu
-            .execute_cell("python", "import sys\nsys.exit(1)")
-            .await;
+        let res = alu.execute_cell("python", "import sys\nsys.exit(1)").await;
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("Execution Failed"));
         let _ = fs::remove_dir_all(&dir).await;

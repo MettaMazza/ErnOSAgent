@@ -30,10 +30,12 @@ pub fn get_master_data_dir() -> std::path::PathBuf {
 }
 
 /// Helper function to retrieve the data directory for tools.
-/// It attempts to resolve the task-local scoped directory first. 
+/// It attempts to resolve the task-local scoped directory first.
 /// If un-scoped (e.g. background tasks), it falls back to the master environment default.
 pub fn get_data_dir() -> std::path::PathBuf {
-    RUNTIME_DATA_DIR.try_with(|d| d.clone()).unwrap_or_else(|_| get_master_data_dir())
+    RUNTIME_DATA_DIR
+        .try_with(|d| d.clone())
+        .unwrap_or_else(|_| get_master_data_dir())
 }
 
 /// Registry and dispatcher for tool implementations.
@@ -126,18 +128,23 @@ mod tests {
     #[test]
     fn test_register_and_execute() {
         let mut executor = ToolExecutor::new();
-        executor.register("echo", Box::new(|call: &ToolCall| {
-            let text = call.arguments.get("text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("default");
-            ToolResult {
-                tool_call_id: call.id.clone(),
-                name: call.name.clone(),
-                output: text.to_string(),
-                success: true,
-                error: None,
-            }
-        }));
+        executor.register(
+            "echo",
+            Box::new(|call: &ToolCall| {
+                let text = call
+                    .arguments
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("default");
+                ToolResult {
+                    tool_call_id: call.id.clone(),
+                    name: call.name.clone(),
+                    output: text.to_string(),
+                    success: true,
+                    error: None,
+                }
+            }),
+        );
 
         let call = ToolCall {
             id: "tc1".to_string(),
@@ -167,14 +174,26 @@ mod tests {
     #[test]
     fn test_available_tools() {
         let mut executor = ToolExecutor::new();
-        executor.register("b_tool", Box::new(|call: &ToolCall| ToolResult {
-            tool_call_id: call.id.clone(), name: call.name.clone(),
-            output: String::new(), success: true, error: None,
-        }));
-        executor.register("a_tool", Box::new(|call: &ToolCall| ToolResult {
-            tool_call_id: call.id.clone(), name: call.name.clone(),
-            output: String::new(), success: true, error: None,
-        }));
+        executor.register(
+            "b_tool",
+            Box::new(|call: &ToolCall| ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: String::new(),
+                success: true,
+                error: None,
+            }),
+        );
+        executor.register(
+            "a_tool",
+            Box::new(|call: &ToolCall| ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: String::new(),
+                success: true,
+                error: None,
+            }),
+        );
 
         let tools = executor.available_tools();
         assert_eq!(tools, vec!["a_tool", "b_tool"]); // sorted
@@ -190,12 +209,18 @@ mod tests {
     fn test_format_tool_context_with_results() {
         let results = vec![
             ToolResult {
-                tool_call_id: "t1".to_string(), name: "search".to_string(),
-                output: "Found 3".to_string(), success: true, error: None,
+                tool_call_id: "t1".to_string(),
+                name: "search".to_string(),
+                output: "Found 3".to_string(),
+                success: true,
+                error: None,
             },
             ToolResult {
-                tool_call_id: "t2".to_string(), name: "read".to_string(),
-                output: String::new(), success: false, error: Some("Not found".to_string()),
+                tool_call_id: "t2".to_string(),
+                name: "read".to_string(),
+                output: String::new(),
+                success: false,
+                error: Some("Not found".to_string()),
             },
         ];
         let formatted = ToolExecutor::format_tool_context(&results);

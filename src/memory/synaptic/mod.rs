@@ -10,9 +10,9 @@
 //! - `relationships`: store_relationship, list_layers
 //! - `plasticity`: strengthen, co-activate, decay, contradiction, shortcut
 
+mod plasticity;
 mod query;
 mod relationships;
-mod plasticity;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,10 +26,7 @@ pub const DEFAULT_LAYERS: &[(&str, &str)] = &[
     ("places", "Locations, environments"),
     ("concepts", "Abstract ideas, topics"),
     ("projects", "Ongoing work, codebases"),
-    (
-        "environment",
-        "System config, hardware, tools available",
-    ),
+    ("environment", "System config, hardware, tools available"),
 ];
 
 /// A single knowledge node: a concept with associated data entries.
@@ -217,14 +214,16 @@ fn create_default_layers(
             });
 
             let root_key = root_concept.to_lowercase();
-            nodes.entry(root_key.clone()).or_insert_with(|| SynapticNode {
-                concept: root_concept,
-                data: vec![format!("Root node for '{}' layer: {}", name, description)],
-                created_at: now.to_string(),
-                updated_at: now.to_string(),
-                layer: name.to_string(),
-                origin: "system".to_string(),
-            });
+            nodes
+                .entry(root_key.clone())
+                .or_insert_with(|| SynapticNode {
+                    concept: root_concept,
+                    data: vec![format!("Root node for '{}' layer: {}", name, description)],
+                    created_at: now.to_string(),
+                    updated_at: now.to_string(),
+                    layer: name.to_string(),
+                    origin: "system".to_string(),
+                });
             root_keys.push(root_key);
         } else {
             root_keys.push(format!("root:{}", name));
@@ -233,11 +232,7 @@ fn create_default_layers(
     root_keys
 }
 
-fn create_root_mesh(
-    now: &str,
-    root_keys: &[String],
-    edges: &mut Vec<SynapticEdge>,
-) {
+fn create_root_mesh(now: &str, root_keys: &[String], edges: &mut Vec<SynapticEdge>) {
     for i in 0..root_keys.len() {
         for j in (i + 1)..root_keys.len() {
             let from = &root_keys[i];

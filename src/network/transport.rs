@@ -44,16 +44,18 @@ pub struct MeshTransport {
 impl MeshTransport {
     /// Create and bind a new QUIC endpoint.
     pub async fn bind(port: u16) -> Result<Self> {
-        let (server_config, _cert) = Self::generate_self_signed_config()
-            .context("Failed to generate TLS config")?;
+        let (server_config, _cert) =
+            Self::generate_self_signed_config().context("Failed to generate TLS config")?;
 
-        let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()
+        let addr: SocketAddr = format!("0.0.0.0:{}", port)
+            .parse()
             .context("Invalid bind address")?;
 
         let endpoint = quinn::Endpoint::server(server_config, addr)
             .with_context(|| format!("Failed to bind QUIC endpoint on {}", addr))?;
 
-        let local_addr = endpoint.local_addr()
+        let local_addr = endpoint
+            .local_addr()
             .context("Failed to get local address")?;
 
         tracing::info!(
@@ -80,10 +82,11 @@ impl MeshTransport {
 
     /// Connect to a remote peer.
     pub async fn connect(&self, addr: SocketAddr) -> Result<quinn::Connection> {
-        let client_config = Self::generate_client_config()
-            .context("Failed to generate client TLS config")?;
+        let client_config =
+            Self::generate_client_config().context("Failed to generate client TLS config")?;
 
-        let connection = self.endpoint
+        let connection = self
+            .endpoint
             .connect_with(client_config, addr, "ernos-mesh")
             .map_err(|e| anyhow::anyhow!("Failed to initiate connection to {}: {}", addr, e))?
             .await
@@ -115,23 +118,29 @@ impl MeshTransport {
     /// Send a signed envelope to a specific peer.
     pub async fn send(&self, target: &PeerId, envelope: &SignedEnvelope) -> Result<()> {
         let connections = self.connections.read().await;
-        let conn = connections.get(&target.0)
+        let conn = connections
+            .get(&target.0)
             .ok_or_else(|| anyhow::anyhow!("No connection to peer {}", target))?;
 
-        let payload = rmp_serde::to_vec(envelope)
-            .context("Failed to serialise envelope")?;
+        let payload = rmp_serde::to_vec(envelope).context("Failed to serialise envelope")?;
 
-        let mut send_stream = conn.connection.open_uni().await
+        let mut send_stream = conn
+            .connection
+            .open_uni()
+            .await
             .with_context(|| format!("Failed to open stream to {}", target))?;
 
         // Length-prefixed frame: [u32 big-endian length][payload]
         let len = (payload.len() as u32).to_be_bytes();
-        send_stream.write_all(&len).await
+        send_stream
+            .write_all(&len)
+            .await
             .context("Failed to write frame length")?;
-        send_stream.write_all(&payload).await
+        send_stream
+            .write_all(&payload)
+            .await
             .context("Failed to write frame payload")?;
-        send_stream.finish()
-            .context("Failed to finish stream")?;
+        send_stream.finish().context("Failed to finish stream")?;
 
         Ok(())
     }
@@ -140,7 +149,8 @@ impl MeshTransport {
     pub async fn read_envelope(recv: &mut quinn::RecvStream) -> Result<SignedEnvelope> {
         // Read 4-byte length prefix
         let mut len_buf = [0u8; 4];
-        recv.read_exact(&mut len_buf).await
+        recv.read_exact(&mut len_buf)
+            .await
             .context("Failed to read frame length")?;
         let len = u32::from_be_bytes(len_buf) as usize;
 
@@ -151,11 +161,12 @@ impl MeshTransport {
 
         // Read payload
         let mut payload = vec![0u8; len];
-        recv.read_exact(&mut payload).await
+        recv.read_exact(&mut payload)
+            .await
             .context("Failed to read frame payload")?;
 
-        let envelope: SignedEnvelope = rmp_serde::from_slice(&payload)
-            .context("Failed to deserialise envelope")?;
+        let envelope: SignedEnvelope =
+            rmp_serde::from_slice(&payload).context("Failed to deserialise envelope")?;
 
         Ok(envelope)
     }
@@ -177,7 +188,9 @@ impl MeshTransport {
 
     /// Get the list of currently connected peer IDs.
     pub async fn connected_peers(&self) -> Vec<PeerId> {
-        self.connections.read().await
+        self.connections
+            .read()
+            .await
             .keys()
             .map(|k| PeerId(k.clone()))
             .collect()
@@ -220,11 +233,11 @@ impl MeshTransport {
     // ─── TLS config ────────────────────────────────────────────────
 
     fn generate_self_signed_config() -> Result<(quinn::ServerConfig, Vec<u8>)> {
-        let key_pair = rcgen::KeyPair::generate()
-            .context("Failed to generate key pair")?;
+        let key_pair = rcgen::KeyPair::generate().context("Failed to generate key pair")?;
         let cert_params = rcgen::CertificateParams::new(vec!["ernos-mesh".into()])
             .context("Failed to create cert params")?;
-        let cert = cert_params.self_signed(&key_pair)
+        let cert = cert_params
+            .self_signed(&key_pair)
             .context("Failed to self-sign certificate")?;
         let cert_der = cert.der().to_vec();
         let key_der = key_pair.serialize_der();
@@ -319,7 +332,10 @@ mod tests {
 
     /// Convert a 0.0.0.0 bound address to 127.0.0.1 for local connections.
     fn loopback(addr: SocketAddr) -> SocketAddr {
-        SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), addr.port())
+        SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            addr.port(),
+        )
     }
 
     #[tokio::test]
@@ -347,7 +363,9 @@ mod tests {
         let connection = client.connect(server_addr).await.unwrap();
 
         let peer_id = PeerId("test_peer".to_string());
-        client.register_connection(peer_id.clone(), connection).await;
+        client
+            .register_connection(peer_id.clone(), connection)
+            .await;
 
         assert!(client.is_connected(&peer_id).await);
         assert_eq!(client.connection_count().await, 1);
@@ -377,7 +395,9 @@ mod tests {
         let connection = client.connect(server_addr).await.unwrap();
 
         let peer_id = PeerId("disconn_test".to_string());
-        client.register_connection(peer_id.clone(), connection).await;
+        client
+            .register_connection(peer_id.clone(), connection)
+            .await;
         assert!(client.is_connected(&peer_id).await);
 
         client.disconnect(&peer_id).await;
@@ -405,7 +425,9 @@ mod tests {
         let client = MeshTransport::bind(0).await.unwrap();
         let connection = client.connect(server_addr).await.unwrap();
         let peer_id = PeerId("sender".to_string());
-        client.register_connection(peer_id.clone(), connection).await;
+        client
+            .register_connection(peer_id.clone(), connection)
+            .await;
 
         let envelope = SignedEnvelope {
             sender: PeerId("sender".to_string()),

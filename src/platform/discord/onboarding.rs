@@ -86,7 +86,9 @@ fn state_path() -> PathBuf {
 
 pub fn load_state() -> OnboardingState {
     let path = state_path();
-    if !path.exists() { return OnboardingState::default(); }
+    if !path.exists() {
+        return OnboardingState::default();
+    }
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -106,7 +108,10 @@ pub fn save_state(state: &OnboardingState) {
 /// Check if a channel_id is an active onboarding thread.
 pub fn is_onboarding_thread(channel_id: &str) -> bool {
     let state = load_state();
-    state.active_interviews.iter().any(|i| i.thread_id == channel_id)
+    state
+        .active_interviews
+        .iter()
+        .any(|i| i.thread_id == channel_id)
 }
 
 /// Check if a user is currently in an active interview.
@@ -118,13 +123,21 @@ pub fn is_user_being_interviewed(user_id: &str) -> bool {
 /// Get the interview for a given thread.
 pub fn get_interview_for_thread(channel_id: &str) -> Option<ActiveInterview> {
     let state = load_state();
-    state.active_interviews.iter().find(|i| i.thread_id == channel_id).cloned()
+    state
+        .active_interviews
+        .iter()
+        .find(|i| i.thread_id == channel_id)
+        .cloned()
 }
 
 /// Increment the turn count for an active interview.
 pub fn increment_turn(thread_id: &str) {
     let mut state = load_state();
-    if let Some(interview) = state.active_interviews.iter_mut().find(|i| i.thread_id == thread_id) {
+    if let Some(interview) = state
+        .active_interviews
+        .iter_mut()
+        .find(|i| i.thread_id == thread_id)
+    {
         interview.turn_count += 1;
     }
     save_state(&state);
@@ -149,7 +162,10 @@ pub fn start_interview(user_id: &str, user_name: &str, thread_id: &str) {
 /// Mark an interview as complete (pass or fail) and remove it.
 pub fn complete_interview(user_id: &str) -> Option<ActiveInterview> {
     let mut state = load_state();
-    let pos = state.active_interviews.iter().position(|i| i.user_id == user_id);
+    let pos = state
+        .active_interviews
+        .iter()
+        .position(|i| i.user_id == user_id);
     let interview = pos.map(|p| state.active_interviews.remove(p));
     save_state(&state);
     interview
@@ -175,17 +191,24 @@ pub fn register_role_expiry(user_id: &str, user_name: &str, duration_days: u64) 
 pub fn get_expired_roles() -> Vec<RoleExpiry> {
     let state = load_state();
     let now = chrono::Utc::now();
-    state.role_expiries.iter().filter(|r| {
-        chrono::DateTime::parse_from_rfc3339(&r.expires_at)
-            .map(|exp| now >= exp)
-            .unwrap_or(false)
-    }).cloned().collect()
+    state
+        .role_expiries
+        .iter()
+        .filter(|r| {
+            chrono::DateTime::parse_from_rfc3339(&r.expires_at)
+                .map(|exp| now >= exp)
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect()
 }
 
 /// Remove expired role entries from state.
 pub fn remove_expired_roles(user_ids: &[String]) {
     let mut state = load_state();
-    state.role_expiries.retain(|r| !user_ids.contains(&r.user_id));
+    state
+        .role_expiries
+        .retain(|r| !user_ids.contains(&r.user_id));
     save_state(&state);
 }
 
@@ -263,8 +286,7 @@ pub async fn setup_onboarding_permissions(
     member_role_id: u64,
 ) -> anyhow::Result<()> {
     use serenity::all::{
-        ChannelType, GuildId, RoleId, PermissionOverwrite,
-        PermissionOverwriteType, Permissions,
+        ChannelType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, RoleId,
     };
 
     let guild = GuildId::new(guild_id);
@@ -284,45 +306,69 @@ pub async fn setup_onboarding_permissions(
 
         if channel_id.get() == onboarding_channel_id {
             // Onboarding channel: @everyone CAN view + use threads (but not send top-level)
-            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
-                allow: Permissions::VIEW_CHANNEL
-                    | Permissions::SEND_MESSAGES_IN_THREADS
-                    | Permissions::READ_MESSAGE_HISTORY,
-                deny: Permissions::SEND_MESSAGES,
-                kind: PermissionOverwriteType::Role(everyone_role),
-            }).await {
+            if let Err(e) = channel_id
+                .create_permission(
+                    http,
+                    PermissionOverwrite {
+                        allow: Permissions::VIEW_CHANNEL
+                            | Permissions::SEND_MESSAGES_IN_THREADS
+                            | Permissions::READ_MESSAGE_HISTORY,
+                        deny: Permissions::SEND_MESSAGES,
+                        kind: PermissionOverwriteType::Role(everyone_role),
+                    },
+                )
+                .await
+            {
                 tracing::warn!(error = %e, channel = channel_id.get(), "Failed to set onboarding channel permissions");
             }
         } else {
             // All other channels: deny @everyone VIEW_CHANNEL
-            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
-                allow: Permissions::empty(),
-                deny: Permissions::VIEW_CHANNEL,
-                kind: PermissionOverwriteType::Role(everyone_role),
-            }).await {
+            if let Err(e) = channel_id
+                .create_permission(
+                    http,
+                    PermissionOverwrite {
+                        allow: Permissions::empty(),
+                        deny: Permissions::VIEW_CHANNEL,
+                        kind: PermissionOverwriteType::Role(everyone_role),
+                    },
+                )
+                .await
+            {
                 tracing::warn!(error = %e, channel = channel_id.get(), "Failed to deny @everyone VIEW_CHANNEL");
             }
 
             // Channel-level ALLOW for "New" role (overrides the @everyone deny)
-            if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
-                allow: Permissions::VIEW_CHANNEL
-                    | Permissions::SEND_MESSAGES
-                    | Permissions::READ_MESSAGE_HISTORY,
-                deny: Permissions::empty(),
-                kind: PermissionOverwriteType::Role(new_role),
-            }).await {
+            if let Err(e) = channel_id
+                .create_permission(
+                    http,
+                    PermissionOverwrite {
+                        allow: Permissions::VIEW_CHANNEL
+                            | Permissions::SEND_MESSAGES
+                            | Permissions::READ_MESSAGE_HISTORY,
+                        deny: Permissions::empty(),
+                        kind: PermissionOverwriteType::Role(new_role),
+                    },
+                )
+                .await
+            {
                 tracing::warn!(error = %e, channel = channel_id.get(), "Failed to allow New role VIEW_CHANNEL");
             }
 
             // Channel-level ALLOW for "Member" role (overrides the @everyone deny)
             if has_member_role {
-                if let Err(e) = channel_id.create_permission(http, PermissionOverwrite {
-                    allow: Permissions::VIEW_CHANNEL
-                        | Permissions::SEND_MESSAGES
-                        | Permissions::READ_MESSAGE_HISTORY,
-                    deny: Permissions::empty(),
-                    kind: PermissionOverwriteType::Role(member_role),
-                }).await {
+                if let Err(e) = channel_id
+                    .create_permission(
+                        http,
+                        PermissionOverwrite {
+                            allow: Permissions::VIEW_CHANNEL
+                                | Permissions::SEND_MESSAGES
+                                | Permissions::READ_MESSAGE_HISTORY,
+                            deny: Permissions::empty(),
+                            kind: PermissionOverwriteType::Role(member_role),
+                        },
+                    )
+                    .await
+                {
                     tracing::warn!(error = %e, channel = channel_id.get(), "Failed to allow Member role VIEW_CHANNEL");
                 }
             }
@@ -352,20 +398,25 @@ pub async fn create_interview_thread(
     user_id: u64,
     user_name: &str,
 ) -> anyhow::Result<u64> {
-    use serenity::all::{ChannelId, CreateThread, ChannelType};
+    use serenity::all::{ChannelId, ChannelType, CreateThread};
 
     let channel = ChannelId::new(onboarding_channel_id);
     let thread_name = format!("Interview — {}", user_name);
 
-    let thread = channel.create_thread(
-        http,
-        CreateThread::new(thread_name)
-            .kind(ChannelType::PrivateThread)
-            .auto_archive_duration(serenity::all::AutoArchiveDuration::OneHour),
-    ).await?;
+    let thread = channel
+        .create_thread(
+            http,
+            CreateThread::new(thread_name)
+                .kind(ChannelType::PrivateThread)
+                .auto_archive_duration(serenity::all::AutoArchiveDuration::OneHour),
+        )
+        .await?;
 
     // Add the user to the private thread
-    thread.id.add_thread_member(http, serenity::all::UserId::new(user_id)).await?;
+    thread
+        .id
+        .add_thread_member(http, serenity::all::UserId::new(user_id))
+        .await?;
 
     // Send welcome message
     thread.id.say(
@@ -401,14 +452,13 @@ pub async fn assign_new_role(
     user_id: u64,
     role_id: u64,
 ) -> anyhow::Result<()> {
-    use serenity::all::{GuildId, UserId, RoleId};
+    use serenity::all::{GuildId, RoleId, UserId};
 
     let guild = GuildId::new(guild_id);
     let user = UserId::new(user_id);
     let role = RoleId::new(role_id);
 
-    guild.member(http, user).await?
-        .add_role(http, role).await?;
+    guild.member(http, user).await?.add_role(http, role).await?;
 
     tracing::info!(user_id = user_id, role_id = role_id, "Assigned 'New' role");
     Ok(())
@@ -421,14 +471,17 @@ pub async fn remove_new_role(
     user_id: u64,
     role_id: u64,
 ) -> anyhow::Result<()> {
-    use serenity::all::{GuildId, UserId, RoleId};
+    use serenity::all::{GuildId, RoleId, UserId};
 
     let guild = GuildId::new(guild_id);
     let user = UserId::new(user_id);
     let role = RoleId::new(role_id);
 
-    guild.member(http, user).await?
-        .remove_role(http, role).await?;
+    guild
+        .member(http, user)
+        .await?
+        .remove_role(http, role)
+        .await?;
 
     tracing::info!(user_id = user_id, "Removed 'New' role");
     Ok(())
@@ -442,7 +495,7 @@ pub async fn promote_to_member(
     new_role_id: u64,
     member_role_id: u64,
 ) -> anyhow::Result<()> {
-    use serenity::all::{GuildId, UserId, RoleId};
+    use serenity::all::{GuildId, RoleId, UserId};
 
     let guild = GuildId::new(guild_id);
     let user = UserId::new(user_id);
@@ -453,10 +506,7 @@ pub async fn promote_to_member(
     member.add_role(http, RoleId::new(member_role_id)).await?;
     member.remove_role(http, RoleId::new(new_role_id)).await?;
 
-    tracing::info!(
-        user_id = user_id,
-        "Promoted: 'New' → 'Member'"
-    );
+    tracing::info!(user_id = user_id, "Promoted: 'New' → 'Member'");
     Ok(())
 }
 
@@ -481,18 +531,27 @@ pub async fn backfill_existing_members(
     let mut assigned = 0u32;
 
     for member in members {
-        if member.user.bot { continue; }
+        if member.user.bot {
+            continue;
+        }
 
         let has_member = member.roles.contains(&member_role);
         let has_new = member.roles.contains(&new_role);
 
         // Skip if they already have Member or are in "New" trial
-        if has_member || has_new { continue; }
+        if has_member || has_new {
+            continue;
+        }
 
         // Skip pure @everyone (no roles) — they need to go through onboarding
         // Also exclude the "New" onboarding role — it's not a regular role
-        let has_any_role = member.roles.iter().any(|r| *r != everyone_role && *r != new_role);
-        if !has_any_role { continue; }
+        let has_any_role = member
+            .roles
+            .iter()
+            .any(|r| *r != everyone_role && *r != new_role);
+        if !has_any_role {
+            continue;
+        }
 
         // Has existing roles but no Member → backfill
         if let Err(e) = member.add_role(http, member_role).await {
@@ -532,16 +591,23 @@ pub async fn kick_user(
         // 3 strikes — permanent ban
         let guild = GuildId::new(guild_id);
         let user = UserId::new(user_id);
-        
+
         // Attempt DM before ban
         if let Ok(dm) = user.create_dm_channel(http).await {
             let _ = dm.say(http, "You have failed or been kicked from the onboarding process 3 times. You are now permanently banned from the server.").await;
         }
 
-        guild.ban_with_reason(http, user, 0, &format!(
-            "Permanently banned after {} failed interviews. Last reason: {}",
-            kick_count, reason
-        )).await?;
+        guild
+            .ban_with_reason(
+                http,
+                user,
+                0,
+                &format!(
+                    "Permanently banned after {} failed interviews. Last reason: {}",
+                    kick_count, reason
+                ),
+            )
+            .await?;
         tracing::warn!(
             user_id = user_id,
             kick_count = kick_count,
@@ -550,7 +616,7 @@ pub async fn kick_user(
     } else {
         let guild = GuildId::new(guild_id);
         let user = UserId::new(user_id);
-        
+
         // Attempt DM before kick
         if let Ok(dm) = user.create_dm_channel(http).await {
             let _ = dm.say(http, &format!(
@@ -579,7 +645,11 @@ fn record_kick(user_id: u64, user_name: &str, reason: &str) -> u32 {
     let mut state = load_state();
     let user_id_str = user_id.to_string();
 
-    if let Some(entry) = state.kick_history.iter_mut().find(|k| k.user_id == user_id_str) {
+    if let Some(entry) = state
+        .kick_history
+        .iter_mut()
+        .find(|k| k.user_id == user_id_str)
+    {
         entry.kick_count += 1;
         entry.reasons.push(reason.to_string());
         entry.last_kicked_at = chrono::Utc::now().to_rfc3339();
@@ -602,7 +672,9 @@ fn record_kick(user_id: u64, user_name: &str, reason: &str) -> u32 {
 /// Get the kick count for a user by name (used in interview prompt).
 fn get_kick_count(user_name: &str) -> u32 {
     let state = load_state();
-    state.kick_history.iter()
+    state
+        .kick_history
+        .iter()
         .find(|k| k.user_name == user_name)
         .map(|k| k.kick_count)
         .unwrap_or(0)
@@ -652,25 +724,35 @@ pub async fn process_onboarding_decisions(
         return;
     }
 
-    let Ok(content) = std::fs::read_to_string(&decisions_path) else { return; };
-    if content.is_empty() { return; }
+    let Ok(content) = std::fs::read_to_string(&decisions_path) else {
+        return;
+    };
+    if content.is_empty() {
+        return;
+    }
 
     // Clear the file immediately to avoid double-processing
     let _ = std::fs::write(&decisions_path, "");
 
     for line in content.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
-        
+        if line.is_empty() {
+            continue;
+        }
+
         let Ok(record) = serde_json::from_str::<OnboardingDecision>(line) else {
             tracing::warn!("Failed to parse onboarding decision: {}", line);
             continue;
         };
 
-        let Ok(uid) = record.user_id.parse::<u64>() else { continue; };
+        let Ok(uid) = record.user_id.parse::<u64>() else {
+            continue;
+        };
 
         let mut state = load_state();
-        let user_name = state.active_interviews.iter()
+        let user_name = state
+            .active_interviews
+            .iter()
             .find(|i| i.user_id == record.user_id)
             .map(|i| i.user_name.clone())
             .unwrap_or_else(|| "Unknown".to_string());
@@ -680,18 +762,25 @@ pub async fn process_onboarding_decisions(
                 tracing::error!(error = %e, user_id = uid, "Failed to assign New role after interview pass");
             } else {
                 register_role_expiry(&uid.to_string(), &user_name, 7);
-                tracing::info!(user_id = uid, "Executed role assignment for passed interview");
+                tracing::info!(
+                    user_id = uid,
+                    "Executed role assignment for passed interview"
+                );
             }
         } else if record.decision == "fail" {
-            let reason = record.reason.unwrap_or_else(|| "Failed interview".to_string());
+            let reason = record
+                .reason
+                .unwrap_or_else(|| "Failed interview".to_string());
             if let Err(e) = kick_user(http, guild_id, uid, &user_name, &reason).await {
                 tracing::error!(error = %e, user_id = uid, "Failed to kick user after interview fail");
             } else {
                 tracing::info!(user_id = uid, "Executed kick for failed interview");
             }
         }
-        
-        state.active_interviews.retain(|i| i.user_id != record.user_id);
+
+        state
+            .active_interviews
+            .retain(|i| i.user_id != record.user_id);
         save_state(&state);
     }
 }
@@ -712,22 +801,34 @@ pub async fn auto_interview_members(
 
     let mut last_id: Option<serenity::all::UserId> = None;
     let mut to_interview = None;
-    
+
     // Paginate through members until we find one that needs interviewing
     loop {
-        let Ok(members) = guild.members(http, Some(1000), last_id).await else { break; };
-        if members.is_empty() { break; }
-        
+        let Ok(members) = guild.members(http, Some(1000), last_id).await else {
+            break;
+        };
+        if members.is_empty() {
+            break;
+        }
+
         for m in &members {
-            if m.user.bot { continue; }
+            if m.user.bot {
+                continue;
+            }
             let uid_str = m.user.id.to_string();
-            if admin_user_ids.iter().any(|id| id == &uid_str) { continue; }
-            
+            if admin_user_ids.iter().any(|id| id == &uid_str) {
+                continue;
+            }
+
             // Skip if they have any non-@everyone role
-            if m.roles.iter().any(|r| r.get() != guild_id) { continue; }
-            
+            if m.roles.iter().any(|r| r.get() != guild_id) {
+                continue;
+            }
+
             // Skip if they already have an active interview
-            if state.active_interviews.iter().any(|i| i.user_id == uid_str) { continue; }
+            if state.active_interviews.iter().any(|i| i.user_id == uid_str) {
+                continue;
+            }
 
             to_interview = Some(m.clone());
             break;
@@ -743,20 +844,19 @@ pub async fn auto_interview_members(
     if let Some(m) = to_interview {
         let uid_str = m.user.id.to_string();
         tracing::info!(user_id = %uid_str, "Auto-starting interview for unverified member");
-        if let Ok(_thread_id) = create_interview_thread(http, onboarding_channel_id, m.user.id.get(), &m.user.name).await {
+        if let Ok(_thread_id) =
+            create_interview_thread(http, onboarding_channel_id, m.user.id.get(), &m.user.name)
+                .await
+        {
             // State is mutated by create_interview
         }
     }
 }
 
-
 /// Enforce time limits on onboarding interviews:
 /// - No response within 1 hour: Ban
 /// - Not completed within 24 hours: Ban
-pub async fn enforce_onboarding_timeouts(
-    http: &serenity::http::Http,
-    guild_id: u64,
-) {
+pub async fn enforce_onboarding_timeouts(http: &serenity::http::Http, guild_id: u64) {
     let mut state = load_state();
     let now = chrono::Utc::now();
     let mut to_kick: Vec<(u64, String, String, String)> = Vec::new();
@@ -766,27 +866,43 @@ pub async fn enforce_onboarding_timeouts(
         if let Ok(started) = chrono::DateTime::parse_from_rfc3339(&interview.started_at) {
             let duration = now.signed_duration_since(started.with_timezone(&chrono::Utc));
             let hours = duration.num_hours();
-            
+
             if interview.turn_count == 0 && hours >= 1 {
                 if let Ok(uid) = interview.user_id.parse::<u64>() {
-                    to_kick.push((uid, interview.user_name.clone(), interview.thread_id.clone(), "Ignored onboarding interview (>1 hour)".to_string()));
+                    to_kick.push((
+                        uid,
+                        interview.user_name.clone(),
+                        interview.thread_id.clone(),
+                        "Ignored onboarding interview (>1 hour)".to_string(),
+                    ));
                 }
             } else if hours >= 24 {
                 if let Ok(uid) = interview.user_id.parse::<u64>() {
-                    to_kick.push((uid, interview.user_name.clone(), interview.thread_id.clone(), "Failed to complete onboarding interview (>24 hours)".to_string()));
+                    to_kick.push((
+                        uid,
+                        interview.user_name.clone(),
+                        interview.thread_id.clone(),
+                        "Failed to complete onboarding interview (>24 hours)".to_string(),
+                    ));
                 }
             }
         }
     }
 
-    if to_kick.is_empty() { return; }
+    if to_kick.is_empty() {
+        return;
+    }
 
     // Execute kicks and delete threads
     for (uid, user_name, thread_id, reason) in to_kick {
         if let Err(e) = kick_user(http, guild_id, uid, &user_name, &reason).await {
             tracing::error!(error = %e, user_id = uid, "Failed to kick user for onboarding timeout");
         } else {
-            tracing::info!(user_id = uid, "Kicked user for onboarding timeout: {}", reason);
+            tracing::info!(
+                user_id = uid,
+                "Kicked user for onboarding timeout: {}",
+                reason
+            );
         }
 
         // Try to delete their thread immediately to clean up chat
@@ -796,7 +912,9 @@ pub async fn enforce_onboarding_timeouts(
         }
 
         // Remove from active state
-        state.active_interviews.retain(|i| i.user_id != uid.to_string());
+        state
+            .active_interviews
+            .retain(|i| i.user_id != uid.to_string());
     }
 
     save_state(&state);
@@ -811,12 +929,16 @@ pub async fn enforce_role_expiries(
     member_role_id: u64,
 ) {
     let expired = get_expired_roles();
-    if expired.is_empty() { return; }
+    if expired.is_empty() {
+        return;
+    }
 
     let mut state = load_state();
     for exp in expired {
         if let Ok(uid) = exp.user_id.parse::<u64>() {
-            if let Err(e) = promote_to_member(http, guild_id, uid, new_role_id, member_role_id).await {
+            if let Err(e) =
+                promote_to_member(http, guild_id, uid, new_role_id, member_role_id).await
+            {
                 tracing::error!(error = %e, user_id = uid, "Failed auto-promotion to Member");
             } else {
                 tracing::info!(user_id = uid, "Auto-promoted user from New to Member");

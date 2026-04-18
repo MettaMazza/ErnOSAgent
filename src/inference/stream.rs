@@ -85,9 +85,19 @@ pub fn parse_ndjson_line(line: &str) -> Option<StreamEvent> {
         return Some(StreamEvent::Error(error.to_string()));
     }
 
-    if parsed.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
-        let total = parsed.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
-        let prompt = parsed.get("prompt_eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+    if parsed
+        .get("done")
+        .and_then(|d| d.as_bool())
+        .unwrap_or(false)
+    {
+        let total = parsed
+            .get("eval_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let prompt = parsed
+            .get("prompt_eval_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         return Some(StreamEvent::Done {
             total_tokens: prompt + total,
             prompt_tokens: prompt,
@@ -179,7 +189,13 @@ mod tests {
     fn test_parse_sse_data_finish_stop() {
         let data = r#"{"choices":[{"finish_reason":"stop"}],"usage":{"total_tokens":100,"prompt_tokens":50,"completion_tokens":50}}"#;
         let event = parse_sse_data(data);
-        assert!(matches!(event, Some(StreamEvent::Done { total_tokens: 100, .. })));
+        assert!(matches!(
+            event,
+            Some(StreamEvent::Done {
+                total_tokens: 100,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -193,7 +209,13 @@ mod tests {
     fn test_parse_ndjson_done() {
         let line = r#"{"done":true,"eval_count":42,"prompt_eval_count":10}"#;
         let event = parse_ndjson_line(line);
-        assert!(matches!(event, Some(StreamEvent::Done { total_tokens: 52, .. })));
+        assert!(matches!(
+            event,
+            Some(StreamEvent::Done {
+                total_tokens: 52,
+                ..
+            })
+        ));
     }
 
     #[test]

@@ -28,8 +28,9 @@ pub struct SessionSummary {
 impl SessionManager {
     /// Create a new session manager. Loads existing sessions from disk.
     pub fn new(sessions_dir: &Path, default_model: &str, default_provider: &str) -> Result<Self> {
-        std::fs::create_dir_all(sessions_dir)
-            .with_context(|| format!("Failed to create sessions dir: {}", sessions_dir.display()))?;
+        std::fs::create_dir_all(sessions_dir).with_context(|| {
+            format!("Failed to create sessions dir: {}", sessions_dir.display())
+        })?;
 
         let mut manager = Self {
             sessions_dir: sessions_dir.to_path_buf(),
@@ -95,8 +96,8 @@ impl SessionManager {
         self.save_active()?;
 
         let path = self.sessions_dir.join(format!("{}.json", session_id));
-        let session = Session::load(&path)
-            .with_context(|| format!("Session '{}' not found", session_id))?;
+        let session =
+            Session::load(&path).with_context(|| format!("Session '{}' not found", session_id))?;
 
         self.active_session = session;
         tracing::info!(session_id = %session_id, "Switched to session");
@@ -159,7 +160,7 @@ impl SessionManager {
     /// The active session is replaced with a fresh empty one.
     /// Filesystem cleanup is done by the caller.
     pub fn clear_all(&mut self) {
-        let model    = self.active_session.model.clone();
+        let model = self.active_session.model.clone();
         let provider = self.active_session.provider.clone();
         self.active_session = Session::new(&model, &provider);
         self.session_list.clear();
@@ -241,7 +242,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let mut manager = SessionManager::new(tmp.path(), "m", "p").unwrap();
         manager.active_mut().add_message(Message {
-            role: "user".to_string(), content: "test".to_string(), images: Vec::new(),
+            role: "user".to_string(),
+            content: "test".to_string(),
+            images: Vec::new(),
         });
         manager.save_active().unwrap();
 

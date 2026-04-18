@@ -11,16 +11,16 @@
 //! Every provider implements this trait. The system auto-derives model specs
 //! from the provider's API. No values are hardcoded.
 
+pub mod candle_native;
+pub mod huggingface;
 pub mod llamacpp;
 mod llamacpp_embed;
-pub mod ollama;
 pub mod lmstudio;
-pub mod huggingface;
+pub mod ollama;
 pub mod openai_compat;
 pub mod stream_parser;
-pub mod candle_native;
 
-use crate::model::spec::{ModelSpec, ModelSummary, Modality};
+use crate::model::spec::{Modality, ModelSpec, ModelSummary};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

@@ -50,8 +50,14 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
 
     // Tools — autonomy scope uses disabled_autonomy_tools
     let all_tools = st.executor.available_tools();
-    let disabled: Vec<String> = st.feature_toggles.disabled_autonomy_tools.iter().cloned().collect();
-    let active: Vec<String> = all_tools.iter()
+    let disabled: Vec<String> = st
+        .feature_toggles
+        .disabled_autonomy_tools
+        .iter()
+        .cloned()
+        .collect();
+    let active: Vec<String> = all_tools
+        .iter()
         .filter(|t| !st.feature_toggles.disabled_autonomy_tools.contains(*t))
         .cloned()
         .collect();
@@ -59,7 +65,9 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
     // Platforms
     let mut platforms = Vec::new();
     for status in st.platform_registry.statuses() {
-        let user_count = st.user_contexts.keys()
+        let user_count = st
+            .user_contexts
+            .keys()
             .filter(|k| k.starts_with(&format!("{}:", status.name)))
             .count();
         platforms.push(PlatformStatusDto {
@@ -76,7 +84,9 @@ pub async fn autonomy_status(State(state): State<SharedState>) -> Json<AutonomyS
     };
 
     // Training state
-    let training_active = st.teacher.as_ref()
+    let training_active = st
+        .teacher
+        .as_ref()
         .map(|t| t.is_training())
         .unwrap_or(false);
 
@@ -135,26 +145,58 @@ pub async fn autonomy_log(
 
     let entries = match std::fs::read_to_string(&path) {
         Ok(content) => {
-            let lines: Vec<&str> = content.lines()
-                .filter(|l| !l.trim().is_empty())
-                .collect();
+            let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
             let start = lines.len().saturating_sub(limit);
-            lines[start..].iter().enumerate().filter_map(|(i, line)| {
-                let entry: serde_json::Value = serde_json::from_str(line).ok()?;
-                Some(ActivityEntry {
-                    cycle: entry.get("cycle").and_then(|v| v.as_u64()).unwrap_or((start + i + 1) as u64),
-                    timestamp: entry.get("timestamp").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    job_id: entry.get("job_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    job_name: entry.get("job_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    tools_used: entry.get("tools_used")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter().filter_map(|t| t.as_str().map(|s| s.to_string())).collect())
-                        .unwrap_or_default(),
-                    summary: entry.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    success: entry.get("success").and_then(|v| v.as_bool()).unwrap_or(true),
-                    duration_ms: entry.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+            lines[start..]
+                .iter()
+                .enumerate()
+                .filter_map(|(i, line)| {
+                    let entry: serde_json::Value = serde_json::from_str(line).ok()?;
+                    Some(ActivityEntry {
+                        cycle: entry
+                            .get("cycle")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or((start + i + 1) as u64),
+                        timestamp: entry
+                            .get("timestamp")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        job_id: entry
+                            .get("job_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        job_name: entry
+                            .get("job_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        tools_used: entry
+                            .get("tools_used")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        summary: entry
+                            .get("summary")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        success: entry
+                            .get("success")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true),
+                        duration_ms: entry
+                            .get("duration_ms")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0),
+                    })
                 })
-            }).collect()
+                .collect()
         }
         Err(_) => Vec::new(),
     };
@@ -211,9 +253,7 @@ pub async fn autonomy_live(
 
     let entries = match std::fs::read_to_string(&path) {
         Ok(content) => {
-            let lines: Vec<&str> = content.lines()
-                .filter(|l| !l.trim().is_empty())
-                .collect();
+            let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
             let start = lines.len().saturating_sub(raw_limit);
 
             // First pass: aggregate thinking tokens into blocks
@@ -232,7 +272,8 @@ pub async fn autonomy_live(
                     None => continue,
                 };
 
-                let timestamp = entry.get("timestamp")
+                let timestamp = entry
+                    .get("timestamp")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
@@ -245,12 +286,11 @@ pub async fn autonomy_live(
                 }
 
                 if event_type == "thinking" {
-                    let token = entry.get("text")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let token = entry.get("text").and_then(|v| v.as_str()).unwrap_or("");
                     if thinking_buf.is_empty() {
                         thinking_ts_start = timestamp.clone();
-                        thinking_job = entry.get("job")
+                        thinking_job = entry
+                            .get("job")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
@@ -278,12 +318,28 @@ pub async fn autonomy_live(
                 // Add the structural event
                 aggregated.push(LiveEvent {
                     event: event_type.to_string(),
-                    job: entry.get("job").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    job: entry
+                        .get("job")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     timestamp,
-                    tool: entry.get("tool").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    tool_call_id: entry.get("tool_call_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    arguments: entry.get("arguments").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    output_preview: entry.get("output_preview").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    tool: entry
+                        .get("tool")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    tool_call_id: entry
+                        .get("tool_call_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    arguments: entry
+                        .get("arguments")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    output_preview: entry
+                        .get("output_preview")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
                     success: entry.get("success").and_then(|v| v.as_bool()),
                     turn: entry.get("turn").and_then(|v| v.as_u64()),
                     text: None,
@@ -377,4 +433,3 @@ mod tests {
         assert!(json.contains("\"duration_ms\":1234"));
     }
 }
-

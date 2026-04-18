@@ -9,7 +9,6 @@ use super::*;
 use crate::config::OllamaConfig;
 use crate::provider::Provider;
 
-
 fn test_config() -> OllamaConfig {
     OllamaConfig {
         host: "http://localhost:11434".to_string(),

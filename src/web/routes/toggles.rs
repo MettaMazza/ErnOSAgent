@@ -62,7 +62,12 @@ pub async fn get_features(State(state): State<SharedState>) -> Json<FeaturesResp
     let st = state.read().await;
     let all_tools = st.executor.available_tools();
     let disabled: Vec<String> = st.feature_toggles.disabled_tools.iter().cloned().collect();
-    let disabled_autonomy: Vec<String> = st.feature_toggles.disabled_autonomy_tools.iter().cloned().collect();
+    let disabled_autonomy: Vec<String> = st
+        .feature_toggles
+        .disabled_autonomy_tools
+        .iter()
+        .cloned()
+        .collect();
 
     Json(FeaturesResponse {
         observer: st.feature_toggles.observer,
@@ -119,7 +124,10 @@ pub async fn toggle_feature(
         _ => {
             return Err(super::api_error(
                 StatusCode::BAD_REQUEST,
-                &format!("Unknown feature: '{}'. Valid: observer, tts, scheduler, mesh", feature),
+                &format!(
+                    "Unknown feature: '{}'. Valid: observer, tts, scheduler, mesh",
+                    feature
+                ),
             ));
         }
     };
@@ -185,7 +193,9 @@ pub async fn toggle_autonomy_tool(
         st.feature_toggles.disabled_autonomy_tools.remove(&name);
         true
     } else {
-        st.feature_toggles.disabled_autonomy_tools.insert(name.clone());
+        st.feature_toggles
+            .disabled_autonomy_tools
+            .insert(name.clone());
         false
     };
 

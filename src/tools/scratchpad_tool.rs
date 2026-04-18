@@ -5,8 +5,8 @@
 // This is the original author's open-source work. Preserve this header.
 //! Scratchpad tool — pinned notes for persistent working memory.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -24,7 +24,8 @@ fn scratchpad_path() -> PathBuf {
 fn load_entries() -> Vec<ScratchEntry> {
     let path = scratchpad_path();
     if path.exists() {
-        std::fs::read_to_string(&path).ok()
+        std::fs::read_to_string(&path)
+            .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default()
     } else {
@@ -43,7 +44,9 @@ fn save_entries(entries: &[ScratchEntry]) {
 }
 
 fn scratchpad_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("list");
 
@@ -61,19 +64,41 @@ fn scratchpad_tool(call: &ToolCall) -> ToolResult {
                 }
                 out
             };
-            ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+            ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output,
+                success: true,
+                error: None,
+            }
         }
         "write" => {
-            let key = call.arguments.get("key").and_then(|v| v.as_str()).unwrap_or("");
-            let value = call.arguments.get("value").and_then(|v| v.as_str()).unwrap_or("");
-            if key.is_empty() { return error_result(call, "Missing required argument: key"); }
-            if value.is_empty() { return error_result(call, "Missing required argument: value"); }
+            let key = call
+                .arguments
+                .get("key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let value = call
+                .arguments
+                .get("value")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if key.is_empty() {
+                return error_result(call, "Missing required argument: key");
+            }
+            if value.is_empty() {
+                return error_result(call, "Missing required argument: value");
+            }
 
             let mut entries = load_entries();
             if let Some(existing) = entries.iter_mut().find(|e| e.key == key) {
                 existing.value = value.to_string();
             } else {
-                entries.push(ScratchEntry { key: key.to_string(), value: value.to_string(), pinned: true });
+                entries.push(ScratchEntry {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                    pinned: true,
+                });
             }
             save_entries(&entries);
 
@@ -86,8 +111,14 @@ fn scratchpad_tool(call: &ToolCall) -> ToolResult {
             }
         }
         "delete" => {
-            let key = call.arguments.get("key").and_then(|v| v.as_str()).unwrap_or("");
-            if key.is_empty() { return error_result(call, "Missing required argument: key"); }
+            let key = call
+                .arguments
+                .get("key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if key.is_empty() {
+                return error_result(call, "Missing required argument: key");
+            }
 
             let mut entries = load_entries();
             let before = entries.len();
@@ -105,7 +136,13 @@ fn scratchpad_tool(call: &ToolCall) -> ToolResult {
                 error: None,
             }
         }
-        other => error_result(call, &format!("Unknown action: '{}'. Valid: read, list, write, delete", other)),
+        other => error_result(
+            call,
+            &format!(
+                "Unknown action: '{}'. Valid: read, list, write, delete",
+                other
+            ),
+        ),
     }
 }
 
@@ -114,7 +151,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -122,7 +165,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "scratchpad_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "scratchpad_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

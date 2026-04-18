@@ -43,8 +43,8 @@ pub struct IntegrityWatchdog {
 impl IntegrityWatchdog {
     /// Initialise the watchdog by computing the binary hash.
     pub fn init(mesh_dir: &Path) -> Result<Self> {
-        let binary_path = std::env::current_exe()
-            .context("Failed to get current executable path")?;
+        let binary_path =
+            std::env::current_exe().context("Failed to get current executable path")?;
 
         let binary_hash = Self::compute_file_hash(&binary_path)?;
 
@@ -146,8 +146,7 @@ impl IntegrityWatchdog {
             self.integrity.binary_path.display(),
             self.integrity.binary_hash,
         );
-        std::fs::write(&destruct_log, log_entry)
-            .with_context(|| "Failed to write destruct log")?;
+        std::fs::write(&destruct_log, log_entry).with_context(|| "Failed to write destruct log")?;
 
         tracing::error!("SELF-DESTRUCT COMPLETE — mesh identity destroyed");
         Ok(())
@@ -177,8 +176,11 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_neutralise_test_{}_{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!(
+            "ernos_neutralise_test_{}_{}",
+            std::process::id(),
+            n
+        ));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }
@@ -188,14 +190,21 @@ mod tests {
         let dir = temp_dir();
         let watchdog = IntegrityWatchdog::init(&dir).unwrap();
         assert!(!watchdog.binary_hash().is_empty());
-        assert_eq!(watchdog.binary_hash().len(), 64, "SHA-256 hex should be 64 chars");
+        assert_eq!(
+            watchdog.binary_hash().len(),
+            64,
+            "SHA-256 hex should be 64 chars"
+        );
     }
 
     #[test]
     fn test_integrity_check_passes() {
         let dir = temp_dir();
         let watchdog = IntegrityWatchdog::init(&dir).unwrap();
-        assert!(watchdog.check_integrity().unwrap(), "Integrity should be valid on init");
+        assert!(
+            watchdog.check_integrity().unwrap(),
+            "Integrity should be valid on init"
+        );
     }
 
     #[test]
@@ -215,9 +224,15 @@ mod tests {
         let watchdog = IntegrityWatchdog::init(&dir).unwrap();
         watchdog.self_destruct().unwrap();
 
-        assert!(dir.join("destruct.log").exists(), "Destruct log must be created");
+        assert!(
+            dir.join("destruct.log").exists(),
+            "Destruct log must be created"
+        );
         assert!(!dir.join("keys.json").exists(), "Keys must be destroyed");
-        assert!(!dir.join("trust.json").exists(), "Trust data must be destroyed");
+        assert!(
+            !dir.join("trust.json").exists(),
+            "Trust data must be destroyed"
+        );
     }
 
     #[test]

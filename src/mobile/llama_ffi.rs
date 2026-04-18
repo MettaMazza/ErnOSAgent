@@ -102,7 +102,7 @@ impl Default for ContextParams {
             .min(8); // Cap for mobile thermal management
 
         Self {
-            n_ctx: 4096,  // Reasonable default for mobile
+            n_ctx: 4096, // Reasonable default for mobile
             n_batch: 512,
             n_threads,
             n_threads_batch: n_threads,
@@ -247,9 +247,7 @@ impl LlamaModel {
             anyhow::bail!("Model file not found: {}", params.model_path);
         }
 
-        let file_size = std::fs::metadata(path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
         let name = path
             .file_stem()
@@ -370,12 +368,30 @@ impl LlamaContext {
 
         // Signal that this is a stub
         let stub_tokens = [
-            "This", " response", " is", " from", " the",
-            " llama.cpp", " FFI", " stub.", " Real",
-            " on-device", " inference", " will", " replace",
-            " this", " in", " Phase", " 2",
-            " when", " the", " C", " library",
-            " is", " linked.", "",
+            "This",
+            " response",
+            " is",
+            " from",
+            " the",
+            " llama.cpp",
+            " FFI",
+            " stub.",
+            " Real",
+            " on-device",
+            " inference",
+            " will",
+            " replace",
+            " this",
+            " in",
+            " Phase",
+            " 2",
+            " when",
+            " the",
+            " C",
+            " library",
+            " is",
+            " linked.",
+            "",
         ];
 
         let mut n_generated = 0u32;
@@ -498,7 +514,6 @@ pub(crate) mod ffi {
         pub fn llama_token_bos(model: *const llama_model) -> llama_token;
     }
 }
-
 
 #[cfg(test)]
 #[path = "llama_ffi_tests.rs"]

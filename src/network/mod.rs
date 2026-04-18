@@ -14,27 +14,27 @@
 //! runtime toggle. Default: off at both levels.
 
 // Phase 1 — Foundation
-pub mod peer_id;
-pub mod wire;
 pub mod crypto;
+pub mod peer_id;
 pub mod transport;
+pub mod wire;
 
 // Phase 2 — Security Pipeline (Neutralise)
-pub mod trust;
-pub mod sanctions;
-pub mod neutralise;
 pub mod content_filter;
+pub mod neutralise;
+pub mod sanctions;
+pub mod trust;
 
 // Phase 3 — Discovery, Identity, Capabilities
+pub mod capabilities;
 pub mod discovery;
 pub mod identity;
-pub mod capabilities;
 
 // Phase 4 — Resource Sharing
+pub mod code_propagation;
 pub mod compute;
 pub mod knowledge_sync;
 pub mod weight_exchange;
-pub mod code_propagation;
 
 // Phase 5 — Distributed Storage & Sandbox
 pub mod dht;
@@ -43,6 +43,6 @@ pub mod sandbox;
 
 // Phase 6 — Governance, Proxy, Human, Event Loop
 pub mod governance;
-pub mod web_proxy;
 pub mod human_mesh;
 pub mod mesh_loop;
+pub mod web_proxy;

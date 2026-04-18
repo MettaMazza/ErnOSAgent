@@ -24,8 +24,12 @@ mod mesh_e2e {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_mesh_e2e_{}_{}_{}", name, std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!(
+            "ernos_mesh_e2e_{}_{}_{}",
+            name,
+            std::process::id(),
+            n
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }
@@ -49,11 +53,14 @@ mod mesh_e2e {
         let node_a = MeshCoordinator::init(&dir_a, sim_config()).await.unwrap();
         let node_b = MeshCoordinator::init(&dir_b, sim_config()).await.unwrap();
 
-        // PeerId is derived from binary hash so it's the same for both — 
+        // PeerId is derived from binary hash so it's the same for both —
         // verify that the coordinators have independent state
-        assert_eq!(node_a.peer_id(), node_b.peer_id(),
-            "Same binary should produce same peer ID");
-        // But their data dirs must be independent  
+        assert_eq!(
+            node_a.peer_id(),
+            node_b.peer_id(),
+            "Same binary should produce same peer ID"
+        );
+        // But their data dirs must be independent
         assert_ne!(
             format!("{:?}", node_a.identity),
             format!("{:?}", node_b.identity),
@@ -110,12 +117,15 @@ mod mesh_e2e {
         let node_b = MeshCoordinator::init(&dir_b, sim_config()).await.unwrap();
 
         // Node B registers as relay (contributes)
-        node_b.compute_pool.register_relay(RelaySlot {
-            peer_id: node_b.peer_id(),
-            available: true,
-            bandwidth_kbps: 5000,
-            requests_served: 0,
-        }).await;
+        node_b
+            .compute_pool
+            .register_relay(RelaySlot {
+                peer_id: node_b.peer_id(),
+                available: true,
+                bandwidth_kbps: 5000,
+                requests_served: 0,
+            })
+            .await;
 
         // Node A tries to submit — below threshold but lenient default (-5)
         let job = ComputeJob {
@@ -132,7 +142,10 @@ mod mesh_e2e {
         };
 
         let result = node_a.compute_pool.submit_job(job).await;
-        assert!(result.is_ok(), "Should accept with default -5 equality threshold");
+        assert!(
+            result.is_ok(),
+            "Should accept with default -5 equality threshold"
+        );
 
         let stats = node_a.compute_pool.job_stats().await;
         assert_eq!(stats.0, 1, "Should have 1 queued job");
@@ -178,7 +191,9 @@ mod mesh_e2e {
         let attacker = PeerId("malicious_peer".into());
 
         // Simulate receiving malicious content from another node
-        let scan = node_a.content_filter.scan(&attacker, "<script>alert('xss')</script>");
+        let scan = node_a
+            .content_filter
+            .scan(&attacker, "<script>alert('xss')</script>");
         assert!(scan.is_blocked(), "XSS should be blocked");
 
         // Should be tracked
@@ -203,12 +218,9 @@ mod mesh_e2e {
 
         // Simulate network transfer: look up from A and store in B
         let entry = node_a.dht.lookup(&key).unwrap();
-        node_b.dht.store(
-            &entry.value,
-            &entry.entry_type,
-            3600,
-            entry.origin.clone(),
-        );
+        node_b
+            .dht
+            .store(&entry.value, &entry.entry_type, 3600, entry.origin.clone());
 
         // Node B can now look it up (same content key)
         let recovered = node_b.dht.lookup(&key);
@@ -314,9 +326,12 @@ mod mesh_e2e {
         let data: Vec<u8> = chunk.repeat(6000); // ~270KB
         let manifest = node.mesh_fs.chunk_file(&data, Some("test.txt")).unwrap();
 
-        assert!(manifest.chunk_hashes.len() > 1, 
-            "Should chunk into multiple pieces, got {} chunks for {} bytes", 
-            manifest.chunk_hashes.len(), data.len());
+        assert!(
+            manifest.chunk_hashes.len() > 1,
+            "Should chunk into multiple pieces, got {} chunks for {} bytes",
+            manifest.chunk_hashes.len(),
+            data.len()
+        );
 
         let reassembled = node.mesh_fs.reassemble(&manifest).unwrap().unwrap();
         assert_eq!(reassembled, data);

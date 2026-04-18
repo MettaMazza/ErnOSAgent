@@ -77,17 +77,18 @@ pub struct AdapterVersionDto {
 pub async fn learning_status(State(state): State<SharedState>) -> Json<LearningStatusResponse> {
     let st = state.read().await;
 
-    let (golden, preference, rejection, observer_audit, enabled, summary) = match &st.training_buffers {
-        Some(buffers) => (
-            buffers.golden.count(),
-            buffers.preference.count(),
-            buffers.rejection.count(),
-            buffers.observer.count(),
-            true,
-            buffers.status(),
-        ),
-        None => (0, 0, 0, 0, false, "Learning disabled".to_string()),
-    };
+    let (golden, preference, rejection, observer_audit, enabled, summary) =
+        match &st.training_buffers {
+            Some(buffers) => (
+                buffers.golden.count(),
+                buffers.preference.count(),
+                buffers.rejection.count(),
+                buffers.observer.count(),
+                true,
+                buffers.status(),
+            ),
+            None => (0, 0, 0, 0, false, "Learning disabled".to_string()),
+        };
 
     let (teacher_state, can_train, threshold) = match &st.teacher {
         Some(teacher) => {
@@ -100,20 +101,20 @@ pub async fn learning_status(State(state): State<SharedState>) -> Json<LearningS
                 is_idle && meets_threshold && enabled,
                 format!(
                     "Golden: {}/{}, Preference: {}/{}",
-                    golden, teacher.config().golden_threshold,
-                    preference, teacher.config().preference_threshold,
+                    golden,
+                    teacher.config().golden_threshold,
+                    preference,
+                    teacher.config().preference_threshold,
                 ),
             )
         }
-        None => (
-            "not initialised".to_string(),
-            false,
-            "—".to_string(),
-        ),
+        None => ("not initialised".to_string(), false, "—".to_string()),
     };
 
     // Count distilled lessons from file
-    let distilled_lessons_count = st.teacher.as_ref()
+    let distilled_lessons_count = st
+        .teacher
+        .as_ref()
         .map(|t| {
             let path = t.config().training_dir.join("distilled_lessons.json");
             if path.exists() {
@@ -132,14 +133,18 @@ pub async fn learning_status(State(state): State<SharedState>) -> Json<LearningS
     let adapters = match &st.adapter_manifest {
         Some(manifest_lock) => {
             let manifest = manifest_lock.lock().await;
-            manifest.history.iter().map(|v| AdapterVersionDto {
-                id: v.id.clone(),
-                created: v.created.to_rfc3339(),
-                golden_count: v.golden_count,
-                preference_count: v.preference_count,
-                training_loss: v.training_loss,
-                healthy: v.health_check_passed,
-            }).collect()
+            manifest
+                .history
+                .iter()
+                .map(|v| AdapterVersionDto {
+                    id: v.id.clone(),
+                    created: v.created.to_rfc3339(),
+                    golden_count: v.golden_count,
+                    preference_count: v.preference_count,
+                    training_loss: v.training_loss,
+                    healthy: v.health_check_passed,
+                })
+                .collect()
         }
         None => Vec::new(),
     };
@@ -165,17 +170,29 @@ pub async fn trigger_training(
 ) -> Result<StatusCode, (StatusCode, Json<super::ApiError>)> {
     let (teacher, buffers, manifest) = {
         let st = state.read().await;
-        let teacher = st.teacher.clone()
-            .ok_or_else(|| super::api_error(StatusCode::SERVICE_UNAVAILABLE, "Teacher not initialised"))?;
-        let buffers = st.training_buffers.clone()
-            .ok_or_else(|| super::api_error(StatusCode::SERVICE_UNAVAILABLE, "Training buffers not initialised"))?;
-        let manifest = st.adapter_manifest.clone()
-            .ok_or_else(|| super::api_error(StatusCode::SERVICE_UNAVAILABLE, "Adapter manifest not initialised"))?;
+        let teacher = st.teacher.clone().ok_or_else(|| {
+            super::api_error(StatusCode::SERVICE_UNAVAILABLE, "Teacher not initialised")
+        })?;
+        let buffers = st.training_buffers.clone().ok_or_else(|| {
+            super::api_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Training buffers not initialised",
+            )
+        })?;
+        let manifest = st.adapter_manifest.clone().ok_or_else(|| {
+            super::api_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Adapter manifest not initialised",
+            )
+        })?;
         (teacher, buffers, manifest)
     };
 
     if teacher.is_training() {
-        return Err(super::api_error(StatusCode::CONFLICT, "Training already in progress"));
+        return Err(super::api_error(
+            StatusCode::CONFLICT,
+            "Training already in progress",
+        ));
     }
 
     // Determine training kind
@@ -200,7 +217,10 @@ pub async fn trigger_training(
     tokio::spawn(async move {
         tracing::info!(kind = ?kind, "Manual training triggered via dashboard");
         let mut manifest_guard = manifest.lock().await;
-        match teacher.run_training_cycle(&buffers, &mut manifest_guard, kind).await {
+        match teacher
+            .run_training_cycle(&buffers, &mut manifest_guard, kind)
+            .await
+        {
             Ok(()) => tracing::info!("Manual training cycle completed successfully"),
             Err(e) => tracing::error!(error = %e, "Manual training cycle failed"),
         }
@@ -209,10 +229,7 @@ pub async fn trigger_training(
     Ok(StatusCode::ACCEPTED)
 }
 
-
-pub async fn list_models(
-    State(state): State<SharedState>,
-) -> Json<Vec<String>> {
+pub async fn list_models(State(state): State<SharedState>) -> Json<Vec<String>> {
     let st = state.read().await;
 
     // Start with the currently loaded model(s) from the provider

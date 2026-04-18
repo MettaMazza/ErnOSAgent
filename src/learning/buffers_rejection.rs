@@ -88,10 +88,12 @@ impl RejectionBuffer {
             timestamp: chrono::Utc::now(),
         };
 
-        let line = serde_json::to_string(&record)
-            .context("Failed to serialize rejection record")?;
+        let line =
+            serde_json::to_string(&record).context("Failed to serialize rejection record")?;
 
-        let mut writer = self.writer.write()
+        let mut writer = self
+            .writer
+            .write()
             .map_err(|e| anyhow::anyhow!("Rejection buffer write lock poisoned: {e}"))?;
         writeln!(writer, "{}", line)?;
         writer.flush()?;
@@ -149,10 +151,12 @@ mod tests {
 
         assert_eq!(buf.count(), 0);
 
-        buf.record("sys", "hello", "bad response", "ghost_tooling", "s1", "m1").unwrap();
+        buf.record("sys", "hello", "bad response", "ghost_tooling", "s1", "m1")
+            .unwrap();
         assert_eq!(buf.count(), 1);
 
-        buf.record("sys", "hello2", "bad2", "sycophancy", "s1", "m1").unwrap();
+        buf.record("sys", "hello2", "bad2", "sycophancy", "s1", "m1")
+            .unwrap();
         assert_eq!(buf.count(), 2);
     }
 
@@ -162,8 +166,10 @@ mod tests {
         let path = dir.path().join("rejections.jsonl");
         let buf = RejectionBuffer::open(&path).unwrap();
 
-        buf.record("sys", "q1", "bad1", "lazy_deflection", "s1", "m1").unwrap();
-        buf.record("sys", "q2", "bad2", "tool_underuse", "s2", "m1").unwrap();
+        buf.record("sys", "q1", "bad1", "lazy_deflection", "s1", "m1")
+            .unwrap();
+        buf.record("sys", "q2", "bad2", "tool_underuse", "s2", "m1")
+            .unwrap();
 
         let records = buf.read_all().unwrap();
         assert_eq!(records.len(), 2);

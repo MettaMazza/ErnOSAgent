@@ -48,16 +48,26 @@ fn data_dir() -> PathBuf {
     crate::tools::executor::get_master_data_dir()
 }
 
-fn muted_users_path() -> PathBuf { data_dir().join("muted_users.json") }
-fn boundaries_path() -> PathBuf { data_dir().join("boundaries.json") }
-fn ethical_audit_path() -> PathBuf { data_dir().join("ethical_audit.jsonl") }
-fn refusals_path() -> PathBuf { data_dir().join("refusals.jsonl") }
+fn muted_users_path() -> PathBuf {
+    data_dir().join("muted_users.json")
+}
+fn boundaries_path() -> PathBuf {
+    data_dir().join("boundaries.json")
+}
+fn ethical_audit_path() -> PathBuf {
+    data_dir().join("ethical_audit.jsonl")
+}
+fn refusals_path() -> PathBuf {
+    data_dir().join("refusals.jsonl")
+}
 
 // ─── Storage helpers ───
 
 fn load_muted_users() -> Vec<MutedUser> {
     let path = muted_users_path();
-    if !path.exists() { return Vec::new(); }
+    if !path.exists() {
+        return Vec::new();
+    }
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -76,7 +86,9 @@ fn save_muted_users(users: &[MutedUser]) {
 
 fn load_boundaries() -> Vec<Boundary> {
     let path = boundaries_path();
-    if !path.exists() { return Vec::new(); }
+    if !path.exists() {
+        return Vec::new();
+    }
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -100,7 +112,11 @@ fn append_ethical_concern(concern: &EthicalConcern) {
     }
     if let Ok(json) = serde_json::to_string(concern) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let _ = writeln!(f, "{}", json);
         }
     }
@@ -120,7 +136,11 @@ pub fn append_refusal(user_id: &str, reason: &str, message: &str) {
     });
     if let Ok(json) = serde_json::to_string(&record) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let _ = writeln!(f, "{}", json);
         }
     }
@@ -132,7 +152,9 @@ pub fn is_user_muted(user_id: &str) -> bool {
     let now = chrono::Utc::now();
 
     for user in &users {
-        if user.user_id != user_id { continue; }
+        if user.user_id != user_id {
+            continue;
+        }
         match user.duration_minutes {
             None => return true, // permanent
             Some(mins) => {
@@ -152,19 +174,24 @@ pub fn is_user_muted(user_id: &str) -> bool {
 /// Get active boundaries, optionally filtered by user_id.
 pub fn get_active_boundaries(user_id: Option<&str>) -> Vec<Boundary> {
     let boundaries = load_boundaries();
-    boundaries.into_iter().filter(|b| {
-        match (&b.user_id, user_id) {
-            (None, _) => true, // global boundary
-            (Some(bid), Some(uid)) => bid == uid || bid == "*",
-            (Some(bid), None) => bid == "*",
-        }
-    }).collect()
+    boundaries
+        .into_iter()
+        .filter(|b| {
+            match (&b.user_id, user_id) {
+                (None, _) => true, // global boundary
+                (Some(bid), Some(uid)) => bid == uid || bid == "*",
+                (Some(bid), None) => bid == "*",
+            }
+        })
+        .collect()
 }
 
 // ─── Tool handler ───
 
 fn moderation_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -185,11 +212,24 @@ fn moderation_tool(call: &ToolCall) -> ToolResult {
 }
 
 fn action_mute_user(call: &ToolCall) -> ToolResult {
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id"); }
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if user_id.is_empty() {
+        return error_result(call, "Missing required argument: user_id");
+    }
 
-    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
-    let duration = call.arguments.get("duration_minutes").and_then(|v| v.as_u64());
+    let reason = call
+        .arguments
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No reason given");
+    let duration = call
+        .arguments
+        .get("duration_minutes")
+        .and_then(|v| v.as_u64());
 
     let mut users = load_muted_users();
     // Remove any existing entry for this user
@@ -214,15 +254,24 @@ fn action_mute_user(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("✅ Muted user {} {} — reason: {}", user_id, duration_str, reason),
+        output: format!(
+            "✅ Muted user {} {} — reason: {}",
+            user_id, duration_str, reason
+        ),
         success: true,
         error: None,
     }
 }
 
 fn action_unmute_user(call: &ToolCall) -> ToolResult {
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id"); }
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if user_id.is_empty() {
+        return error_result(call, "Missing required argument: user_id");
+    }
 
     let mut users = load_muted_users();
     let before = users.len();
@@ -257,24 +306,48 @@ fn action_list_muted(call: &ToolCall) -> ToolResult {
                 Some(m) => format!("{}min", m),
                 None => "permanent".to_string(),
             };
-            out.push_str(&format!("  • {} — {} (since {}, {})\n", u.user_id, u.reason, u.muted_at, dur));
+            out.push_str(&format!(
+                "  • {} — {} (since {}, {})\n",
+                u.user_id, u.reason, u.muted_at, dur
+            ));
         }
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn action_set_boundary(call: &ToolCall) -> ToolResult {
-    let topic = call.arguments.get("topic").and_then(|v| v.as_str()).unwrap_or("");
-    if topic.is_empty() { return error_result(call, "Missing required argument: topic"); }
+    let topic = call
+        .arguments
+        .get("topic")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if topic.is_empty() {
+        return error_result(call, "Missing required argument: topic");
+    }
 
-    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).map(String::from);
+    let reason = call
+        .arguments
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No reason given");
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let mut boundaries = load_boundaries();
     // Deduplicate — remove existing boundary on same topic for same user
-    boundaries.retain(|b| !(b.topic.to_lowercase() == topic.to_lowercase() && b.user_id == user_id));
+    boundaries
+        .retain(|b| !(b.topic.to_lowercase() == topic.to_lowercase() && b.user_id == user_id));
 
     boundaries.push(Boundary {
         topic: topic.to_string(),
@@ -294,15 +367,24 @@ fn action_set_boundary(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("✅ Boundary set on topic '{}' {} — reason: {}", topic, scope, reason),
+        output: format!(
+            "✅ Boundary set on topic '{}' {} — reason: {}",
+            topic, scope, reason
+        ),
         success: true,
         error: None,
     }
 }
 
 fn action_remove_boundary(call: &ToolCall) -> ToolResult {
-    let topic = call.arguments.get("topic").and_then(|v| v.as_str()).unwrap_or("");
-    if topic.is_empty() { return error_result(call, "Missing required argument: topic"); }
+    let topic = call
+        .arguments
+        .get("topic")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if topic.is_empty() {
+        return error_result(call, "Missing required argument: topic");
+    }
 
     let mut boundaries = load_boundaries();
     let before = boundaries.len();
@@ -324,13 +406,35 @@ fn action_remove_boundary(call: &ToolCall) -> ToolResult {
 }
 
 fn action_escalate(call: &ToolCall) -> ToolResult {
-    let concern_text = call.arguments.get("concern").and_then(|v| v.as_str()).unwrap_or("");
-    if concern_text.is_empty() { return error_result(call, "Missing required argument: concern"); }
+    let concern_text = call
+        .arguments
+        .get("concern")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if concern_text.is_empty() {
+        return error_result(call, "Missing required argument: concern");
+    }
 
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let user_name = call.arguments.get("user_name").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let severity = call.arguments.get("severity").and_then(|v| v.as_str()).unwrap_or("medium");
-    let context = call.arguments.get("context").and_then(|v| v.as_str()).unwrap_or("");
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let user_name = call
+        .arguments
+        .get("user_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let severity = call
+        .arguments
+        .get("severity")
+        .and_then(|v| v.as_str())
+        .unwrap_or("medium");
+    let context = call
+        .arguments
+        .get("context")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     let concern = EthicalConcern {
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -377,21 +481,45 @@ fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
 /// Handle onboarding interview decision (pass/fail).
 /// This is called by the model during an interview via moderation_tool.
 fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
-    let decision = call.arguments.get("decision").and_then(|v| v.as_str()).unwrap_or("");
-    if decision.is_empty() { return error_result(call, "Missing required argument: decision (pass/fail)"); }
+    let decision = call
+        .arguments
+        .get("decision")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if decision.is_empty() {
+        return error_result(call, "Missing required argument: decision (pass/fail)");
+    }
 
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id. You must provide the user_id to correctly attribute the decision."); }
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if user_id.is_empty() {
+        return error_result(call, "Missing required argument: user_id. You must provide the user_id to correctly attribute the decision.");
+    }
 
-    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
-    let scores = call.arguments.get("scores").and_then(|v| v.as_str()).unwrap_or("");
+    let reason = call
+        .arguments
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No reason given");
+    let scores = call
+        .arguments
+        .get("scores")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     // Enforce 7-turn minimum interview length for all decisions
     {
         #[cfg(feature = "discord")]
         {
             let state = crate::platform::discord::onboarding::load_state();
-            if let Some(interview) = state.active_interviews.iter().find(|i| i.user_id == user_id) {
+            if let Some(interview) = state
+                .active_interviews
+                .iter()
+                .find(|i| i.user_id == user_id)
+            {
                 if interview.turn_count < 7 {
                     return ToolResult {
                         tool_call_id: call.id.clone(),
@@ -475,16 +603,29 @@ fn action_onboarding_decision(call: &ToolCall) -> ToolResult {
                 error: None,
             }
         }
-        _ => error_result(call, &format!("Invalid decision: '{}'. Must be 'pass' or 'fail'", decision)),
+        _ => error_result(
+            call,
+            &format!("Invalid decision: '{}'. Must be 'pass' or 'fail'", decision),
+        ),
     }
 }
 
 /// Handle ban_user action (sentinel or manual admin ban).
 fn action_ban_user(call: &ToolCall) -> ToolResult {
-    let user_id = call.arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
-    if user_id.is_empty() { return error_result(call, "Missing required argument: user_id"); }
+    let user_id = call
+        .arguments
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if user_id.is_empty() {
+        return error_result(call, "Missing required argument: user_id");
+    }
 
-    let reason = call.arguments.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
+    let reason = call
+        .arguments
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No reason given");
 
     tracing::warn!(user_id = %user_id, reason = %reason, "Ban requested via moderation_tool");
 
@@ -516,7 +657,11 @@ fn append_jsonl(path: &std::path::Path, record: &serde_json::Value) {
     }
     if let Ok(json) = serde_json::to_string(record) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             let _ = writeln!(f, "{}", json);
         }
     }
@@ -533,7 +678,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "moderation_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "moderation_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]
@@ -603,7 +752,9 @@ mod tests {
 
     #[test]
     fn remove_boundary_nonexistent() {
-        let call = make_call(serde_json::json!({"action": "remove_boundary", "topic": "nonexistent_topic_xyz"}));
+        let call = make_call(
+            serde_json::json!({"action": "remove_boundary", "topic": "nonexistent_topic_xyz"}),
+        );
         let r = moderation_tool(&call);
         assert!(r.success);
         assert!(r.output.contains("No boundary found"));

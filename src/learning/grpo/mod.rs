@@ -11,8 +11,8 @@
 //!
 //! Paper: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning"
 
-pub mod rewards;
 pub mod generation;
+pub mod rewards;
 pub mod training;
 
 /// Configuration for GRPO training — all from environment variables.
@@ -43,7 +43,11 @@ impl GrpoConfig {
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
-        Ok(Self { group_size, kl_beta, enabled })
+        Ok(Self {
+            group_size,
+            kl_beta,
+            enabled,
+        })
     }
 }
 

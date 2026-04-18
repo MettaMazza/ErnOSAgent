@@ -50,7 +50,9 @@ pub fn distill_from_failures(
     let mut category_counts: HashMap<String, usize> = HashMap::new();
     for pair in pairs {
         if !pair.failure_category.is_empty() {
-            *category_counts.entry(pair.failure_category.clone()).or_default() += 1;
+            *category_counts
+                .entry(pair.failure_category.clone())
+                .or_default() += 1;
         }
     }
 
@@ -63,10 +65,7 @@ pub fn distill_from_failures(
 
         // Check if a lesson for this category already exists
         let source_tag = format!("distilled:{}", category);
-        let already_exists = lesson_store
-            .all()
-            .iter()
-            .any(|l| l.source == source_tag);
+        let already_exists = lesson_store.all().iter().any(|l| l.source == source_tag);
         if already_exists {
             tracing::debug!(
                 category = %category,
@@ -118,12 +117,10 @@ fn category_to_lesson(category: &str) -> String {
              without actual execution. If a tool call fails, report the failure honestly."
                 .to_string()
         }
-        "sycophancy" => {
-            "Challenge incorrect user assumptions rather than agreeing. Prioritise \
+        "sycophancy" => "Challenge incorrect user assumptions rather than agreeing. Prioritise \
              accuracy and truth over agreeability. Polite disagreement is preferred \
              over false agreement."
-                .to_string()
-        }
+            .to_string(),
         "lazy_deflection" => {
             "Never deflect with 'I am an AI' or 'I cannot do that' when the task is \
              within capability. Attempt the task first, then report results honestly."
@@ -191,7 +188,10 @@ mod tests {
             make_pair("ghost_tooling"),
         ];
         let mut store = LessonStore::new();
-        let config = DistillConfig { threshold: 3, ..Default::default() };
+        let config = DistillConfig {
+            threshold: 3,
+            ..Default::default()
+        };
 
         let generated = distill_from_failures(&pairs, &mut store, &config);
         assert_eq!(generated, 1);
@@ -201,12 +201,12 @@ mod tests {
 
     #[test]
     fn test_below_threshold() {
-        let pairs = vec![
-            make_pair("ghost_tooling"),
-            make_pair("ghost_tooling"),
-        ];
+        let pairs = vec![make_pair("ghost_tooling"), make_pair("ghost_tooling")];
         let mut store = LessonStore::new();
-        let config = DistillConfig { threshold: 3, ..Default::default() };
+        let config = DistillConfig {
+            threshold: 3,
+            ..Default::default()
+        };
 
         let generated = distill_from_failures(&pairs, &mut store, &config);
         assert_eq!(generated, 0);
@@ -221,7 +221,10 @@ mod tests {
             make_pair("ghost_tooling"),
         ];
         let mut store = LessonStore::new();
-        let config = DistillConfig { threshold: 3, ..Default::default() };
+        let config = DistillConfig {
+            threshold: 3,
+            ..Default::default()
+        };
 
         // First pass
         distill_from_failures(&pairs, &mut store, &config);
@@ -245,7 +248,10 @@ mod tests {
             make_pair("lazy_deflection"), // Only 1 — below threshold
         ];
         let mut store = LessonStore::new();
-        let config = DistillConfig { threshold: 3, ..Default::default() };
+        let config = DistillConfig {
+            threshold: 3,
+            ..Default::default()
+        };
 
         let generated = distill_from_failures(&pairs, &mut store, &config);
         assert_eq!(generated, 2); // ghost_tooling + sycophancy

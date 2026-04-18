@@ -78,10 +78,7 @@ pub fn build_context_prompt(
 
     // Steering
     if steering.has_active_vectors() {
-        sections.push(format!(
-            "## Active Steering\n{}",
-            steering.status_summary()
-        ));
+        sections.push(format!("## Active Steering\n{}", steering.status_summary()));
     }
 
     // Memory
@@ -114,16 +111,25 @@ mod tests {
             default_top_k: 40,
             default_top_p: 0.9,
             capabilities: ModelCapabilities {
-                text: true, vision: true, video: true,
-                tool_calling: true, thinking: true, ..Default::default()
+                text: true,
+                vision: true,
+                video: true,
+                tool_calling: true,
+                thinking: true,
+                ..Default::default()
             },
             ..Default::default()
         };
 
         let prompt = build_context_prompt(
-            &spec, "Test session", 5, 0.15,
+            &spec,
+            "Test session",
+            5,
+            0.15,
             &["web_search".to_string(), "file_read".to_string()],
-            &SteeringConfig::default(), "", "",
+            &SteeringConfig::default(),
+            "",
+            "",
         );
 
         assert!(prompt.contains("gemma4:26b"));

@@ -130,7 +130,7 @@ fn test_lora_varmap_cpu() {
         arch: forward::ModelArchitecture {
             num_layers: 2,
             hidden_dim: 64,
-            q_dim: 64,  // q and v have same dim when no GQA
+            q_dim: 64, // q and v have same dim when no GQA
             kv_dim: 64,
             ..Default::default()
         },
@@ -158,9 +158,7 @@ fn test_cross_entropy_loss_cpu() {
     let device = candle_core::Device::Cpu;
     let logits = candle_core::Tensor::from_slice(
         &[
-            1.0f32, 0.0, 0.0, 0.0,
-            0.0, 2.0, 0.0, 0.0,
-            0.0, 0.0, 3.0, 0.0,
+            1.0f32, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0,
         ],
         (1, 3, 4),
         &device,

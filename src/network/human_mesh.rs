@@ -181,24 +181,18 @@ mod tests {
         let adapter = HumanMeshAdapter::new(32);
         let _rx = adapter.inbound_tx.clone(); // Keep sender alive
 
-        let result = adapter.inject_message(
-            "Alice",
-            &PeerId("alice".into()),
-            "@ernos hello",
-            true,
-        ).await;
+        let result = adapter
+            .inject_message("Alice", &PeerId("alice".into()), "@ernos hello", true)
+            .await;
         assert!(result);
     }
 
     #[tokio::test]
     async fn test_inject_message_no_mention() {
         let adapter = HumanMeshAdapter::new(32);
-        let result = adapter.inject_message(
-            "Alice",
-            &PeerId("alice".into()),
-            "just chatting",
-            false,
-        ).await;
+        let result = adapter
+            .inject_message("Alice", &PeerId("alice".into()), "just chatting", false)
+            .await;
         assert!(!result, "Should not inject messages without mention");
     }
 

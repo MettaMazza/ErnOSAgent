@@ -12,19 +12,26 @@ pub(super) fn forge_create(call: &ToolCall) -> ToolResult {
         Some(n) => n,
         None => return error_result(call, "Missing required argument: name"),
     };
-    let language = call.arguments.get("language")
+    let language = call
+        .arguments
+        .get("language")
         .and_then(|v| v.as_str())
         .unwrap_or("python");
     let code = match call.arguments.get("code").and_then(|v| v.as_str()) {
         Some(c) => c,
         None => return error_result(call, "Missing required argument: code"),
     };
-    let description = call.arguments.get("description")
+    let description = call
+        .arguments
+        .get("description")
         .and_then(|v| v.as_str())
         .unwrap_or(name);
 
     if name.is_empty() || name.contains("..") || name.contains('/') || name.contains(' ') {
-        return error_result(call, "Invalid tool name. Must be alphanumeric with underscores, no spaces or path chars.");
+        return error_result(
+            call,
+            "Invalid tool name. Must be alphanumeric with underscores, no spaces or path chars.",
+        );
     }
     if !["python", "bash"].contains(&language) {
         return error_result(call, "Language must be 'python' or 'bash'.");
@@ -32,7 +39,13 @@ pub(super) fn forge_create(call: &ToolCall) -> ToolResult {
 
     let mut registry = load_registry();
     if registry.tools.iter().any(|t| t.name == name) {
-        return error_result(call, &format!("Tool '{}' already exists. Use action:'edit' to update it.", name));
+        return error_result(
+            call,
+            &format!(
+                "Tool '{}' already exists. Use action:'edit' to update it.",
+                name
+            ),
+        );
     }
 
     if let Err(e) = syntax_check(language, code) {
@@ -76,7 +89,10 @@ pub(super) fn forge_create(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("✅ Forged tool '{}' created and enabled ({}, v1).", name, language),
+        output: format!(
+            "✅ Forged tool '{}' created and enabled ({}, v1).",
+            name, language
+        ),
         success: true,
         error: None,
     }
@@ -138,18 +154,26 @@ pub(super) fn forge_test(call: &ToolCall) -> ToolResult {
         return error_result(call, &format!("Script file missing for tool '{}'", name));
     }
 
-    let input = call.arguments.get("input")
+    let input = call
+        .arguments
+        .get("input")
         .and_then(|v| v.as_str())
         .unwrap_or("{}");
 
-    let cmd = if tool.language == "python" { "python3" } else { "bash" };
+    let cmd = if tool.language == "python" {
+        "python3"
+    } else {
+        "bash"
+    };
 
     let result = execute_forged_script(cmd, &script_path, input, tool.timeout_secs);
     format_execution_result(call, name, result)
 }
 
 pub(super) fn forge_dry_run(call: &ToolCall) -> ToolResult {
-    let language = call.arguments.get("language")
+    let language = call
+        .arguments
+        .get("language")
         .and_then(|v| v.as_str())
         .unwrap_or("python");
     let code = match call.arguments.get("code").and_then(|v| v.as_str()) {
@@ -256,27 +280,26 @@ fn execute_forged_script(
     tokio::task::block_in_place(|| {
         let rt = tokio::runtime::Handle::current();
         rt.block_on(async {
-            tokio::time::timeout(
-                std::time::Duration::from_secs(timeout_secs),
-                async {
-                    let mut child = tokio::process::Command::new(cmd)
-                        .arg(script_path.to_str().unwrap_or(""))
-                        .stdin(std::process::Stdio::piped())
-                        .stdout(std::process::Stdio::piped())
-                        .stderr(std::process::Stdio::piped())
-                        .spawn()
-                        .map_err(|e| format!("Failed to spawn: {}", e))?;
+            tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
+                let mut child = tokio::process::Command::new(cmd)
+                    .arg(script_path.to_str().unwrap_or(""))
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .map_err(|e| format!("Failed to spawn: {}", e))?;
 
-                    if let Some(mut stdin) = child.stdin.take() {
-                        use tokio::io::AsyncWriteExt;
-                        let _ = stdin.write_all(input.as_bytes()).await;
-                        drop(stdin);
-                    }
-
-                    child.wait_with_output().await
-                        .map_err(|e| format!("Process error: {}", e))
+                if let Some(mut stdin) = child.stdin.take() {
+                    use tokio::io::AsyncWriteExt;
+                    let _ = stdin.write_all(input.as_bytes()).await;
+                    drop(stdin);
                 }
-            )
+
+                child
+                    .wait_with_output()
+                    .await
+                    .map_err(|e| format!("Process error: {}", e))
+            })
             .await
             .map_err(|_| format!("Timed out after {}s", timeout_secs))?
         })
@@ -303,7 +326,9 @@ fn format_execution_result(
                 name: call.name.clone(),
                 output: format!("--- {} OUTPUT ---\n{}", name.to_uppercase(), combined),
                 success: output.status.success(),
-                error: if output.status.success() { None } else {
+                error: if output.status.success() {
+                    None
+                } else {
                     Some(format!("Exit code: {}", output.status))
                 },
             }

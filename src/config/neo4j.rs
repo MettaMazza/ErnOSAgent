@@ -11,14 +11,10 @@ impl Neo4jConfig {
     /// Auto-detect Neo4j configuration from env vars, then Docker Compose.
     pub fn auto_detect() -> Self {
         let mut config = Self {
-            uri: std::env::var("NEO4J_URI")
-                .unwrap_or_else(|_| "bolt://localhost:7687".to_string()),
-            username: std::env::var("NEO4J_USERNAME")
-                .unwrap_or_else(|_| "neo4j".to_string()),
-            password: std::env::var("NEO4J_PASSWORD")
-                .unwrap_or_else(|_| "ernosagent".to_string()),
-            database: std::env::var("NEO4J_DATABASE")
-                .unwrap_or_else(|_| "ernos".to_string()),
+            uri: std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".to_string()),
+            username: std::env::var("NEO4J_USERNAME").unwrap_or_else(|_| "neo4j".to_string()),
+            password: std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "ernosagent".to_string()),
+            database: std::env::var("NEO4J_DATABASE").unwrap_or_else(|_| "ernos".to_string()),
         };
 
         if config.uri == "bolt://localhost:7687" {
@@ -36,8 +32,8 @@ impl Neo4jConfig {
         let content = std::fs::read_to_string("docker-compose.yml")
             .context("docker-compose.yml not found")?;
 
-        let doc: serde_yaml::Value = serde_yaml::from_str(&content)
-            .context("docker-compose.yml is not valid YAML")?;
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(&content).context("docker-compose.yml is not valid YAML")?;
 
         let services = doc
             .get("services")

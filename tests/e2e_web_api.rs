@@ -54,7 +54,10 @@ async fn test_api_status() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("model_name").is_some(), "Should have model_name");
-    assert!(body.get("model_provider").is_some(), "Should have model_provider");
+    assert!(
+        body.get("model_provider").is_some(),
+        "Should have model_provider"
+    );
 
     eprintln!("[e2e] ✅ GET /api/status PASSED: {:?}", body);
 }
@@ -76,8 +79,14 @@ async fn test_api_learning_status() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("enabled").is_some(), "Should have 'enabled' field");
-    assert!(body.get("golden_count").is_some(), "Should have 'golden_count'");
-    assert!(body.get("preference_count").is_some(), "Should have 'preference_count'");
+    assert!(
+        body.get("golden_count").is_some(),
+        "Should have 'golden_count'"
+    );
+    assert!(
+        body.get("preference_count").is_some(),
+        "Should have 'preference_count'"
+    );
     assert!(body.get("summary").is_some(), "Should have 'summary'");
 
     eprintln!("[e2e] ✅ GET /api/learning PASSED: {:?}", body);
@@ -162,11 +171,7 @@ async fn test_api_steering() {
 async fn test_static_index() {
     skip_if_no_server!();
 
-    let resp = client()
-        .get("http://localhost:3000/")
-        .send()
-        .await
-        .unwrap();
+    let resp = client().get("http://localhost:3000/").send().await.unwrap();
     assert_eq!(resp.status(), 200);
 
     let body = resp.text().await.unwrap();

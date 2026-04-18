@@ -20,9 +20,8 @@ pub struct TtsQuery {
 }
 
 /// Lazy-initialised TTS singleton.
-static TTS_INSTANCE: tokio::sync::OnceCell<
-    std::sync::Arc<crate::voice::KokoroTTS>,
-> = tokio::sync::OnceCell::const_new();
+static TTS_INSTANCE: tokio::sync::OnceCell<std::sync::Arc<crate::voice::KokoroTTS>> =
+    tokio::sync::OnceCell::const_new();
 
 async fn get_tts() -> Result<std::sync::Arc<crate::voice::KokoroTTS>, StatusCode> {
     TTS_INSTANCE
@@ -38,9 +37,7 @@ async fn get_tts() -> Result<std::sync::Arc<crate::voice::KokoroTTS>, StatusCode
         .cloned()
 }
 
-pub async fn tts_generate(
-    Query(query): Query<TtsQuery>,
-) -> Result<Response, StatusCode> {
+pub async fn tts_generate(Query(query): Query<TtsQuery>) -> Result<Response, StatusCode> {
     if query.text.trim().is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -81,9 +78,7 @@ pub struct ToolInfo {
     description: String,
 }
 
-pub async fn list_tools(
-    State(state): State<SharedState>,
-) -> Json<Vec<ToolInfo>> {
+pub async fn list_tools(State(state): State<SharedState>) -> Json<Vec<ToolInfo>> {
     let s = state.read().await;
     let tools: Vec<ToolInfo> = s
         .executor
@@ -106,9 +101,7 @@ pub struct ToolHistoryEntry {
     success: bool,
 }
 
-pub async fn tool_history(
-    State(state): State<SharedState>,
-) -> Json<Vec<ToolHistoryEntry>> {
+pub async fn tool_history(State(state): State<SharedState>) -> Json<Vec<ToolHistoryEntry>> {
     let s = state.read().await;
     let session = s.session_mgr.active();
     let entries: Vec<ToolHistoryEntry> = session
@@ -116,12 +109,7 @@ pub async fn tool_history(
         .iter()
         .filter(|msg| msg.role == "tool")
         .map(|msg| ToolHistoryEntry {
-            name: msg
-                .content
-                .lines()
-                .next()
-                .unwrap_or("unknown")
-                .to_string(),
+            name: msg.content.lines().next().unwrap_or("unknown").to_string(),
             output_preview: msg.content.chars().take(500).collect(),
             success: !msg.content.contains("Error:"),
         })

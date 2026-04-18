@@ -35,7 +35,10 @@ impl ToolResult {
             if self.output.is_empty() {
                 format!("[Tool: {} — Error]\n{}", self.name, error_msg)
             } else {
-                format!("[Tool: {} — Error]\n{}\nDetail: {}", self.name, self.output, error_msg)
+                format!(
+                    "[Tool: {} — Error]\n{}\nDetail: {}",
+                    self.name, self.output, error_msg
+                )
             }
         }
     }
@@ -48,7 +51,10 @@ impl ToolResult {
         } else {
             self.error.as_deref().unwrap_or("Unknown error")
         };
-        format!("{} {}('{}') → {}", status, self.name, self.tool_call_id, detail)
+        format!(
+            "{} {}('{}') → {}",
+            status, self.name, self.tool_call_id, detail
+        )
     }
 }
 

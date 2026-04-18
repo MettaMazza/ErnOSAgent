@@ -91,11 +91,7 @@ async fn action_store(
     };
 
     graph.store(concept, data).await;
-    (
-        format!("Stored: '{}' → '{}'", concept, data),
-        true,
-        None,
-    )
+    (format!("Stored: '{}' → '{}'", concept, data), true, None)
 }
 
 async fn action_search(
@@ -218,15 +214,16 @@ async fn action_relate(
 
     graph.store_relationship(from, relation, to).await;
     (
-        format!("Relationship stored: '{}' --[{}]--> '{}'", from, relation, to),
+        format!(
+            "Relationship stored: '{}' --[{}]--> '{}'",
+            from, relation, to
+        ),
         true,
         None,
     )
 }
 
-async fn action_stats(
-    graph: &Arc<SynapticGraph>,
-) -> (String, bool, Option<String>) {
+async fn action_stats(graph: &Arc<SynapticGraph>) -> (String, bool, Option<String>) {
     let (nodes, edges) = graph.stats().await;
     let layers = graph.list_layers().await;
     (
@@ -241,9 +238,7 @@ async fn action_stats(
     )
 }
 
-async fn action_layers(
-    graph: &Arc<SynapticGraph>,
-) -> (String, bool, Option<String>) {
+async fn action_layers(graph: &Arc<SynapticGraph>) -> (String, bool, Option<String>) {
     let layers = graph.list_layers().await;
     if layers.is_empty() {
         (

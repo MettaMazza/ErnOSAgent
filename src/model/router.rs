@@ -254,6 +254,9 @@ mod tests {
         let router = ModalityRouter::new(spec, "test".to_string(), None);
         let result = router.route(Modality::Image);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("does not support image"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("does not support image"));
     }
 }

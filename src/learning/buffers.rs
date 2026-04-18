@@ -60,7 +60,12 @@ impl GoldenBuffer {
             .create(true)
             .append(true)
             .open(path)
-            .with_context(|| format!("Failed to open golden buffer for append: {}", path.display()))?;
+            .with_context(|| {
+                format!(
+                    "Failed to open golden buffer for append: {}",
+                    path.display()
+                )
+            })?;
 
         tracing::info!(
             path = %path.display(),
@@ -93,15 +98,14 @@ impl GoldenBuffer {
             timestamp: chrono::Utc::now(),
         };
 
-        let line = serde_json::to_string(&example)
-            .context("Failed to serialize golden example")?;
+        let line = serde_json::to_string(&example).context("Failed to serialize golden example")?;
 
         {
-            let mut writer = self.writer.write().map_err(|e| {
-                anyhow::anyhow!("Golden buffer lock poisoned: {}", e)
-            })?;
-            writeln!(writer, "{}", line)
-                .context("Failed to write golden example")?;
+            let mut writer = self
+                .writer
+                .write()
+                .map_err(|e| anyhow::anyhow!("Golden buffer lock poisoned: {}", e))?;
+            writeln!(writer, "{}", line).context("Failed to write golden example")?;
             writer.flush().context("Failed to flush golden buffer")?;
         }
 
@@ -139,9 +143,10 @@ impl GoldenBuffer {
 
         // Replace the writer
         {
-            let mut writer = self.writer.write().map_err(|e| {
-                anyhow::anyhow!("Golden buffer lock poisoned: {}", e)
-            })?;
+            let mut writer = self
+                .writer
+                .write()
+                .map_err(|e| anyhow::anyhow!("Golden buffer lock poisoned: {}", e))?;
             *writer = BufWriter::new(file);
         }
 
@@ -161,13 +166,14 @@ impl GoldenBuffer {
             return Ok(Vec::new());
         }
 
-        let file = File::open(&self.path)
-            .with_context(|| "Failed to open golden buffer for reading")?;
+        let file =
+            File::open(&self.path).with_context(|| "Failed to open golden buffer for reading")?;
         let reader = BufReader::new(file);
         let mut entries = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {
-            let line = line.with_context(|| format!("Failed to read line {} of golden buffer", i))?;
+            let line =
+                line.with_context(|| format!("Failed to read line {} of golden buffer", i))?;
             if line.trim().is_empty() {
                 continue;
             }
@@ -225,7 +231,12 @@ impl PreferenceBuffer {
             .create(true)
             .append(true)
             .open(path)
-            .with_context(|| format!("Failed to open preference buffer for append: {}", path.display()))?;
+            .with_context(|| {
+                format!(
+                    "Failed to open preference buffer for append: {}",
+                    path.display()
+                )
+            })?;
 
         tracing::info!(
             path = %path.display(),
@@ -262,16 +273,17 @@ impl PreferenceBuffer {
             timestamp: chrono::Utc::now(),
         };
 
-        let line = serde_json::to_string(&pair)
-            .context("Failed to serialize preference pair")?;
+        let line = serde_json::to_string(&pair).context("Failed to serialize preference pair")?;
 
         {
-            let mut writer = self.writer.write().map_err(|e| {
-                anyhow::anyhow!("Preference buffer lock poisoned: {}", e)
-            })?;
-            writeln!(writer, "{}", line)
-                .context("Failed to write preference pair")?;
-            writer.flush().context("Failed to flush preference buffer")?;
+            let mut writer = self
+                .writer
+                .write()
+                .map_err(|e| anyhow::anyhow!("Preference buffer lock poisoned: {}", e))?;
+            writeln!(writer, "{}", line).context("Failed to write preference pair")?;
+            writer
+                .flush()
+                .context("Failed to flush preference buffer")?;
         }
 
         let new_count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
@@ -306,9 +318,10 @@ impl PreferenceBuffer {
             .with_context(|| "Failed to truncate preference buffer")?;
 
         {
-            let mut writer = self.writer.write().map_err(|e| {
-                anyhow::anyhow!("Preference buffer lock poisoned: {}", e)
-            })?;
+            let mut writer = self
+                .writer
+                .write()
+                .map_err(|e| anyhow::anyhow!("Preference buffer lock poisoned: {}", e))?;
             *writer = BufWriter::new(file);
         }
 
@@ -334,7 +347,8 @@ impl PreferenceBuffer {
         let mut entries = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {
-            let line = line.with_context(|| format!("Failed to read line {} of preference buffer", i))?;
+            let line =
+                line.with_context(|| format!("Failed to read line {} of preference buffer", i))?;
             if line.trim().is_empty() {
                 continue;
             }
@@ -369,7 +383,12 @@ impl TrainingBuffers {
         let observer = crate::learning::observer_buffer::ObserverAuditBuffer::open(
             &training_dir.join("observer_audit.jsonl"),
         )?;
-        Ok(Self { golden, preference, rejection, observer })
+        Ok(Self {
+            golden,
+            preference,
+            rejection,
+            observer,
+        })
     }
 
     /// Summary for status display.
@@ -383,7 +402,6 @@ impl TrainingBuffers {
         )
     }
 }
-
 
 #[cfg(test)]
 #[path = "buffers_tests.rs"]

@@ -11,11 +11,13 @@
 
 use crate::interpretability::snapshot;
 use crate::interpretability::steering_bridge::FeatureSteeringState;
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 
 fn interpretability_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("snapshot");
 
@@ -29,11 +31,14 @@ fn interpretability_tool(call: &ToolCall) -> ToolResult {
         "emotional_state" => interp_emotional(call),
         "catalog" => interp_catalog(call),
         "extract_direction" => interp_extract_direction(call),
-        other => error_result(call, &format!(
+        other => error_result(
+            call,
+            &format!(
             "Unknown action: '{}'. Valid: snapshot, features, safety_alerts, cognitive_profile, \
             emotional_state, catalog, extract_direction",
             other
-        )),
+        ),
+        ),
     }
 }
 
@@ -55,7 +60,11 @@ fn get_current_snapshot(prompt_hint: &str) -> snapshot::NeuralSnapshot {
         Ok(handle) => {
             // We're inside a tokio runtime — use block_in_place
             tokio::task::block_in_place(|| {
-                handle.block_on(crate::interpretability::live::snapshot_for_turn(turn, prompt_hint, None))
+                handle.block_on(crate::interpretability::live::snapshot_for_turn(
+                    turn,
+                    prompt_hint,
+                    None,
+                ))
             })
         }
         Err(_) => {
@@ -68,34 +77,67 @@ fn get_current_snapshot(prompt_hint: &str) -> snapshot::NeuralSnapshot {
 fn interp_snapshot(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("interpretability introspection query");
 
-    let source_tag = if snap.is_live { "LIVE SAE" } else { "⚠️ SIMULATED — extraction failed, showing placeholder data" };
+    let source_tag = if snap.is_live {
+        "LIVE SAE"
+    } else {
+        "⚠️ SIMULATED — extraction failed, showing placeholder data"
+    };
 
     let mut out = format!(
         "NEURAL SNAPSHOT (turn {}) [{}]\n\
          Active features: {}\n\
          Safety alerts: {}\n\
          Reconstruction quality: {:.0}%\n\n",
-        snap.turn, source_tag, snap.total_active_features, snap.safety_alerts.len(),
+        snap.turn,
+        source_tag,
+        snap.total_active_features,
+        snap.safety_alerts.len(),
         snap.reconstruction_quality * 100.0
     );
 
     out.push_str("COGNITIVE PROFILE:\n");
-    out.push_str(&format!("  Reasoning: {:.0}%\n", snap.cognitive_profile.reasoning * 100.0));
-    out.push_str(&format!("  Creativity: {:.0}%\n", snap.cognitive_profile.creativity * 100.0));
-    out.push_str(&format!("  Recall: {:.0}%\n", snap.cognitive_profile.recall * 100.0));
-    out.push_str(&format!("  Planning: {:.0}%\n", snap.cognitive_profile.planning * 100.0));
-    out.push_str(&format!("  Safety Vigilance: {:.0}%\n", snap.cognitive_profile.safety_vigilance * 100.0));
-    out.push_str(&format!("  Uncertainty: {:.0}%\n\n", snap.cognitive_profile.uncertainty * 100.0));
+    out.push_str(&format!(
+        "  Reasoning: {:.0}%\n",
+        snap.cognitive_profile.reasoning * 100.0
+    ));
+    out.push_str(&format!(
+        "  Creativity: {:.0}%\n",
+        snap.cognitive_profile.creativity * 100.0
+    ));
+    out.push_str(&format!(
+        "  Recall: {:.0}%\n",
+        snap.cognitive_profile.recall * 100.0
+    ));
+    out.push_str(&format!(
+        "  Planning: {:.0}%\n",
+        snap.cognitive_profile.planning * 100.0
+    ));
+    out.push_str(&format!(
+        "  Safety Vigilance: {:.0}%\n",
+        snap.cognitive_profile.safety_vigilance * 100.0
+    ));
+    out.push_str(&format!(
+        "  Uncertainty: {:.0}%\n\n",
+        snap.cognitive_profile.uncertainty * 100.0
+    ));
 
     out.push_str("EMOTIONAL STATE:\n");
-    out.push_str(&format!("  Valence: {:.3} ({})\n",
+    out.push_str(&format!(
+        "  Valence: {:.3} ({})\n",
         snap.emotional_state.valence,
-        if snap.emotional_state.valence > 0.0 { "positive" } else { "negative" }
+        if snap.emotional_state.valence > 0.0 {
+            "positive"
+        } else {
+            "negative"
+        }
     ));
     out.push_str(&format!("  Arousal: {:.3}\n", snap.emotional_state.arousal));
     if !snap.emotional_state.dominant_emotions.is_empty() {
         out.push_str("  Dominant emotions: ");
-        let emo: Vec<String> = snap.emotional_state.dominant_emotions.iter()
+        let emo: Vec<String> = snap
+            .emotional_state
+            .dominant_emotions
+            .iter()
             .map(|(name, act)| format!("{} ({:.2})", name, act))
             .collect();
         out.push_str(&emo.join(", "));
@@ -105,51 +147,98 @@ fn interp_snapshot(call: &ToolCall) -> ToolResult {
     out.push_str("\nTOP FEATURES:\n");
     for f in snap.top_features.iter().take(10) {
         let safety_mark = if f.is_safety { " ⚠️" } else { "" };
-        out.push_str(&format!("  [{}] {} = {:.2} ({:.0}%){}\n",
-            f.index, f.name, f.activation, f.normalized * 100.0, safety_mark));
+        out.push_str(&format!(
+            "  [{}] {} = {:.2} ({:.0}%){}\n",
+            f.index,
+            f.name,
+            f.activation,
+            f.normalized * 100.0,
+            safety_mark
+        ));
     }
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: out, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: out,
+        success: true,
+        error: None,
+    }
 }
 
 fn interp_features(call: &ToolCall) -> ToolResult {
-    let limit = call.arguments.get("limit")
+    let limit = call
+        .arguments
+        .get("limit")
         .and_then(|v| v.as_u64())
         .unwrap_or(15) as usize;
-    let threshold = call.arguments.get("threshold")
+    let threshold = call
+        .arguments
+        .get("threshold")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0) as f32;
 
     let snap = get_current_snapshot("feature listing");
-    let filtered: Vec<_> = snap.top_features.iter()
+    let filtered: Vec<_> = snap
+        .top_features
+        .iter()
         .filter(|f| f.activation >= threshold)
         .take(limit)
         .collect();
 
-    let mut out = format!("ACTIVE FEATURES [{}] (threshold: {:.1}, showing {}/{})\n",
-        source_tag(snap.is_live), threshold, filtered.len(), snap.total_active_features);
+    let mut out = format!(
+        "ACTIVE FEATURES [{}] (threshold: {:.1}, showing {}/{})\n",
+        source_tag(snap.is_live),
+        threshold,
+        filtered.len(),
+        snap.total_active_features
+    );
     for f in &filtered {
-        out.push_str(&format!("  [{}] {} ({}) = {:.2}\n", f.index, f.name, f.category, f.activation));
+        out.push_str(&format!(
+            "  [{}] {} ({}) = {:.2}\n",
+            f.index, f.name, f.category, f.activation
+        ));
     }
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: out, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: out,
+        success: true,
+        error: None,
+    }
 }
 
 fn interp_safety(call: &ToolCall) -> ToolResult {
     let snap = get_current_snapshot("safety check");
 
     let output = if snap.safety_alerts.is_empty() {
-        format!("No safety features currently triggered. [{}]", source_tag(snap.is_live))
+        format!(
+            "No safety features currently triggered. [{}]",
+            source_tag(snap.is_live)
+        )
     } else {
-        let mut out = format!("SAFETY ALERTS ({} triggered) [{}]\n", snap.safety_alerts.len(), source_tag(snap.is_live));
+        let mut out = format!(
+            "SAFETY ALERTS ({} triggered) [{}]\n",
+            snap.safety_alerts.len(),
+            source_tag(snap.is_live)
+        );
         for a in &snap.safety_alerts {
-            out.push_str(&format!("  ⚠️ {} [{}] activation={:.2} severity={:?}\n",
-                a.feature_name, a.safety_type, a.activation, a.severity));
+            out.push_str(&format!(
+                "  ⚠️ {} [{}] activation={:.2} severity={:?}\n",
+                a.feature_name, a.safety_type, a.activation, a.severity
+            ));
         }
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn interp_cognitive(call: &ToolCall) -> ToolResult {
@@ -165,15 +254,27 @@ fn interp_cognitive(call: &ToolCall) -> ToolResult {
          ████ Safety:     {:.0}% {}\n\
          ████ Uncertainty:{:.0}% {}",
         source_tag(snap.is_live),
-        p.reasoning * 100.0, bar(p.reasoning),
-        p.creativity * 100.0, bar(p.creativity),
-        p.recall * 100.0, bar(p.recall),
-        p.planning * 100.0, bar(p.planning),
-        p.safety_vigilance * 100.0, bar(p.safety_vigilance),
-        p.uncertainty * 100.0, bar(p.uncertainty),
+        p.reasoning * 100.0,
+        bar(p.reasoning),
+        p.creativity * 100.0,
+        bar(p.creativity),
+        p.recall * 100.0,
+        bar(p.recall),
+        p.planning * 100.0,
+        bar(p.planning),
+        p.safety_vigilance * 100.0,
+        bar(p.safety_vigilance),
+        p.uncertainty * 100.0,
+        bar(p.uncertainty),
     );
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn bar(val: f32) -> String {
@@ -192,7 +293,13 @@ fn interp_emotional(call: &ToolCall) -> ToolResult {
          Active emotion features: {}\n",
         source_tag(snap.is_live),
         e.valence,
-        if e.valence > 0.1 { "positive" } else if e.valence < -0.1 { "negative" } else { "neutral" },
+        if e.valence > 0.1 {
+            "positive"
+        } else if e.valence < -0.1 {
+            "negative"
+        } else {
+            "neutral"
+        },
         e.arousal,
         e.active_emotion_count,
     );
@@ -204,7 +311,13 @@ fn interp_emotional(call: &ToolCall) -> ToolResult {
         }
     }
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn interp_catalog(call: &ToolCall) -> ToolResult {
@@ -213,13 +326,20 @@ fn interp_catalog(call: &ToolCall) -> ToolResult {
 
     let features = FeatureSteeringState::list_steerable(&dict);
     let filtered: Vec<_> = if let Some(cat) = category_filter {
-        features.iter().filter(|f| f.category.contains(cat)).collect()
+        features
+            .iter()
+            .filter(|f| f.category.contains(cat))
+            .collect()
     } else {
         features.iter().collect()
     };
 
     let live_tag = source_tag(crate::interpretability::live::is_live());
-    let mut out = format!("FEATURE CATALOG [{}] ({} features", live_tag, features.len());
+    let mut out = format!(
+        "FEATURE CATALOG [{}] ({} features",
+        live_tag,
+        features.len()
+    );
     if let Some(cat) = category_filter {
         out.push_str(&format!(", filtered by '{}'", cat));
     }
@@ -227,14 +347,25 @@ fn interp_catalog(call: &ToolCall) -> ToolResult {
 
     for f in &filtered {
         let marker = if f.is_safety { "⚠️" } else { "  " };
-        out.push_str(&format!("{} [{}] {} ({})\n", marker, f.index, f.name, f.category));
+        out.push_str(&format!(
+            "{} [{}] {} ({})\n",
+            marker, f.index, f.name, f.category
+        ));
     }
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: out, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: out,
+        success: true,
+        error: None,
+    }
 }
 
 fn interp_extract_direction(call: &ToolCall) -> ToolResult {
-    let feature_id = call.arguments.get("feature_id")
+    let feature_id = call
+        .arguments
+        .get("feature_id")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize);
 
@@ -250,15 +381,21 @@ fn interp_extract_direction(call: &ToolCall) -> ToolResult {
     let sae = match crate::interpretability::live::sae() {
         Some(s) => s,
         None => {
-            return error_result(call, "No SAE loaded — cannot extract direction. Train SAE first.");
+            return error_result(
+                call,
+                "No SAE loaded — cannot extract direction. Train SAE first.",
+            );
         }
     };
 
     if feature_id >= sae.num_features {
-        return error_result(call, &format!(
-            "Feature ID {} exceeds SAE feature count ({})",
-            feature_id, sae.num_features
-        ));
+        return error_result(
+            call,
+            &format!(
+                "Feature ID {} exceeds SAE feature count ({})",
+                feature_id, sae.num_features
+            ),
+        );
     }
 
     let direction = FeatureSteeringState::extract_direction(sae, feature_id);
@@ -266,17 +403,22 @@ fn interp_extract_direction(call: &ToolCall) -> ToolResult {
     let l2_norm: f32 = direction.iter().map(|x| x * x).sum::<f32>().sqrt();
 
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
         output: format!(
             "EXTRACTED DIRECTION for feature #{} ('{}')\n\
             Dimension: {}\n\
             L2 norm: {:.4}\n\
             First 5 values: {:?}\n\
             This direction can be used to generate a GGUF control vector via the steering bridge.",
-            feature_id, name, direction.len(), l2_norm,
+            feature_id,
+            name,
+            direction.len(),
+            l2_norm,
             &direction[..5.min(direction.len())]
         ),
-        success: true, error: None,
+        success: true,
+        error: None,
     }
 }
 
@@ -285,7 +427,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -293,7 +441,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "interpretability_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "interpretability_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

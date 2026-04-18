@@ -112,6 +112,10 @@ mod tests {
         assert!(set.contains(&id));
         assert_eq!(set.len(), 1);
         set.insert(id.clone());
-        assert_eq!(set.len(), 1, "Duplicate insert should not increase set size");
+        assert_eq!(
+            set.len(),
+            1,
+            "Duplicate insert should not increase set size"
+        );
     }
 }

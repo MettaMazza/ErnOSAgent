@@ -42,7 +42,8 @@ impl Scheduler {
                  You may use all available tools. Review your memory, consolidate lessons, \
                  run diagnostics, organise knowledge, explore your capabilities, \
                  or work on any goals you have set for yourself. \
-                 Report what you accomplished.".to_string(),
+                 Report what you accomplished."
+                    .to_string(),
                 job::JobSchedule::Idle(300), // Fire after 5 minutes idle
             );
             tracing::info!(job_id = %autonomy_job.id, "Created default autonomy idle job (300s threshold)");
@@ -65,10 +66,7 @@ impl Scheduler {
     /// Get all jobs that are due to execute at the given time.
     pub async fn get_due_jobs(&self, now: DateTime<Utc>) -> Vec<ScheduledJob> {
         let jobs = self.jobs.read().await;
-        jobs.iter()
-            .filter(|j| j.is_due(now))
-            .cloned()
-            .collect()
+        jobs.iter().filter(|j| j.is_due(now)).cloned().collect()
     }
 
     /// Get all idle-type jobs that are due based on the user idle duration.
@@ -159,9 +157,15 @@ impl Scheduler {
     }
 
     /// Update an existing job and persist.
-    pub async fn update_job(&self, id: &str, update: job::CreateJobRequest) -> anyhow::Result<ScheduledJob> {
+    pub async fn update_job(
+        &self,
+        id: &str,
+        update: job::CreateJobRequest,
+    ) -> anyhow::Result<ScheduledJob> {
         let mut jobs = self.jobs.write().await;
-        let job = jobs.iter_mut().find(|j| j.id == id)
+        let job = jobs
+            .iter_mut()
+            .find(|j| j.id == id)
             .ok_or_else(|| anyhow::anyhow!("Job not found: {}", id))?;
         job.name = update.name;
         job.instruction = update.instruction;
@@ -189,7 +193,9 @@ impl Scheduler {
     /// Toggle a job's enabled state.
     pub async fn toggle_job(&self, id: &str) -> anyhow::Result<bool> {
         let mut jobs = self.jobs.write().await;
-        let job = jobs.iter_mut().find(|j| j.id == id)
+        let job = jobs
+            .iter_mut()
+            .find(|j| j.id == id)
             .ok_or_else(|| anyhow::anyhow!("Job not found: {}", id))?;
         job.enabled = !job.enabled;
         let new_state = job.enabled;
@@ -204,7 +210,9 @@ impl Scheduler {
         id: &str,
         state: &crate::web::state::SharedState,
     ) -> anyhow::Result<JobResult> {
-        let job = self.get_job(id).await
+        let job = self
+            .get_job(id)
+            .await
             .ok_or_else(|| anyhow::anyhow!("Job not found: {}", id))?;
         let result = executor::execute_job(&job, state).await;
         self.record_result(id, result.clone()).await;

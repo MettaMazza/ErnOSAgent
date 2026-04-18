@@ -37,7 +37,11 @@ macro_rules! skip_if_no_server {
 #[tokio::test]
 async fn test_get_platforms() {
     skip_if_no_server!();
-    let resp = client().get("http://localhost:3000/api/platforms").send().await.unwrap();
+    let resp = client()
+        .get("http://localhost:3000/api/platforms")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     let body_str = serde_json::to_string(&body).unwrap();
@@ -48,7 +52,11 @@ async fn test_get_platforms() {
 #[tokio::test]
 async fn test_relay_status() {
     skip_if_no_server!();
-    let resp = client().get("http://localhost:3000/api/relay/status").send().await.unwrap();
+    let resp = client()
+        .get("http://localhost:3000/api/relay/status")
+        .send()
+        .await
+        .unwrap();
     // May return 200 or 404 depending on relay availability
     assert!(
         resp.status() == 200 || resp.status() == 404,

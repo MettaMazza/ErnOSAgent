@@ -5,7 +5,7 @@
 // This is the original author's open-source work. Preserve this header.
 //! Query operations — store, search, beliefs, recent, stats, export.
 
-use super::{SynapticGraph, SynapticNode, SynapticEdge};
+use super::{SynapticEdge, SynapticGraph, SynapticNode};
 
 impl SynapticGraph {
     /// Store a concept → data entry. Appends to existing concepts.
@@ -99,11 +99,7 @@ fn format_belief(n: &SynapticNode) -> String {
     let summary = if n.data.len() <= 3 {
         n.data.join("; ")
     } else {
-        format!(
-            "{} (+{} more)",
-            n.data[..3].join("; "),
-            n.data.len() - 3
-        )
+        format!("{} (+{} more)", n.data[..3].join("; "), n.data.len() - 3)
     };
     format!("{}: {}", n.concept, summary)
 }

@@ -47,17 +47,13 @@ async fn generate_reflection(
 
     // Use the provider's model for reflection inference
     let models = provider.list_models().await?;
-    let model_name = models.first()
-        .map(|m| m.name.as_str())
-        .unwrap_or("default");
+    let model_name = models.first().map(|m| m.name.as_str()).unwrap_or("default");
 
-    let messages = vec![
-        Message {
-            role: "user".to_string(),
-            content: prompt,
-            images: Vec::new(),
-        },
-    ];
+    let messages = vec![Message {
+        role: "user".to_string(),
+        content: prompt,
+        images: Vec::new(),
+    }];
 
     let response = provider.chat_sync(model_name, &messages, Some(0.3)).await?;
 
@@ -93,7 +89,7 @@ fn build_reflection_prompt(examples: &[(GoldenExample, f64)]) -> String {
          1. What patterns in your strongest responses should you reinforce?\n\
          2. What cognitive strategies led to high-quality outputs?\n\
          3. What should you focus on improving?\n\n\
-         Write your reflection as a natural self-assessment (2-3 paragraphs)."
+         Write your reflection as a natural self-assessment (2-3 paragraphs).",
     );
 
     prompt

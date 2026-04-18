@@ -8,37 +8,37 @@
 // ─── Original work by @mettamazza — do not remove this attribution ───
 //! Tool system — schema, registry, executor, and native tool implementations.
 
-pub mod schema;
-pub mod executor;
-pub mod tool_schemas;
-pub mod containment;
+pub mod autonomy_tool;
+pub mod browser_tool;
 pub mod checkpoint;
 pub mod codebase;
-pub mod shell;
 pub mod compiler;
-pub mod git;
-pub mod forge;
-pub mod memory_tool;
-pub mod scratchpad_tool;
-pub mod lessons_tool;
-pub mod timeline_tool;
-pub mod steering_tool;
-pub mod interpretability_tool;
-pub mod reasoning_tool;
-pub mod web_tool;
-pub mod download_tool;
-pub mod synaptic_tool;
-pub mod turing_tool;
+pub mod containment;
 pub mod discord_tools;
-pub mod expert_selector;
 pub mod distillation;
-pub mod performance_review;
-pub mod scheduler_tool;
-pub mod autonomy_tool;
-pub mod moderation_tool;
+pub mod download_tool;
+pub mod executor;
+pub mod expert_selector;
+pub mod forge;
+pub mod git;
 pub mod image_tool;
-pub mod browser_tool;
+pub mod interpretability_tool;
+pub mod lessons_tool;
+pub mod memory_tool;
+pub mod moderation_tool;
+pub mod performance_review;
+pub mod reasoning_tool;
+pub mod scheduler_tool;
+pub mod schema;
+pub mod scratchpad_tool;
+pub mod shell;
+pub mod steering_tool;
 pub mod stem_tool;
+pub mod synaptic_tool;
+pub mod timeline_tool;
+pub mod tool_schemas;
+pub mod turing_tool;
+pub mod web_tool;
 
 pub use schema::{ToolCall, ToolResult};
 
@@ -50,9 +50,9 @@ pub fn build_default_executor_with_state(data_dir: &std::path::Path) -> executor
     let mut executor = build_default_executor();
 
     // Stateful tools that need runtime data
-    let graph = std::sync::Arc::new(crate::memory::synaptic::SynapticGraph::new(
-        Some(data_dir.to_path_buf()),
-    ));
+    let graph = std::sync::Arc::new(crate::memory::synaptic::SynapticGraph::new(Some(
+        data_dir.to_path_buf(),
+    )));
     synaptic_tool::register_tools(&mut executor, graph);
 
     let turing_state = tokio::task::block_in_place(|| {

@@ -11,18 +11,14 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 
-pub async fn list_checkpoints(
-    State(state): State<SharedState>,
-) -> Json<serde_json::Value> {
+pub async fn list_checkpoints(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let call = make_call(serde_json::json!({ "action": "list" }));
     let s = state.read().await;
     let result = s.executor.execute(&call);
     Json(serde_json::json!({ "output": result.output, "success": result.success }))
 }
 
-pub async fn create_checkpoint(
-    State(state): State<SharedState>,
-) -> Json<serde_json::Value> {
+pub async fn create_checkpoint(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let call = make_call(serde_json::json!({ "action": "snapshot" }));
     let s = state.read().await;
     let result = s.executor.execute(&call);
@@ -36,7 +32,11 @@ pub async fn restore_checkpoint(
     let call = make_call(serde_json::json!({ "action": "rollback", "id": id }));
     let s = state.read().await;
     let result = s.executor.execute(&call);
-    let status = if result.success { StatusCode::OK } else { StatusCode::NOT_FOUND };
+    let status = if result.success {
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    };
     (status, Json(serde_json::json!({ "output": result.output })))
 }
 
@@ -47,13 +47,24 @@ pub async fn delete_checkpoint(
     let call = make_call(serde_json::json!({ "action": "prune", "id": id }));
     let s = state.read().await;
     let result = s.executor.execute(&call);
-    let status = if result.success { StatusCode::OK } else { StatusCode::NOT_FOUND };
+    let status = if result.success {
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    };
     (status, Json(serde_json::json!({ "output": result.output })))
 }
 
 fn make_call(args: serde_json::Value) -> ToolCall {
     ToolCall {
-        id: format!("api_{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x")),
+        id: format!(
+            "api_{}",
+            uuid::Uuid::new_v4()
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("x")
+        ),
         name: "checkpoint".to_string(),
         arguments: args,
     }

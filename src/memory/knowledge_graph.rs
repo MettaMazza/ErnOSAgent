@@ -68,9 +68,14 @@ impl KnowledgeGraph {
                     database = %database,
                     "try_connect failed, checking if fallback is possible"
                 );
-                if database != "neo4j" && (err_str.contains("DatabaseNotFound") || err_str.contains("not accessible") || err_str.contains("not found")) {
+                if database != "neo4j"
+                    && (err_str.contains("DatabaseNotFound")
+                        || err_str.contains("not accessible")
+                        || err_str.contains("not found"))
+                {
                     tracing::info!("Falling back to 'neo4j' database");
-                    Self::try_connect(uri, user, password, "neo4j").await
+                    Self::try_connect(uri, user, password, "neo4j")
+                        .await
                         .context("Failed to connect to fallback 'neo4j' database")?
                 } else {
                     return Err(e);
@@ -103,7 +108,8 @@ impl KnowledgeGraph {
             .with_context(|| format!("Failed to connect to Neo4j at {} (db: {})", uri, database))?;
 
         // Verify the database is accessible by running a trivial query
-        graph.run(query("RETURN 1"))
+        graph
+            .run(query("RETURN 1"))
             .await
             .with_context(|| format!("Database '{}' is not accessible", database))?;
 
@@ -238,15 +244,12 @@ impl KnowledgeGraph {
         .param("weight", initial_weight)
         .param("now", now);
 
-        self.graph
-            .run(q)
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to upsert relation: {} -[{}]-> {}",
-                    source_id, relation_type, target_id
-                )
-            })?;
+        self.graph.run(q).await.with_context(|| {
+            format!(
+                "Failed to upsert relation: {} -[{}]-> {}",
+                source_id, relation_type, target_id
+            )
+        })?;
 
         tracing::debug!(
             source = %source_id,
@@ -283,9 +286,10 @@ impl KnowledgeGraph {
         .param("id", entity_id.to_string())
         .param("limit", limit as i64);
 
-        let mut result = self.graph.execute(q).await.with_context(|| {
-            format!("Knowledge graph recall failed for entity: {}", entity_id)
-        })?;
+        let mut result =
+            self.graph.execute(q).await.with_context(|| {
+                format!("Knowledge graph recall failed for entity: {}", entity_id)
+            })?;
 
         let mut recalls = Vec::new();
         while let Some(row) = result.next().await? {
@@ -314,11 +318,7 @@ impl KnowledgeGraph {
     }
 
     /// Search entities by label (fuzzy text match).
-    pub async fn search_entities(
-        &self,
-        query_text: &str,
-        limit: usize,
-    ) -> Result<Vec<Entity>> {
+    pub async fn search_entities(&self, query_text: &str, limit: usize) -> Result<Vec<Entity>> {
         let pattern = format!("(?i).*{}.*", regex_escape(query_text));
 
         let q = query(
@@ -337,9 +337,11 @@ impl KnowledgeGraph {
         .param("pattern", pattern)
         .param("limit", limit as i64);
 
-        let mut result = self.graph.execute(q).await.with_context(|| {
-            format!("Entity search failed for: {}", query_text)
-        })?;
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .with_context(|| format!("Entity search failed for: {}", query_text))?;
 
         let mut entities = Vec::new();
         while let Some(row) = result.next().await? {
@@ -405,7 +407,10 @@ impl KnowledgeGraph {
         };
 
         if pruned > 0 {
-            tracing::info!(pruned = pruned, "Knowledge graph decay pruned weak relations");
+            tracing::info!(
+                pruned = pruned,
+                "Knowledge graph decay pruned weak relations"
+            );
         }
 
         Ok(pruned)
@@ -434,8 +439,12 @@ impl RecallResult {
     pub fn format_for_context(&self) -> String {
         format!(
             "[KG:{} ({})] {} (weight: {:.3})",
-            self.entity_type, self.label,
-            self.properties.get("summary").and_then(|v| v.as_str()).unwrap_or(""),
+            self.entity_type,
+            self.label,
+            self.properties
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
             self.weight
         )
     }
@@ -448,7 +457,9 @@ fn parse_datetime(s: &str) -> DateTime<Utc> {
 }
 
 fn regex_escape(s: &str) -> String {
-    let special = ['\\', '.', '+', '*', '?', '(', ')', '[', ']', '{', '}', '^', '$', '|'];
+    let special = [
+        '\\', '.', '+', '*', '?', '(', ')', '[', ']', '{', '}', '^', '$', '|',
+    ];
     let mut escaped = String::with_capacity(s.len() * 2);
     for c in s.chars() {
         if special.contains(&c) {
@@ -462,4 +473,3 @@ fn regex_escape(s: &str) -> String {
 #[cfg(test)]
 #[path = "kg_tests.rs"]
 mod tests;
-

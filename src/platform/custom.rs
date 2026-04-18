@@ -53,12 +53,18 @@ struct InboundPayload {
     channel: String,
 }
 
-fn default_user() -> String { "webhook_user".to_string() }
-fn default_channel() -> String { "webhook".to_string() }
+fn default_user() -> String {
+    "webhook_user".to_string()
+}
+fn default_channel() -> String {
+    "webhook".to_string()
+}
 
 #[async_trait]
 impl PlatformAdapter for CustomWebhookAdapter {
-    fn name(&self) -> &str { "Custom" }
+    fn name(&self) -> &str {
+        "Custom"
+    }
 
     fn is_configured(&self) -> bool {
         self.config.inbound_port > 0 || !self.config.outbound_url.is_empty()
@@ -123,7 +129,9 @@ impl PlatformAdapter for CustomWebhookAdapter {
             req = req.header("X-Signature-256", format!("sha256={signature}"));
         }
 
-        let resp = req.send().await
+        let resp = req
+            .send()
+            .await
             .map_err(|e| anyhow::anyhow!("Custom webhook send failed: {e}"))?;
 
         if !resp.status().is_success() {
@@ -193,7 +201,9 @@ async fn run_custom_server(
     tracing::info!(port = port, "Custom webhook server listening");
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(async { let _ = shutdown_rx.await; })
+        .with_graceful_shutdown(async {
+            let _ = shutdown_rx.await;
+        })
         .await
         .map_err(|e| anyhow::anyhow!("Custom webhook server error: {e}"))
 }

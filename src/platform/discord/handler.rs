@@ -7,8 +7,8 @@
 
 use crate::platform::adapter::PlatformMessage;
 use serenity::all::{
-    ComponentInteraction, Context, CreateInteractionResponse,
-    CreateInteractionResponseMessage, EventHandler, Interaction, Message, Ready,
+    ComponentInteraction, Context, CreateInteractionResponse, CreateInteractionResponseMessage,
+    EventHandler, Interaction, Message, Ready,
 };
 use tokio::sync::mpsc;
 
@@ -46,7 +46,13 @@ impl DiscordHandler {
     }
 
     /// Configure onboarding settings.
-    pub fn with_onboarding(mut self, channel_id: &str, new_role_id: &str, member_role_id: &str, guild_id: &str) -> Self {
+    pub fn with_onboarding(
+        mut self,
+        channel_id: &str,
+        new_role_id: &str,
+        member_role_id: &str,
+        guild_id: &str,
+    ) -> Self {
         self.onboarding_channel_id = channel_id.to_string();
         self.new_member_role_id = new_role_id.to_string();
         self.member_role_id = member_role_id.to_string();
@@ -69,7 +75,9 @@ impl DiscordHandler {
 impl EventHandler for DiscordHandler {
     async fn message(&self, ctx: Context, msg: Message) {
         // Ignore bot messages
-        if msg.author.bot { return; }
+        if msg.author.bot {
+            return;
+        }
 
         let is_dm = msg.guild_id.is_none();
         let author_id = msg.author.id.to_string();
@@ -119,13 +127,17 @@ impl EventHandler for DiscordHandler {
         }
 
         // Normal channel filtering
-        let in_listen_channel = self.listen_channels.is_empty()
-            || self.listen_channels.contains(&channel_id_str);
+        let in_listen_channel =
+            self.listen_channels.is_empty() || self.listen_channels.contains(&channel_id_str);
 
         // Non-admin DMs are blocked
-        if is_dm && !is_admin { return; }
+        if is_dm && !is_admin {
+            return;
+        }
         // Guild channels: must be in listen list (applies to everyone)
-        if !is_dm && !in_listen_channel { return; }
+        if !is_dm && !in_listen_channel {
+            return;
+        }
 
         // Trigger Discord typing indicator
         let _ = msg.channel_id.broadcast_typing(&ctx.http).await;
@@ -136,47 +148,53 @@ impl EventHandler for DiscordHandler {
         let mut content = msg.content.clone();
 
         for attachment in &msg.attachments {
-            let is_image = attachment.content_type
+            let is_image = attachment
+                .content_type
                 .as_ref()
                 .map(|ct| ct.starts_with("image/"))
                 .unwrap_or(false);
 
-            let is_text = attachment.content_type
+            let is_text = attachment
+                .content_type
                 .as_ref()
-                .map(|ct| ct.starts_with("text/") || ct == "application/json" || ct == "application/javascript")
+                .map(|ct| {
+                    ct.starts_with("text/")
+                        || ct == "application/json"
+                        || ct == "application/javascript"
+                })
                 .unwrap_or(false)
                 || [
-                    ".txt", ".md", ".rs", ".html", ".py", ".json", ".csv", ".log",
-                    ".js", ".ts", ".jsx", ".tsx", ".c", ".cpp", ".h", ".hpp",
-                    ".go", ".java", ".rb", ".php", ".sh", ".bash", ".bat",
-                    ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg", ".conf",
-                    ".css", ".scss", ".sql", ".graphql"
-                ].iter().any(|ext| attachment.filename.to_lowercase().ends_with(ext));
+                    ".txt", ".md", ".rs", ".html", ".py", ".json", ".csv", ".log", ".js", ".ts",
+                    ".jsx", ".tsx", ".c", ".cpp", ".h", ".hpp", ".go", ".java", ".rb", ".php",
+                    ".sh", ".bash", ".bat", ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg",
+                    ".conf", ".css", ".scss", ".sql", ".graphql",
+                ]
+                .iter()
+                .any(|ext| attachment.filename.to_lowercase().ends_with(ext));
 
             if is_image {
-                let content_type = attachment.content_type
+                let content_type = attachment
+                    .content_type
                     .as_deref()
                     .unwrap_or("image/png")
                     .to_string();
 
                 match reqwest::get(&attachment.url).await {
-                    Ok(resp) => {
-                        match resp.bytes().await {
-                            Ok(bytes) => {
-                                use base64::Engine;
-                                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                                encoded_images.push(format!("data:{};base64,{}", content_type, b64));
-                                tracing::info!(
-                                    filename = %attachment.filename,
-                                    size = bytes.len(),
-                                    "Downloaded Discord image attachment"
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord attachment bytes");
-                            }
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => {
+                            use base64::Engine;
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                            encoded_images.push(format!("data:{};base64,{}", content_type, b64));
+                            tracing::info!(
+                                filename = %attachment.filename,
+                                size = bytes.len(),
+                                "Downloaded Discord image attachment"
+                            );
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!(error = %e, url = %attachment.url, "Failed to read Discord attachment bytes");
+                        }
+                    },
                     Err(e) => {
                         tracing::warn!(error = %e, url = %attachment.url, "Failed to download Discord attachment");
                     }
@@ -189,11 +207,18 @@ impl EventHandler for DiscordHandler {
                                 // Cap at 100K bytes to avoid overflowing context window for massive dumps
                                 let max_len = 100_000;
                                 let snippet = if text.len() > max_len {
-                                    format!("{}...\n[Truncated {} chars]", &text[..max_len], text.len() - max_len)
+                                    format!(
+                                        "{}...\n[Truncated {} chars]",
+                                        &text[..max_len],
+                                        text.len() - max_len
+                                    )
                                 } else {
                                     text
                                 };
-                                content.push_str(&format!("\n\n[Attachment: {}]\n```\n{}\n```", attachment.filename, snippet));
+                                content.push_str(&format!(
+                                    "\n\n[Attachment: {}]\n```\n{}\n```",
+                                    attachment.filename, snippet
+                                ));
                                 tracing::info!(
                                     filename = %attachment.filename,
                                     "Downloaded Discord text attachment"
@@ -239,7 +264,13 @@ impl EventHandler for DiscordHandler {
                     role_id: self.new_member_role_id.clone(),
                     guild_id: self.guild_id.clone(),
                 };
-                super::commands::handle_command(&ctx, &command, &self.admin_user_ids, &onboarding_cfg).await;
+                super::commands::handle_command(
+                    &ctx,
+                    &command,
+                    &self.admin_user_ids,
+                    &onboarding_cfg,
+                )
+                .await;
             }
             _ => {}
         }
@@ -284,8 +315,14 @@ impl EventHandler for DiscordHandler {
             let member_role_parsed: u64 = self.member_role_id.parse().unwrap_or(0);
 
             if let Err(e) = super::onboarding::setup_onboarding_permissions(
-                &ctx.http, guild_id, onboarding_ch, role_id, member_role_parsed,
-            ).await {
+                &ctx.http,
+                guild_id,
+                onboarding_ch,
+                role_id,
+                member_role_parsed,
+            )
+            .await
+            {
                 tracing::error!(error = %e, "Failed to configure onboarding permissions");
             }
 
@@ -293,8 +330,13 @@ impl EventHandler for DiscordHandler {
             // locked out by the @everyone channel deny.
             if member_role_parsed > 0 {
                 match super::onboarding::backfill_existing_members(
-                    &ctx.http, guild_id, member_role_parsed, role_id,
-                ).await {
+                    &ctx.http,
+                    guild_id,
+                    member_role_parsed,
+                    role_id,
+                )
+                .await
+                {
                     Ok(count) => tracing::info!(
                         assigned = count,
                         "Backfilled 'Member' role to existing members"
@@ -312,13 +354,16 @@ impl EventHandler for DiscordHandler {
             if resume_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(resume_path) {
                     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-                        let platform = parsed.get("platform")
+                        let platform = parsed
+                            .get("platform")
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
-                        let channel_id_str = parsed.get("channel_id")
+                        let channel_id_str = parsed
+                            .get("channel_id")
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
-                        let compiled_at = parsed.get("compiled_at")
+                        let compiled_at = parsed
+                            .get("compiled_at")
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown");
 
@@ -359,7 +404,10 @@ impl EventHandler for DiscordHandler {
                             if let Err(e) = self.tx.send(resume_msg).await {
                                 tracing::error!(error = %e, "Failed to route resume through pipeline");
                             } else {
-                                tracing::info!(channel_id = channel_id_str, "Routed post-recompile resume through full pipeline");
+                                tracing::info!(
+                                    channel_id = channel_id_str,
+                                    "Routed post-recompile resume through full pipeline"
+                                );
                             }
 
                             // Consume the file
@@ -372,10 +420,14 @@ impl EventHandler for DiscordHandler {
     }
 
     async fn guild_member_addition(&self, _ctx: Context, new_member: serenity::all::Member) {
-        if !self.onboarding_enabled() { return; }
+        if !self.onboarding_enabled() {
+            return;
+        }
 
         // Don't interview bots
-        if new_member.user.bot { return; }
+        if new_member.user.bot {
+            return;
+        }
 
         let user_id = new_member.user.id.get();
         let user_name = &new_member.user.name;
@@ -398,10 +450,8 @@ async fn handle_button_click(ctx: &Context, component: &ComponentInteraction) {
 
         if custom_id.starts_with("copy:") {
             // Copy: send full text as a .txt file attachment (ephemeral)
-            let attachment = serenity::builder::CreateAttachment::bytes(
-                full_text.into_bytes(),
-                "response.txt",
-            );
+            let attachment =
+                serenity::builder::CreateAttachment::bytes(full_text.into_bytes(), "response.txt");
             let response = CreateInteractionResponse::Message(
                 CreateInteractionResponseMessage::new()
                     .content("📋 Full response:")
@@ -434,28 +484,35 @@ async fn handle_button_click(ctx: &Context, component: &ComponentInteraction) {
                                         audio_data,
                                         "tts_response.wav",
                                     );
-                                    let followup = serenity::builder::CreateInteractionResponseFollowup::new()
-                                        .content("🔊 Voice response:")
-                                        .add_file(attachment)
-                                        .ephemeral(true);
-                                    if let Err(e) = component.create_followup(&ctx.http, followup).await {
+                                    let followup =
+                                        serenity::builder::CreateInteractionResponseFollowup::new()
+                                            .content("🔊 Voice response:")
+                                            .add_file(attachment)
+                                            .ephemeral(true);
+                                    if let Err(e) =
+                                        component.create_followup(&ctx.http, followup).await
+                                    {
                                         tracing::error!(error = %e, "Failed to send TTS audio attachment");
                                     }
                                 }
                                 Err(e) => {
                                     tracing::error!(error = %e, "Failed to read Kokoro WAV file");
-                                    let followup = serenity::builder::CreateInteractionResponseFollowup::new()
-                                        .content("⚠️ TTS audio generated but failed to read file.")
-                                        .ephemeral(true);
+                                    let followup =
+                                        serenity::builder::CreateInteractionResponseFollowup::new()
+                                            .content(
+                                                "⚠️ TTS audio generated but failed to read file.",
+                                            )
+                                            .ephemeral(true);
                                     let _ = component.create_followup(&ctx.http, followup).await;
                                 }
                             }
                         }
                         Err(e) => {
                             tracing::error!(error = %e, "Kokoro TTS generation failed");
-                            let followup = serenity::builder::CreateInteractionResponseFollowup::new()
-                                .content(format!("⚠️ TTS generation failed: {e}"))
-                                .ephemeral(true);
+                            let followup =
+                                serenity::builder::CreateInteractionResponseFollowup::new()
+                                    .content(format!("⚠️ TTS generation failed: {e}"))
+                                    .ephemeral(true);
                             let _ = component.create_followup(&ctx.http, followup).await;
                         }
                     }
@@ -512,7 +569,12 @@ async fn collect_all_chunks(ctx: &Context, component: &ComponentInteraction) -> 
 
     // Fetch messages BEFORE the button's message (ordered newest-first by Discord)
     let messages = channel_id
-        .messages(&ctx.http, serenity::builder::GetMessages::new().before(button_msg_id).limit(20))
+        .messages(
+            &ctx.http,
+            serenity::builder::GetMessages::new()
+                .before(button_msg_id)
+                .limit(20),
+        )
         .await
         .unwrap_or_default();
 

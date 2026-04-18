@@ -69,8 +69,12 @@ impl SteeringConfig {
             return Ok(vectors);
         }
 
-        let entries = std::fs::read_dir(vectors_dir)
-            .with_context(|| format!("Failed to read vectors directory: {}", vectors_dir.display()))?;
+        let entries = std::fs::read_dir(vectors_dir).with_context(|| {
+            format!(
+                "Failed to read vectors directory: {}",
+                vectors_dir.display()
+            )
+        })?;
 
         for entry in entries {
             let entry = entry?;
@@ -100,8 +104,14 @@ impl SteeringConfig {
         if !path.exists() {
             anyhow::bail!("Vector file does not exist: {}", path.display());
         }
-        if path.extension().map_or(true, |ext| ext != "gguf" && ext != "bin") {
-            anyhow::bail!("Vector file must be a .gguf or .bin file: {}", path.display());
+        if path
+            .extension()
+            .map_or(true, |ext| ext != "gguf" && ext != "bin")
+        {
+            anyhow::bail!(
+                "Vector file must be a .gguf or .bin file: {}",
+                path.display()
+            );
         }
 
         let name = path
@@ -314,16 +324,22 @@ mod tests {
         let config = SteeringConfig {
             vectors: vec![
                 LoadedVector {
-                    path: PathBuf::from("a.gguf"), name: "honesty".to_string(),
-                    scale: 1.5, active: true,
+                    path: PathBuf::from("a.gguf"),
+                    name: "honesty".to_string(),
+                    scale: 1.5,
+                    active: true,
                 },
                 LoadedVector {
-                    path: PathBuf::from("b.gguf"), name: "creativity".to_string(),
-                    scale: 0.8, active: true,
+                    path: PathBuf::from("b.gguf"),
+                    name: "creativity".to_string(),
+                    scale: 0.8,
+                    active: true,
                 },
                 LoadedVector {
-                    path: PathBuf::from("c.gguf"), name: "inactive".to_string(),
-                    scale: 1.0, active: false,
+                    path: PathBuf::from("c.gguf"),
+                    name: "inactive".to_string(),
+                    scale: 1.0,
+                    active: false,
                 },
             ],
             layer_range: None,
@@ -340,8 +356,10 @@ mod tests {
         assert!(!config.has_active_vectors());
 
         config.vectors.push(LoadedVector {
-            path: PathBuf::from("a.gguf"), name: "a".to_string(),
-            scale: 1.0, active: true,
+            path: PathBuf::from("a.gguf"),
+            name: "a".to_string(),
+            scale: 1.0,
+            active: true,
         });
         assert!(config.has_active_vectors());
     }

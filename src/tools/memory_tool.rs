@@ -8,8 +8,8 @@
 //! File-based wrappers over the backing stores since ToolHandler is sync
 //! and doesn't hold references to the live MemoryManager.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 
 fn data_dir() -> PathBuf {
@@ -17,7 +17,9 @@ fn data_dir() -> PathBuf {
 }
 
 fn memory_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("status");
 
@@ -28,18 +30,26 @@ fn memory_tool(call: &ToolCall) -> ToolResult {
         "status" => memory_status(call),
         "recall" => memory_recall(call),
         "consolidate" => memory_consolidate(call),
-        other => error_result(call, &format!(
-            "Unknown memory action: '{}'. Valid: store, status, recall, consolidate", other
-        )),
+        other => error_result(
+            call,
+            &format!(
+                "Unknown memory action: '{}'. Valid: store, status, recall, consolidate",
+                other
+            ),
+        ),
     }
 }
 
 /// Store a key-value pair into persistent memory (scratchpad layer).
 fn memory_store(call: &ToolCall) -> ToolResult {
-    let key = call.arguments.get("key")
+    let key = call
+        .arguments
+        .get("key")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let value = call.arguments.get("value")
+    let value = call
+        .arguments
+        .get("value")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -55,7 +65,8 @@ fn memory_store(call: &ToolCall) -> ToolResult {
 
     // Load existing entries
     let mut entries: Vec<serde_json::Value> = if sp_path.exists() {
-        std::fs::read_to_string(&sp_path).ok()
+        std::fs::read_to_string(&sp_path)
+            .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default()
     } else {
@@ -94,7 +105,12 @@ fn memory_store(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("✅ {} in memory: '{}' ({} chars)", action_word, key, value.len()),
+        output: format!(
+            "✅ {} in memory: '{}' ({} chars)",
+            action_word,
+            key,
+            value.len()
+        ),
         success: true,
         error: None,
     }
@@ -107,45 +123,57 @@ fn memory_status(call: &ToolCall) -> ToolResult {
     // Scratchpad
     let sp_path = dir.join("scratchpad.json");
     let sp_count = if sp_path.exists() {
-        std::fs::read_to_string(&sp_path).ok()
+        std::fs::read_to_string(&sp_path)
+            .ok()
             .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
             .and_then(|v| v.as_array().map(|a| a.len()))
             .unwrap_or(0)
-    } else { 0 };
+    } else {
+        0
+    };
 
     // Lessons
     let les_path = dir.join("lessons.json");
     let les_count = if les_path.exists() {
-        std::fs::read_to_string(&les_path).ok()
+        std::fs::read_to_string(&les_path)
+            .ok()
             .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
             .and_then(|v| v.as_array().map(|a| a.len()))
             .unwrap_or(0)
-    } else { 0 };
+    } else {
+        0
+    };
 
     // Timeline
     let tl_dir = dir.join("timeline");
     let tl_count = if tl_dir.exists() {
-        std::fs::read_dir(&tl_dir)
-            .map(|rd| rd.count())
-            .unwrap_or(0)
-    } else { 0 };
+        std::fs::read_dir(&tl_dir).map(|rd| rd.count()).unwrap_or(0)
+    } else {
+        0
+    };
 
     // Reasoning traces
     let traces_path = dir.join("reasoning/traces.jsonl");
     let trace_count = if traces_path.exists() {
-        std::fs::read_to_string(&traces_path).ok()
+        std::fs::read_to_string(&traces_path)
+            .ok()
             .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
             .unwrap_or(0)
-    } else { 0 };
+    } else {
+        0
+    };
 
     // Embeddings
     let emb_path = dir.join("embeddings.json");
     let emb_count = if emb_path.exists() {
-        std::fs::read_to_string(&emb_path).ok()
+        std::fs::read_to_string(&emb_path)
+            .ok()
             .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
             .and_then(|v| v.as_array().map(|a| a.len()))
             .unwrap_or(0)
-    } else { 0 };
+    } else {
+        0
+    };
 
     report.push_str(&format!("  Scratchpad: {} notes\n", sp_count));
     report.push_str(&format!("  Lessons: {} rules\n", les_count));
@@ -163,10 +191,14 @@ fn memory_status(call: &ToolCall) -> ToolResult {
 }
 
 fn memory_recall(call: &ToolCall) -> ToolResult {
-    let query = call.arguments.get("query")
+    let query = call
+        .arguments
+        .get("query")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let budget = call.arguments.get("budget")
+    let budget = call
+        .arguments
+        .get("budget")
         .and_then(|v| v.as_u64())
         .unwrap_or(2000) as usize;
 
@@ -196,7 +228,9 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
                         continue;
                     }
                     let line = format!("• {}: {}\n", key, val);
-                    if sp_text.len() + line.len() > sp_budget { break; }
+                    if sp_text.len() + line.len() > sp_budget {
+                        break;
+                    }
                     sp_text.push_str(&line);
                     found = true;
                 }
@@ -218,14 +252,16 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
                 for l in &lessons {
                     let rule = l.get("rule").and_then(|v| v.as_str()).unwrap_or("");
                     let conf = l.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    if conf < 0.5 { continue; }
-                    if !query_lower.is_empty()
-                        && !rule.to_lowercase().contains(&query_lower)
-                    {
+                    if conf < 0.5 {
+                        continue;
+                    }
+                    if !query_lower.is_empty() && !rule.to_lowercase().contains(&query_lower) {
                         continue;
                     }
                     let line = format!("• {} ({:.0}%)\n", rule, conf * 100.0);
-                    if les_text.len() + line.len() > les_budget { break; }
+                    if les_text.len() + line.len() > les_budget {
+                        break;
+                    }
                     les_text.push_str(&line);
                     found = true;
                 }
@@ -242,7 +278,8 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
     if tl_dir.exists() {
         if let Ok(rd) = std::fs::read_dir(&tl_dir) {
             // Collect and sort by filename (which encodes timestamp) — newest first
-            let mut files: Vec<_> = rd.filter_map(|e| e.ok())
+            let mut files: Vec<_> = rd
+                .filter_map(|e| e.ok())
                 .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
                 .collect();
             files.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
@@ -252,10 +289,12 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
             for file in &files {
                 if let Ok(raw) = std::fs::read_to_string(file.path()) {
                     if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&raw) {
-                        let transcript = entry.get("transcript")
+                        let transcript = entry
+                            .get("transcript")
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
-                        let ts = entry.get("timestamp")
+                        let ts = entry
+                            .get("timestamp")
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
                         // If query is provided, filter by relevance
@@ -266,7 +305,9 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
                         }
                         let preview: String = transcript.chars().take(200).collect();
                         let line = format!("• [{}] {}\n", ts, preview);
-                        if tl_text.len() + line.len() > tl_budget { break; }
+                        if tl_text.len() + line.len() > tl_budget {
+                            break;
+                        }
                         tl_text.push_str(&line);
                         found = true;
                     }
@@ -287,20 +328,22 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
                 let mut emb_text = String::from("[Embeddings]\n");
                 let mut found = false;
                 for entry in &entries {
-                    let source = entry.get("source_text")
+                    let source = entry
+                        .get("source_text")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let source_type = entry.get("source_type")
+                    let source_type = entry
+                        .get("source_type")
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
-                    if !query_lower.is_empty()
-                        && !source.to_lowercase().contains(&query_lower)
-                    {
+                    if !query_lower.is_empty() && !source.to_lowercase().contains(&query_lower) {
                         continue;
                     }
                     let preview: String = source.chars().take(120).collect();
                     let line = format!("• [{}] {}\n", source_type, preview);
-                    if emb_text.len() + line.len() > emb_budget { break; }
+                    if emb_text.len() + line.len() > emb_budget {
+                        break;
+                    }
                     emb_text.push_str(&line);
                     found = true;
                 }
@@ -317,7 +360,11 @@ fn memory_recall(call: &ToolCall) -> ToolResult {
             query
         )
     } else {
-        format!("RECALLED CONTEXT (budget: {} tokens)\n\n{}", budget, context.trim())
+        format!(
+            "RECALLED CONTEXT (budget: {} tokens)\n\n{}",
+            budget,
+            context.trim()
+        )
     };
 
     ToolResult {
@@ -336,7 +383,11 @@ fn memory_consolidate(call: &ToolCall) -> ToolResult {
     let summary = format!(
         "Consolidation store: {} ({})",
         consol_path.display(),
-        if consol_path.exists() { "exists" } else { "not yet created" }
+        if consol_path.exists() {
+            "exists"
+        } else {
+            "not yet created"
+        }
     );
 
     ToolResult {
@@ -405,12 +456,15 @@ mod tests {
 
     #[test]
     fn recall_with_query_succeeds() {
-        let call = make_call(serde_json::json!({"action": "recall", "query": "nonexistent_gibberish_xyz"}));
+        let call = make_call(
+            serde_json::json!({"action": "recall", "query": "nonexistent_gibberish_xyz"}),
+        );
         let result = memory_tool(&call);
         assert!(result.success);
         // Should report that nothing was found with tiers listed
         assert!(
-            result.output.contains("No memory context found") || result.output.contains("RECALLED CONTEXT"),
+            result.output.contains("No memory context found")
+                || result.output.contains("RECALLED CONTEXT"),
             "Recall output should be either 'no context found' or 'RECALLED CONTEXT', got: {}",
             result.output
         );
@@ -446,7 +500,8 @@ mod tests {
         std::fs::write(
             tl_dir.join("20260412_100000_000_test1234_abc123.json"),
             serde_json::to_string_pretty(&entry).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Temporarily override ERNOSAGENT_DATA_DIR
         let old = std::env::var("ERNOSAGENT_DATA_DIR").ok();
@@ -462,9 +517,21 @@ mod tests {
         }
 
         assert!(result.success);
-        assert!(result.output.contains("RECALLED CONTEXT"), "Should find timeline data, got: {}", result.output);
-        assert!(result.output.contains("[Timeline]"), "Should have timeline section, got: {}", result.output);
-        assert!(result.output.contains("Echo"), "Should contain the matched transcript, got: {}", result.output);
+        assert!(
+            result.output.contains("RECALLED CONTEXT"),
+            "Should find timeline data, got: {}",
+            result.output
+        );
+        assert!(
+            result.output.contains("[Timeline]"),
+            "Should have timeline section, got: {}",
+            result.output
+        );
+        assert!(
+            result.output.contains("Echo"),
+            "Should contain the matched transcript, got: {}",
+            result.output
+        );
     }
 
     #[test]
@@ -474,7 +541,8 @@ mod tests {
         let old = std::env::var("ERNOSAGENT_DATA_DIR").ok();
         std::env::set_var("ERNOSAGENT_DATA_DIR", tmp.path());
 
-        let call = make_call(serde_json::json!({"action": "recall", "query": "absolutely_nothing_xzq"}));
+        let call =
+            make_call(serde_json::json!({"action": "recall", "query": "absolutely_nothing_xzq"}));
         let result = memory_tool(&call);
 
         match old {
@@ -483,8 +551,18 @@ mod tests {
         }
 
         assert!(result.success);
-        assert!(result.output.contains("No memory context found"), "Should report no context, got: {}", result.output);
-        assert!(result.output.contains("scratchpad"), "Should list searched tiers");
-        assert!(result.output.contains("timeline"), "Should list searched tiers");
+        assert!(
+            result.output.contains("No memory context found"),
+            "Should report no context, got: {}",
+            result.output
+        );
+        assert!(
+            result.output.contains("scratchpad"),
+            "Should list searched tiers"
+        );
+        assert!(
+            result.output.contains("timeline"),
+            "Should list searched tiers"
+        );
     }
 }

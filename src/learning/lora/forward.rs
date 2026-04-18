@@ -26,9 +26,11 @@ pub struct KVCache {
 
 impl KVCache {
     pub fn new() -> Self {
-        Self { layers: HashMap::new() }
+        Self {
+            layers: HashMap::new(),
+        }
     }
-    
+
     pub fn append(&mut self, layer: usize, k: &Tensor, v: &Tensor) -> Result<(Tensor, Tensor)> {
         if let Some((prev_k, prev_v)) = self.layers.get(&layer) {
             let new_k = Tensor::cat(&[prev_k, k], 1)?; // Dim 1 is seq_len
@@ -59,10 +61,11 @@ pub fn detect_weight_prefix(weights_dir: &Path) -> Result<String> {
 
     let index_text = std::fs::read_to_string(&index_path)
         .with_context(|| format!("Failed to read safetensors index: {}", index_path.display()))?;
-    let index: serde_json::Value = serde_json::from_str(&index_text)
-        .context("Failed to parse safetensors index JSON")?;
+    let index: serde_json::Value =
+        serde_json::from_str(&index_text).context("Failed to parse safetensors index JSON")?;
 
-    let weight_map = index.get("weight_map")
+    let weight_map = index
+        .get("weight_map")
         .and_then(|m| m.as_object())
         .context("safetensors index missing 'weight_map'")?;
 
@@ -70,7 +73,8 @@ pub fn detect_weight_prefix(weights_dir: &Path) -> Result<String> {
     for key in weight_map.keys() {
         if key.ends_with("embed_tokens.weight") {
             // Strip the trailing ".embed_tokens.weight" to get the prefix
-            let prefix = key.strip_suffix(".embed_tokens.weight")
+            let prefix = key
+                .strip_suffix(".embed_tokens.weight")
                 .unwrap_or("")
                 .to_string();
             tracing::info!(
@@ -85,7 +89,10 @@ pub fn detect_weight_prefix(weights_dir: &Path) -> Result<String> {
     // Fallback: look for layers.0 to infer prefix
     for key in weight_map.keys() {
         if key.contains("layers.0.") {
-            let prefix = key.split("layers.0.").next().unwrap_or("model.")
+            let prefix = key
+                .split("layers.0.")
+                .next()
+                .unwrap_or("model.")
                 .trim_end_matches('.')
                 .to_string();
             tracing::info!(
@@ -109,7 +116,8 @@ pub fn detect_vocab_size(weights_dir: &Path) -> Result<usize> {
         let config_text = std::fs::read_to_string(&config_path)?;
         let config: serde_json::Value = serde_json::from_str(&config_text)?;
         // Check top-level, then text_config (Gemma 4 multimodal nests it)
-        let vocab = config.get("vocab_size")
+        let vocab = config
+            .get("vocab_size")
             .or_else(|| config.get("text_config").and_then(|t| t.get("vocab_size")))
             .and_then(|v| v.as_u64());
         if let Some(v) = vocab {
@@ -160,40 +168,46 @@ pub fn detect_architecture(weights_dir: &Path) -> Result<ModelArchitecture> {
         return Ok(ModelArchitecture::default());
     }
 
-    let config_text = std::fs::read_to_string(&config_path)
-        .context("Failed to read model config.json")?;
-    let config: serde_json::Value = serde_json::from_str(&config_text)
-        .context("Failed to parse model config.json")?;
+    let config_text =
+        std::fs::read_to_string(&config_path).context("Failed to read model config.json")?;
+    let config: serde_json::Value =
+        serde_json::from_str(&config_text).context("Failed to parse model config.json")?;
 
     // Handle both top-level and nested text_config (Gemma 4 multimodal)
     let tc = config.get("text_config").unwrap_or(&config);
 
-    let hidden_dim = tc.get("hidden_size")
+    let hidden_dim = tc
+        .get("hidden_size")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(4096);
 
-    let num_layers = tc.get("num_hidden_layers")
+    let num_layers = tc
+        .get("num_hidden_layers")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(32);
 
-    let num_attention_heads = tc.get("num_attention_heads")
+    let num_attention_heads = tc
+        .get("num_attention_heads")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(32);
 
-    let num_kv_heads = tc.get("num_key_value_heads")
+    let num_kv_heads = tc
+        .get("num_key_value_heads")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(num_attention_heads);
 
-    let head_dim = tc.get("head_dim")
+    let head_dim = tc
+        .get("head_dim")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(hidden_dim / num_attention_heads);
 
-    let intermediate_size = tc.get("intermediate_size")
+    let intermediate_size = tc
+        .get("intermediate_size")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize)
         .unwrap_or(hidden_dim * 4);
@@ -213,8 +227,14 @@ pub fn detect_architecture(weights_dir: &Path) -> Result<ModelArchitecture> {
     };
 
     tracing::info!(
-        hidden_dim, num_layers, num_attention_heads, num_kv_heads,
-        head_dim, intermediate_size, q_dim, kv_dim,
+        hidden_dim,
+        num_layers,
+        num_attention_heads,
+        num_kv_heads,
+        head_dim,
+        intermediate_size,
+        q_dim,
+        kv_dim,
         "Auto-detected model architecture from config.json"
     );
     Ok(arch)
@@ -257,20 +277,31 @@ pub fn forward_with_lora_cached(
         .with_context(|| format!("embed_tokens weight not found at '{embed_key}.weight'"))?
         .to_dtype(DType::F32)?;
 
-    let mut hidden = embed_weight
-        .index_select(&input_tensor, 0)?
-        .unsqueeze(0)?;
+    let mut hidden = embed_weight.index_select(&input_tensor, 0)?.unsqueeze(0)?;
 
-    let lora_data = lora_vs.data().lock().map_err(|e| anyhow::anyhow!("VarMap lock: {e}"))?;
+    let lora_data = lora_vs
+        .data()
+        .lock()
+        .map_err(|e| anyhow::anyhow!("VarMap lock: {e}"))?;
 
     for layer in 0..config.num_layers() {
         hidden = forward_transformer_layer(
-            hidden, layer, base_vb, &lora_data, config, kv_cache, active_steering,
+            hidden,
+            layer,
+            base_vb,
+            &lora_data,
+            config,
+            kv_cache,
+            active_steering,
         )?;
     }
 
     // Final RMSNorm + LM head
-    let norm_key = if prefix.is_empty() { "norm".to_string() } else { format!("{prefix}.norm") };
+    let norm_key = if prefix.is_empty() {
+        "norm".to_string()
+    } else {
+        format!("{prefix}.norm")
+    };
     hidden = apply_rms_norm(&hidden, base_vb, &norm_key, config.hidden_dim())?;
 
     // lm_head is typically at the top level (no prefix)
@@ -279,12 +310,16 @@ pub fn forward_with_lora_cached(
         .get((vocab_size, config.hidden_dim()), "weight")
         .or_else(|_| {
             // Some models tie embeddings — use embed_tokens as lm_head
-            base_vb.pp(&embed_key).get((vocab_size, config.hidden_dim()), "weight")
+            base_vb
+                .pp(&embed_key)
+                .get((vocab_size, config.hidden_dim()), "weight")
         })
         .context("lm_head weight not found")?
         .to_dtype(DType::F32)?;
 
-    hidden.broadcast_matmul(&lm_head.t()?).context("lm_head matmul failed")
+    hidden
+        .broadcast_matmul(&lm_head.t()?)
+        .context("lm_head matmul failed")
 }
 
 /// Forward through a single transformer layer.
@@ -320,23 +355,47 @@ fn forward_transformer_layer(
     let k_proj_vb = base_vb.pp(&format!("{lp}.self_attn.k_proj"));
 
     // Probe the actual q_proj shape: try default first, then scan alternatives
-    let (layer_q_dim, layer_kv_dim) = probe_projection_dims(
-        &q_proj_vb, &k_proj_vb, dim, config,
-    );
+    let (layer_q_dim, layer_kv_dim) = probe_projection_dims(&q_proj_vb, &k_proj_vb, dim, config);
 
     let q_base = linear_no_grad(&normed, &q_proj_vb, dim, layer_q_dim)?;
     let k_base = linear_no_grad(&normed, &k_proj_vb, dim, layer_kv_dim)?;
     // Gemma 4 full_attention layers share K=V (no separate v_proj)
-    let v_base = base_vb.pp(&format!("{lp}.self_attn.v_proj"))
+    let v_base = base_vb
+        .pp(&format!("{lp}.self_attn.v_proj"))
         .get((layer_kv_dim, dim), "weight")
         .ok()
-        .map(|_| linear_no_grad(&normed, &base_vb.pp(&format!("{lp}.self_attn.v_proj")), dim, layer_kv_dim))
+        .map(|_| {
+            linear_no_grad(
+                &normed,
+                &base_vb.pp(&format!("{lp}.self_attn.v_proj")),
+                dim,
+                layer_kv_dim,
+            )
+        })
         .transpose()?
         .unwrap_or_else(|| k_base.clone());
 
-    let q = add_lora_delta(&q_base, &normed, lora_data, &format!("lora.{layer}.q_proj"), scale)?;
-    let k = add_lora_delta(&k_base, &normed, lora_data, &format!("lora.{layer}.k_proj"), scale)?;
-    let v = add_lora_delta(&v_base, &normed, lora_data, &format!("lora.{layer}.v_proj"), scale)?;
+    let q = add_lora_delta(
+        &q_base,
+        &normed,
+        lora_data,
+        &format!("lora.{layer}.q_proj"),
+        scale,
+    )?;
+    let k = add_lora_delta(
+        &k_base,
+        &normed,
+        lora_data,
+        &format!("lora.{layer}.k_proj"),
+        scale,
+    )?;
+    let v = add_lora_delta(
+        &v_base,
+        &normed,
+        lora_data,
+        &format!("lora.{layer}.v_proj"),
+        scale,
+    )?;
 
     let (k, v) = if let Some(cache) = kv_cache {
         cache.append(layer, &k, &v)?
@@ -354,11 +413,20 @@ fn forward_transformer_layer(
         if layer_q_dim % layer_head_dim != 0 {
             // This is likely a full_attention layer with global_head_dim
             // Heuristic: try common head dims
-            let alt_head_dim = if layer_q_dim % 512 == 0 { 512 }
-                else if layer_q_dim % 256 == 0 { 256 }
-                else if layer_q_dim % 128 == 0 { 128 }
-                else { layer_head_dim };
-            (layer_q_dim / alt_head_dim, layer_kv_dim / alt_head_dim, alt_head_dim)
+            let alt_head_dim = if layer_q_dim % 512 == 0 {
+                512
+            } else if layer_q_dim % 256 == 0 {
+                256
+            } else if layer_q_dim % 128 == 0 {
+                128
+            } else {
+                layer_head_dim
+            };
+            (
+                layer_q_dim / alt_head_dim,
+                layer_kv_dim / alt_head_dim,
+                alt_head_dim,
+            )
         } else {
             (layer_num_q_heads, layer_num_kv_heads, layer_head_dim)
         };
@@ -373,21 +441,53 @@ fn forward_transformer_layer(
     };
 
     let attn_out = gqa_attention(&q, &k, &v, &layer_arch)?;
-    let attn_proj = linear_no_grad(&attn_out, &base_vb.pp(&format!("{lp}.self_attn.o_proj")), layer_q_dim, dim)?;
+    let attn_proj = linear_no_grad(
+        &attn_out,
+        &base_vb.pp(&format!("{lp}.self_attn.o_proj")),
+        layer_q_dim,
+        dim,
+    )?;
 
     // Residual connection
     hidden = (hidden + attn_proj)?;
 
     // ── FFN block ────────────────────────────────────────────────
-    let normed_ff = apply_rms_norm(&hidden, base_vb, &format!("{lp}.post_attention_layernorm"), dim)
-        .or_else(|_| apply_rms_norm(&hidden, base_vb, &format!("{lp}.pre_feedforward_layernorm"), dim))
-        .unwrap_or_else(|_| hidden.clone());
+    let normed_ff = apply_rms_norm(
+        &hidden,
+        base_vb,
+        &format!("{lp}.post_attention_layernorm"),
+        dim,
+    )
+    .or_else(|_| {
+        apply_rms_norm(
+            &hidden,
+            base_vb,
+            &format!("{lp}.pre_feedforward_layernorm"),
+            dim,
+        )
+    })
+    .unwrap_or_else(|_| hidden.clone());
 
     let ffn_dim = config.arch.intermediate_size;
-    let gate = linear_no_grad(&normed_ff, &base_vb.pp(&format!("{lp}.mlp.gate_proj")), dim, ffn_dim)?;
-    let up = linear_no_grad(&normed_ff, &base_vb.pp(&format!("{lp}.mlp.up_proj")), dim, ffn_dim)?;
+    let gate = linear_no_grad(
+        &normed_ff,
+        &base_vb.pp(&format!("{lp}.mlp.gate_proj")),
+        dim,
+        ffn_dim,
+    )?;
+    let up = linear_no_grad(
+        &normed_ff,
+        &base_vb.pp(&format!("{lp}.mlp.up_proj")),
+        dim,
+        ffn_dim,
+    )?;
     let ffn = (candle_nn::ops::silu(&gate)? * up)?;
-    let down = linear_no_grad(&ffn, &base_vb.pp(&format!("{lp}.mlp.down_proj")), ffn_dim, dim)?;
+    let down = linear_no_grad(
+        &ffn,
+        &base_vb.pp(&format!("{lp}.mlp.down_proj")),
+        ffn_dim,
+        dim,
+    )?;
 
     // Residual connection
     let mut final_hidden = (hidden + down)?;
@@ -396,7 +496,9 @@ fn forward_transformer_layer(
     // Inject SAE feature directions directly into the residual stream natively.
     if let Some(steer) = active_steering {
         for (direction_tensor, scale) in steer {
-            if *scale == 0.0 { continue; }
+            if *scale == 0.0 {
+                continue;
+            }
             let s = *scale;
             // V_direction * scale
             // Make sure dimensions line up: direction_tensor is [1, 1, dim]
@@ -422,7 +524,8 @@ fn probe_projection_dims(
         // Try common alternatives for full_attention layers
         // Gemma 4 full layers: num_heads=16, global_head_dim=512 → 8192
         let candidates = [8192, 4096, 2048, 1024, 512];
-        candidates.iter()
+        candidates
+            .iter()
             .find(|&&d| q_vb.get((d, in_dim), "weight").is_ok())
             .copied()
             .unwrap_or(config.arch.q_dim)
@@ -432,7 +535,8 @@ fn probe_projection_dims(
         config.arch.kv_dim
     } else {
         let candidates = [8192, 4096, 2048, 1024, 512];
-        candidates.iter()
+        candidates
+            .iter()
             .find(|&&d| k_vb.get((d, in_dim), "weight").is_ok())
             .copied()
             .unwrap_or(config.arch.kv_dim)
@@ -445,12 +549,7 @@ fn probe_projection_dims(
 ///
 /// Uses basic tensor ops (power, mean, sqrt, mul) instead of candle_nn::RmsNorm
 /// which requires a device-specific kernel that Metal doesn't provide.
-fn apply_rms_norm(
-    x: &Tensor,
-    base_vb: &VarBuilder,
-    key: &str,
-    dim: usize,
-) -> Result<Tensor> {
+fn apply_rms_norm(x: &Tensor, base_vb: &VarBuilder, key: &str, dim: usize) -> Result<Tensor> {
     let w = base_vb.pp(key).get(dim, "weight")?.to_dtype(DType::F32)?;
     let eps = 1e-6;
 
@@ -502,11 +601,11 @@ fn linear_no_grad(x: &Tensor, vb: &VarBuilder, in_dim: usize, out_dim: usize) ->
 
     // For 3D inputs [batch, seq, in_dim], use broadcast_matmul
     if x_f32.dims().len() == 3 {
-        x_f32.broadcast_matmul(&wt)
+        x_f32
+            .broadcast_matmul(&wt)
             .context("linear_no_grad broadcast_matmul failed")
     } else {
-        x_f32.matmul(&wt)
-            .context("linear_no_grad matmul failed")
+        x_f32.matmul(&wt).context("linear_no_grad matmul failed")
     }
 }
 
@@ -522,9 +621,15 @@ fn gqa_attention(q: &Tensor, k: &Tensor, v: &Tensor, arch: &ModelArchitecture) -
     let groups = num_q_heads / num_kv_heads;
 
     // Reshape: [batch, seq, heads*head_dim] -> [batch, heads, seq, head_dim]
-    let q = q.reshape((batch, seq_len, num_q_heads, head_dim))?.transpose(1, 2)?;
-    let k = k.reshape((batch, seq_len, num_kv_heads, head_dim))?.transpose(1, 2)?;
-    let v = v.reshape((batch, seq_len, num_kv_heads, head_dim))?.transpose(1, 2)?;
+    let q = q
+        .reshape((batch, seq_len, num_q_heads, head_dim))?
+        .transpose(1, 2)?;
+    let k = k
+        .reshape((batch, seq_len, num_kv_heads, head_dim))?
+        .transpose(1, 2)?;
+    let v = v
+        .reshape((batch, seq_len, num_kv_heads, head_dim))?
+        .transpose(1, 2)?;
 
     // Repeat K/V heads to match Q heads (GQA expansion)
     let (k, v) = if groups > 1 {
@@ -548,7 +653,8 @@ fn gqa_attention(q: &Tensor, k: &Tensor, v: &Tensor, arch: &ModelArchitecture) -
     let output = weights.matmul(&v)?;
 
     // Reshape back: [batch, heads, seq, head_dim] -> [batch, seq, heads*head_dim]
-    output.transpose(1, 2)?
+    output
+        .transpose(1, 2)?
         .contiguous()?
         .reshape((batch, seq_len, num_q_heads * head_dim))
         .context("GQA output reshape failed")
@@ -571,7 +677,8 @@ mod tests {
         std::fs::write(
             tmp.path().join("model.safetensors.index.json"),
             serde_json::to_string(&index).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let prefix = detect_weight_prefix(tmp.path()).unwrap();
         assert_eq!(prefix, "model.language_model");
@@ -589,7 +696,8 @@ mod tests {
         std::fs::write(
             tmp.path().join("model.safetensors.index.json"),
             serde_json::to_string(&index).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let prefix = detect_weight_prefix(tmp.path()).unwrap();
         assert_eq!(prefix, "model");
@@ -609,7 +717,8 @@ mod tests {
         std::fs::write(
             tmp.path().join("config.json"),
             serde_json::to_string(&config).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let vocab = detect_vocab_size(tmp.path()).unwrap();
         assert_eq!(vocab, 32000);
@@ -631,13 +740,14 @@ mod tests {
         std::fs::write(
             tmp.path().join("config.json"),
             serde_json::to_string(&config).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let arch = detect_architecture(tmp.path()).unwrap();
         assert_eq!(arch.hidden_dim, 2560);
         assert_eq!(arch.num_layers, 34);
-        assert_eq!(arch.q_dim, 16 * 256);  // 4096
-        assert_eq!(arch.kv_dim, 8 * 256);  // 2048
+        assert_eq!(arch.q_dim, 16 * 256); // 4096
+        assert_eq!(arch.kv_dim, 8 * 256); // 2048
         assert_eq!(arch.intermediate_size, 2112);
     }
 
@@ -653,12 +763,13 @@ mod tests {
         std::fs::write(
             tmp.path().join("config.json"),
             serde_json::to_string(&config).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let arch = detect_architecture(tmp.path()).unwrap();
         assert_eq!(arch.hidden_dim, 4096);
         assert_eq!(arch.num_layers, 32);
-        assert_eq!(arch.q_dim, 4096);  // no GQA
+        assert_eq!(arch.q_dim, 4096); // no GQA
         assert_eq!(arch.kv_dim, 4096);
         assert_eq!(arch.intermediate_size, 11008);
     }

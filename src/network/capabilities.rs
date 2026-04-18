@@ -118,7 +118,10 @@ impl CapabilityRegistry {
             tools = caps.tools.len(),
             "Capabilities registered"
         );
-        self.capabilities.write().await.insert(caps.peer_id.0.clone(), caps);
+        self.capabilities
+            .write()
+            .await
+            .insert(caps.peer_id.0.clone(), caps);
     }
 
     /// Remove a peer's capabilities.
@@ -128,7 +131,9 @@ impl CapabilityRegistry {
 
     /// Find peers that have a specific model available.
     pub async fn find_model_providers(&self, model_name: &str) -> Vec<PeerId> {
-        self.capabilities.read().await
+        self.capabilities
+            .read()
+            .await
             .values()
             .filter(|c| c.models.iter().any(|m| m.name == model_name))
             .map(|c| c.peer_id.clone())
@@ -137,7 +142,9 @@ impl CapabilityRegistry {
 
     /// Find peers that provide web relay.
     pub async fn find_relay_providers(&self) -> Vec<PeerId> {
-        self.capabilities.read().await
+        self.capabilities
+            .read()
+            .await
             .values()
             .filter(|c| c.provides_web_relay)
             .map(|c| c.peer_id.clone())
@@ -146,7 +153,9 @@ impl CapabilityRegistry {
 
     /// Find peers that provide compute.
     pub async fn find_compute_providers(&self) -> Vec<PeerId> {
-        self.capabilities.read().await
+        self.capabilities
+            .read()
+            .await
             .values()
             .filter(|c| c.provides_compute && !c.models.is_empty())
             .map(|c| c.peer_id.clone())
@@ -155,7 +164,9 @@ impl CapabilityRegistry {
 
     /// Find peers that have a specific tool.
     pub async fn find_tool_providers(&self, tool_name: &str) -> Vec<PeerId> {
-        self.capabilities.read().await
+        self.capabilities
+            .read()
+            .await
             .values()
             .filter(|c| c.tools.iter().any(|t| t.name == tool_name))
             .map(|c| c.peer_id.clone())
@@ -169,7 +180,9 @@ impl CapabilityRegistry {
 
     /// Get total available compute slots across all peers.
     pub async fn total_compute_slots(&self) -> u32 {
-        self.capabilities.read().await
+        self.capabilities
+            .read()
+            .await
             .values()
             .flat_map(|c| c.models.iter())
             .map(|m| m.available_slots)
@@ -237,9 +250,15 @@ mod tests {
     #[tokio::test]
     async fn test_find_model_providers() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", false, true)).await;
-        registry.register(test_caps("b", "llama3:8b", false, true)).await;
-        registry.register(test_caps("c", "qwen3.5:7b", false, true)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", false, true))
+            .await;
+        registry
+            .register(test_caps("b", "llama3:8b", false, true))
+            .await;
+        registry
+            .register(test_caps("c", "qwen3.5:7b", false, true))
+            .await;
 
         let providers = registry.find_model_providers("qwen3.5:7b").await;
         assert_eq!(providers.len(), 2);
@@ -248,8 +267,12 @@ mod tests {
     #[tokio::test]
     async fn test_find_relay_providers() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", true, false)).await;
-        registry.register(test_caps("b", "llama3:8b", false, false)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", true, false))
+            .await;
+        registry
+            .register(test_caps("b", "llama3:8b", false, false))
+            .await;
 
         let relays = registry.find_relay_providers().await;
         assert_eq!(relays.len(), 1);
@@ -259,18 +282,28 @@ mod tests {
     #[tokio::test]
     async fn test_find_compute_providers() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", false, true)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", false, true))
+            .await;
         registry.register(test_caps("b", "", false, true)).await; // Has compute flag but no models
 
         let compute = registry.find_compute_providers().await;
-        assert_eq!(compute.len(), 1, "Peer without models should not provide compute");
+        assert_eq!(
+            compute.len(),
+            1,
+            "Peer without models should not provide compute"
+        );
     }
 
     #[tokio::test]
     async fn test_total_compute_slots() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", false, true)).await;
-        registry.register(test_caps("b", "llama3:8b", false, true)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", false, true))
+            .await;
+        registry
+            .register(test_caps("b", "llama3:8b", false, true))
+            .await;
 
         let slots = registry.total_compute_slots().await;
         assert_eq!(slots, 4, "2 models × 2 slots = 4");
@@ -279,7 +312,9 @@ mod tests {
     #[tokio::test]
     async fn test_remove() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", false, false)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", false, false))
+            .await;
         assert_eq!(registry.count().await, 1);
 
         registry.remove(&PeerId("a".to_string())).await;
@@ -289,7 +324,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_tool_providers() {
         let registry = CapabilityRegistry::new();
-        registry.register(test_caps("a", "qwen3.5:7b", false, false)).await;
+        registry
+            .register(test_caps("a", "qwen3.5:7b", false, false))
+            .await;
 
         let providers = registry.find_tool_providers("web_search").await;
         assert_eq!(providers.len(), 1);

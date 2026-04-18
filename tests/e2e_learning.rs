@@ -37,8 +37,8 @@ fn make_teacher_config(tmp: &TempDir) -> TeacherConfig {
     TeacherConfig {
         golden_threshold: 5,
         preference_threshold: 3,
-        lora_rank: 4,                              // small rank for fast tests
-        num_iterations: 10,                         // few iterations
+        lora_rank: 4,       // small rank for fast tests
+        num_iterations: 10, // few iterations
         batch_size: 1,
         learning_rate: 3e-4,
         quantization: "Q8_0".to_string(),
@@ -106,7 +106,9 @@ fn make_preference_pairs(category: &str, count: usize) -> Vec<PreferencePair> {
 #[tokio::test]
 async fn test_golden_capture_to_sft_training() {
     if !weights_available() {
-        eprintln!("[e2e] ⏭ SKIPPED: test_golden_capture_to_sft_training (model weights not downloaded)");
+        eprintln!(
+            "[e2e] ⏭ SKIPPED: test_golden_capture_to_sft_training (model weights not downloaded)"
+        );
         eprintln!("       Run: bash scripts/download_weights.sh");
         return;
     }
@@ -130,7 +132,11 @@ async fn test_golden_capture_to_sft_training() {
     let result = teacher
         .run_training_cycle(&buffers, &mut manifest, TrainingKind::Sft)
         .await;
-    assert!(result.is_ok(), "Training cycle should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Training cycle should succeed: {:?}",
+        result.err()
+    );
 
     // Verify: buffers drained
     assert_eq!(buffers.golden.count(), 0, "Golden buffer should be drained");
@@ -151,12 +157,18 @@ async fn test_golden_capture_to_sft_training() {
     // Verify: config has correct lora_rank
     let config_json: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_file).unwrap()).unwrap();
-    assert_eq!(config_json["r"], 4, "adapter config should have lora rank 4");
+    assert_eq!(
+        config_json["r"], 4,
+        "adapter config should have lora rank 4"
+    );
     assert_eq!(config_json["ernosagent"]["iterations_trained"], 10);
 
     // Verify: manifest promoted
     assert_eq!(manifest.history.len(), 1, "Manifest should have 1 version");
-    assert!(manifest.current.is_some(), "Manifest should have current version");
+    assert!(
+        manifest.current.is_some(),
+        "Manifest should have current version"
+    );
 
     // Verify: teacher returned to idle (no arbitrary cooldown)
     let state = teacher.state().await;
@@ -192,7 +204,11 @@ async fn test_preference_capture_to_orpo_training() {
     let result = teacher
         .run_training_cycle(&buffers, &mut manifest, TrainingKind::Orpo)
         .await;
-    assert!(result.is_ok(), "ORPO training should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "ORPO training should succeed: {:?}",
+        result.err()
+    );
 
     assert_eq!(buffers.preference.count(), 0);
     assert_eq!(manifest.history.len(), 1);
@@ -225,7 +241,11 @@ async fn test_combined_training_cycle() {
     let result = teacher
         .run_training_cycle(&buffers, &mut manifest, TrainingKind::Combined)
         .await;
-    assert!(result.is_ok(), "Combined training should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Combined training should succeed: {:?}",
+        result.err()
+    );
 
     assert_eq!(buffers.golden.count(), 0);
     assert_eq!(buffers.preference.count(), 0);
@@ -240,7 +260,9 @@ async fn test_combined_training_cycle() {
 #[tokio::test]
 async fn test_no_cooldown_immediate_retrain() {
     if !weights_available() {
-        eprintln!("[e2e] ⏭ SKIPPED: test_no_cooldown_immediate_retrain (model weights not downloaded)");
+        eprintln!(
+            "[e2e] ⏭ SKIPPED: test_no_cooldown_immediate_retrain (model weights not downloaded)"
+        );
         return;
     }
     let tmp = TempDir::new().unwrap();
@@ -258,7 +280,11 @@ async fn test_no_cooldown_immediate_retrain() {
     // Immediately populate again — should train right away (no cooldown)
     populate_golden(&buffers, 5);
     let kind = teacher.should_train(&buffers).await;
-    assert_eq!(kind, Some(TrainingKind::Sft), "No cooldown — immediate re-training is allowed");
+    assert_eq!(
+        kind,
+        Some(TrainingKind::Sft),
+        "No cooldown — immediate re-training is allowed"
+    );
 
     eprintln!("[e2e] ✅ No-cooldown immediate re-train PASSED");
 }
@@ -353,8 +379,16 @@ async fn test_buffer_crash_safety() {
 
     // Reopen — data should still be available
     let buffers = TrainingBuffers::open(&training_dir).unwrap();
-    assert_eq!(buffers.golden.count(), 3, "Golden data should survive crash");
-    assert_eq!(buffers.preference.count(), 2, "Preference data should survive crash");
+    assert_eq!(
+        buffers.golden.count(),
+        3,
+        "Golden data should survive crash"
+    );
+    assert_eq!(
+        buffers.preference.count(),
+        2,
+        "Preference data should survive crash"
+    );
 
     // Data should be readable
     let golden = buffers.golden.drain().unwrap();

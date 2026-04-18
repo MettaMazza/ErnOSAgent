@@ -54,10 +54,14 @@ impl TestServer {
     async fn start(port: u16) -> Self {
         let process = std::process::Command::new(LLAMA_SERVER_BIN)
             .args([
-                "--model", MODEL_GGUF,
-                "--port", &port.to_string(),
-                "--ctx-size", "8192",
-                "--n-gpu-layers", "-1",
+                "--model",
+                MODEL_GGUF,
+                "--port",
+                &port.to_string(),
+                "--ctx-size",
+                "8192",
+                "--n-gpu-layers",
+                "-1",
                 "--no-warmup",
             ])
             .stdout(std::process::Stdio::piped())
@@ -82,7 +86,10 @@ impl TestServer {
         }
 
         server.kill();
-        panic!("llama-server failed to become healthy on port {} within 180s", port);
+        panic!(
+            "llama-server failed to become healthy on port {} within 180s",
+            port
+        );
     }
 
     fn kill(&mut self) {
@@ -116,14 +123,19 @@ impl Drop for TestServer {
 
 #[tokio::test]
 async fn test_e2e_model_spec_derivation() {
-    if skip_if_missing() { return; }
+    if skip_if_missing() {
+        return;
+    }
 
     let server = TestServer::start(TEST_PORT).await;
     let config = server.make_config();
     let provider = LlamaCppProvider::new(&config);
 
     // Verify model spec auto-derivation
-    let spec = provider.get_model_spec("gemma4").await.expect("Must derive spec");
+    let spec = provider
+        .get_model_spec("gemma4")
+        .await
+        .expect("Must derive spec");
 
     eprintln!("[e2e] Auto-derived spec:");
     eprintln!("  Name: {}", spec.name);
@@ -140,7 +152,10 @@ async fn test_e2e_model_spec_derivation() {
     // Verify health endpoint
     let status = provider.health().await.expect("Health check must work");
     assert!(status.available, "Server must be available");
-    eprintln!("[e2e] Health: available={}, latency={:?}ms", status.available, status.latency_ms);
+    eprintln!(
+        "[e2e] Health: available={}, latency={:?}ms",
+        status.available, status.latency_ms
+    );
 
     eprintln!("[e2e] ✅ Model spec derivation test PASSED");
 }
@@ -151,7 +166,9 @@ async fn test_e2e_model_spec_derivation() {
 
 #[tokio::test]
 async fn test_e2e_raw_inference() {
-    if skip_if_missing() { return; }
+    if skip_if_missing() {
+        return;
+    }
 
     let server = TestServer::start(TEST_PORT + 1).await;
     let config = server.make_config();
@@ -175,9 +192,7 @@ async fn test_e2e_raw_inference() {
 
     let provider_clone = Arc::clone(&provider);
     let msgs = messages.clone();
-    let handle = tokio::spawn(async move {
-        provider_clone.chat("gemma4", &msgs, None, tx).await
-    });
+    let handle = tokio::spawn(async move { provider_clone.chat("gemma4", &msgs, None, tx).await });
 
     let mut response = String::new();
     let mut got_done = false;
@@ -199,9 +214,16 @@ async fn test_e2e_raw_inference() {
         }
     }
 
-    handle.await.expect("Inference task panicked").expect("Inference should succeed");
+    handle
+        .await
+        .expect("Inference task panicked")
+        .expect("Inference should succeed");
 
-    eprintln!("\n[e2e] Response ({} chars): {}", response.len(), response.trim());
+    eprintln!(
+        "\n[e2e] Response ({} chars): {}",
+        response.len(),
+        response.trim()
+    );
     assert!(got_done, "Must receive Done event");
     assert!(!response.is_empty(), "Response must not be empty");
 
@@ -214,13 +236,18 @@ async fn test_e2e_raw_inference() {
 
 #[tokio::test]
 async fn test_e2e_react_pipeline() {
-    if skip_if_missing() { return; }
+    if skip_if_missing() {
+        return;
+    }
 
     let server = TestServer::start(TEST_PORT + 2).await;
     let config = server.make_config();
     let provider: Arc<dyn Provider> = Arc::new(LlamaCppProvider::new(&config));
 
-    let model_spec = provider.get_model_spec("gemma4").await.expect("Must derive spec");
+    let model_spec = provider
+        .get_model_spec("gemma4")
+        .await
+        .expect("Must derive spec");
 
     let core_prompt = prompt::core::build_core_prompt();
     let context_prompt = prompt::context::build_context_prompt(
@@ -285,32 +312,30 @@ async fn test_e2e_react_pipeline() {
     let mut events_received = 0_usize;
     let mut turns_seen = 0_usize;
 
-    let _timeout_result = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        async {
-            while let Some(event) = rx.recv().await {
-                events_received += 1;
-                match &event {
-                    ReactEvent::TurnStarted { turn } => {
-                        turns_seen = *turn;
-                        eprintln!("[e2e] ReAct turn {}", turn);
-                        // After 3 turns, abort — pipeline is validated
-                        if *turn >= 3 {
-                            eprintln!("[e2e] Pipeline validated after {} turns, aborting", turn);
-                            return;
-                        }
-                    }
-                    ReactEvent::Token(t) => eprint!("{}", t),
-                    ReactEvent::Error(e) => eprintln!("\n[e2e] Error: {}", e),
-                    ReactEvent::ResponseReady { text } => {
-                        eprintln!("\n[e2e] ✅ Got response: {} chars", text.len());
+    let _timeout_result = tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        while let Some(event) = rx.recv().await {
+            events_received += 1;
+            match &event {
+                ReactEvent::TurnStarted { turn } => {
+                    turns_seen = *turn;
+                    eprintln!("[e2e] ReAct turn {}", turn);
+                    // After 3 turns, abort — pipeline is validated
+                    if *turn >= 3 {
+                        eprintln!("[e2e] Pipeline validated after {} turns, aborting", turn);
                         return;
                     }
-                    _ => {}
                 }
+                ReactEvent::Token(t) => eprint!("{}", t),
+                ReactEvent::Error(e) => eprintln!("\n[e2e] Error: {}", e),
+                ReactEvent::ResponseReady { text } => {
+                    eprintln!("\n[e2e] ✅ Got response: {} chars", text.len());
+                    return;
+                }
+                _ => {}
             }
         }
-    ).await;
+    })
+    .await;
 
     // Abort the react loop
     result_handle.abort();
@@ -349,7 +374,11 @@ async fn test_e2e_neo4j_knowledge_graph() {
 
     // Create entities
     let rust_id = kg
-        .upsert_entity("Rust", "language", &serde_json::json!({"paradigm": "systems"}))
+        .upsert_entity(
+            "Rust",
+            "language",
+            &serde_json::json!({"paradigm": "systems"}),
+        )
         .await
         .expect("Failed to create Rust entity");
 
@@ -368,7 +397,10 @@ async fn test_e2e_neo4j_knowledge_graph() {
     // Verify counts
     let entity_count = kg.entity_count().await.unwrap();
     let relation_count = kg.relation_count().await.unwrap();
-    eprintln!("[e2e] KG state: {} entities, {} relations", entity_count, relation_count);
+    eprintln!(
+        "[e2e] KG state: {} entities, {} relations",
+        entity_count, relation_count
+    );
 
     assert!(entity_count >= 2);
     assert!(relation_count >= 1);
@@ -382,9 +414,13 @@ async fn test_e2e_neo4j_knowledge_graph() {
     assert!(!mem_status.contains("KG: offline"));
 
     // Ingest turn
-    mgr.ingest_turn("What is Rust?", "Rust is a systems programming language.", "e2e-test")
-        .await
-        .unwrap();
+    mgr.ingest_turn(
+        "What is Rust?",
+        "Rust is a systems programming language.",
+        "e2e-test",
+    )
+    .await
+    .unwrap();
     assert_eq!(mgr.timeline.entry_count(), 2);
 
     eprintln!("[e2e] ✅ Neo4j knowledge graph test PASSED");

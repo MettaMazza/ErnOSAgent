@@ -51,8 +51,14 @@ async fn test_should_train_preference_threshold() {
     let teacher = Teacher::new(config.clone());
     let buffers = TrainingBuffers::open(&config.training_dir).unwrap();
 
-    buffers.preference.record("s", "u", "bad", "good", "ghost", "sess", "m").unwrap();
-    buffers.preference.record("s", "u", "bad2", "good2", "syc", "sess", "m").unwrap();
+    buffers
+        .preference
+        .record("s", "u", "bad", "good", "ghost", "sess", "m")
+        .unwrap();
+    buffers
+        .preference
+        .record("s", "u", "bad2", "good2", "syc", "sess", "m")
+        .unwrap();
 
     let kind = teacher.should_train(&buffers).await;
     assert_eq!(kind, Some(TrainingKind::Orpo));
@@ -67,8 +73,14 @@ async fn test_should_train_combined() {
 
     buffers.golden.record("s", "u1", "a1", "sess", "m").unwrap();
     buffers.golden.record("s", "u2", "a2", "sess", "m").unwrap();
-    buffers.preference.record("s", "u", "bad", "good", "ghost", "sess", "m").unwrap();
-    buffers.preference.record("s", "u", "bad2", "good2", "syc", "sess", "m").unwrap();
+    buffers
+        .preference
+        .record("s", "u", "bad", "good", "ghost", "sess", "m")
+        .unwrap();
+    buffers
+        .preference
+        .record("s", "u", "bad2", "good2", "syc", "sess", "m")
+        .unwrap();
 
     let kind = teacher.should_train(&buffers).await;
     assert_eq!(kind, Some(TrainingKind::Combined));

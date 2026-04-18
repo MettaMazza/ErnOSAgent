@@ -11,7 +11,9 @@ use crate::tools::schema::{ToolCall, ToolResult};
 
 /// Read a file from the project, optionally with a line range.
 pub(super) fn read_file(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path")
+    let path_str = call
+        .arguments
+        .get("path")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -28,7 +30,10 @@ pub(super) fn read_file(call: &ToolCall) -> ToolResult {
         return error_result(call, &format!("File not found: {}", path_str));
     }
     if !full_path.is_file() {
-        return error_result(call, &format!("Path is a directory, not a file: {}", path_str));
+        return error_result(
+            call,
+            &format!("Path is a directory, not a file: {}", path_str),
+        );
     }
 
     let metadata = match std::fs::metadata(&full_path) {
@@ -36,10 +41,14 @@ pub(super) fn read_file(call: &ToolCall) -> ToolResult {
         Err(e) => return error_result(call, &format!("Cannot read file metadata: {}", e)),
     };
     if metadata.len() > MAX_READ_BYTES {
-        return error_result(call, &format!(
-            "File too large ({} bytes, max {}). This may be a binary file.",
-            metadata.len(), MAX_READ_BYTES
-        ));
+        return error_result(
+            call,
+            &format!(
+                "File too large ({} bytes, max {}). This may be a binary file.",
+                metadata.len(),
+                MAX_READ_BYTES
+            ),
+        );
     }
 
     let content = match std::fs::read_to_string(&full_path) {
@@ -60,10 +69,14 @@ pub(super) fn read_file(call: &ToolCall) -> ToolResult {
 }
 
 fn format_file_output(call: &ToolCall, path_str: &str, content: &str) -> String {
-    let start_line = call.arguments.get("start_line")
+    let start_line = call
+        .arguments
+        .get("start_line")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize);
-    let end_line = call.arguments.get("end_line")
+    let end_line = call
+        .arguments
+        .get("end_line")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize);
 
@@ -75,7 +88,10 @@ fn format_file_output(call: &ToolCall, path_str: &str, content: &str) -> String 
             let s = start.saturating_sub(1).min(total);
             let e = end.min(total);
             if s >= e {
-                return format!("Invalid line range: start_line={}, end_line={}, total_lines={}", start, end, total);
+                return format!(
+                    "Invalid line range: start_line={}, end_line={}, total_lines={}",
+                    start, end, total
+                );
             }
             format_line_range(&lines, path_str, s, e, total)
         }
@@ -87,25 +103,41 @@ fn format_file_output(call: &ToolCall, path_str: &str, content: &str) -> String 
     }
 }
 
-fn format_line_range(lines: &[&str], path_str: &str, start: usize, end: usize, total: usize) -> String {
+fn format_line_range(
+    lines: &[&str],
+    path_str: &str,
+    start: usize,
+    end: usize,
+    total: usize,
+) -> String {
     let selected: Vec<String> = lines[start..end]
         .iter()
         .enumerate()
         .map(|(i, line)| format!("{:>4}: {}", start + i + 1, line))
         .collect();
-    format!("File: {} (lines {}-{} of {})\n{}", path_str, start + 1, end, total, selected.join("\n"))
+    format!(
+        "File: {} (lines {}-{} of {})\n{}",
+        path_str,
+        start + 1,
+        end,
+        total,
+        selected.join("\n")
+    )
 }
 
 /// List directory contents with optional depth and pattern filtering.
 pub(super) fn list_dir(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path")
+    let path_str = call
+        .arguments
+        .get("path")
         .and_then(|v| v.as_str())
         .unwrap_or(".");
-    let max_depth = call.arguments.get("depth")
+    let max_depth = call
+        .arguments
+        .get("depth")
         .and_then(|v| v.as_u64())
         .unwrap_or(2) as usize;
-    let pattern = call.arguments.get("pattern")
-        .and_then(|v| v.as_str());
+    let pattern = call.arguments.get("pattern").and_then(|v| v.as_str());
 
     if containment::has_path_traversal(path_str) {
         return error_result(call, "BLOCKED: Path contains directory traversal.");
@@ -121,17 +153,32 @@ pub(super) fn list_dir(call: &ToolCall) -> ToolResult {
         return error_result(call, &format!("Directory not found: {}", path_str));
     }
     if !full_path.is_dir() {
-        return error_result(call, &format!("Path is a file, not a directory: {}", path_str));
+        return error_result(
+            call,
+            &format!("Path is a file, not a directory: {}", path_str),
+        );
     }
 
     let mut entries = Vec::new();
-    collect_tree(&full_path, &project_root, 0, max_depth, pattern, &mut entries);
+    collect_tree(
+        &full_path,
+        &project_root,
+        0,
+        max_depth,
+        pattern,
+        &mut entries,
+    );
 
     let output = if entries.is_empty() {
         format!("Directory: {} (empty or no matches)", path_str)
     } else {
-        format!("Directory: {} ({} entries, depth={})\n{}",
-            path_str, entries.len(), max_depth, entries.join("\n"))
+        format!(
+            "Directory: {} ({} entries, depth={})\n{}",
+            path_str,
+            entries.len(),
+            max_depth,
+            entries.join("\n")
+        )
     };
 
     tracing::info!(path = %path_str, entries = entries.len(), "codebase_list executed");
@@ -153,7 +200,9 @@ fn collect_tree(
     pattern: Option<&str>,
     entries: &mut Vec<String>,
 ) {
-    if depth > max_depth { return; }
+    if depth > max_depth {
+        return;
+    }
 
     let mut dir_entries: Vec<_> = match std::fs::read_dir(dir) {
         Ok(iter) => iter.filter_map(|e| e.ok()).collect(),
@@ -164,13 +213,21 @@ fn collect_tree(
     let indent = "  ".repeat(depth);
     for entry in dir_entries {
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') && depth == 0 { continue; }
-        if name == "target" && depth == 0 { continue; }
-        if name == "node_modules" { continue; }
+        if name.starts_with('.') && depth == 0 {
+            continue;
+        }
+        if name == "target" && depth == 0 {
+            continue;
+        }
+        if name == "node_modules" {
+            continue;
+        }
 
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
         if let Some(pat) = pattern {
-            if !is_dir && !name.contains(pat) { continue; }
+            if !is_dir && !name.contains(pat) {
+                continue;
+            }
         }
 
         if is_dir {
@@ -196,13 +253,13 @@ fn format_size(size: u64) -> String {
 
 /// Search within a file or recursively across a directory using text query or regex.
 pub(super) fn search_file(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path")
+    let path_str = call
+        .arguments
+        .get("path")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let query = call.arguments.get("query")
-        .and_then(|v| v.as_str());
-    let regex_pattern = call.arguments.get("regex")
-        .and_then(|v| v.as_str());
+    let query = call.arguments.get("query").and_then(|v| v.as_str());
+    let regex_pattern = call.arguments.get("regex").and_then(|v| v.as_str());
 
     if path_str.is_empty() {
         return error_result(call, "Missing required argument: path");
@@ -248,21 +305,40 @@ pub(super) fn search_file(call: &ToolCall) -> ToolResult {
         };
         let mut all_results: Vec<String> = Vec::new();
         let mut files_searched = 0_usize;
-        search_dir_recursive(&full_path, &project_root, query, regex_pattern, &mut all_results, &mut files_searched);
+        search_dir_recursive(
+            &full_path,
+            &project_root,
+            query,
+            regex_pattern,
+            &mut all_results,
+            &mut files_searched,
+        );
 
         let output = if all_results.is_empty() {
-            format!("Searched {} files in '{}' — no matches found for '{}'", files_searched, path_str, search_term)
+            format!(
+                "Searched {} files in '{}' — no matches found for '{}'",
+                files_searched, path_str, search_term
+            )
         } else {
             // Cap output to prevent context bloat
             let display = if all_results.len() > 50 {
                 let mut d = all_results[..50].to_vec();
-                d.push(format!("... and {} more matches. Narrow the search path or query.", all_results.len() - 50));
+                d.push(format!(
+                    "... and {} more matches. Narrow the search path or query.",
+                    all_results.len() - 50
+                ));
                 d
             } else {
                 all_results.clone()
             };
-            format!("Searched {} files in '{}'  — {} match(es) for '{}':\n\n{}",
-                files_searched, path_str, all_results.len(), search_term, display.join("\n\n"))
+            format!(
+                "Searched {} files in '{}'  — {} match(es) for '{}':\n\n{}",
+                files_searched,
+                path_str,
+                all_results.len(),
+                search_term,
+                display.join("\n\n")
+            )
         };
 
         tracing::info!(path = %path_str, files = files_searched, matches = all_results.len(), "codebase_search executed (directory)");
@@ -275,7 +351,10 @@ pub(super) fn search_file(call: &ToolCall) -> ToolResult {
             error: None,
         }
     } else {
-        error_result(call, &format!("Path is neither a file nor a directory: {}", path_str))
+        error_result(
+            call,
+            &format!("Path is neither a file nor a directory: {}", path_str),
+        )
     }
 }
 
@@ -306,14 +385,24 @@ fn search_dir_recursive(
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
 
         if is_dir {
-            search_dir_recursive(&path, project_root, query, regex_pattern, results, files_searched);
+            search_dir_recursive(
+                &path,
+                project_root,
+                query,
+                regex_pattern,
+                results,
+                files_searched,
+            );
         } else {
             // Skip large/binary files
             let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-            if size > MAX_READ_BYTES || size == 0 { continue; }
+            if size > MAX_READ_BYTES || size == 0 {
+                continue;
+            }
 
             // Compute relative path for display
-            let rel_path = path.strip_prefix(project_root)
+            let rel_path = path
+                .strip_prefix(project_root)
                 .unwrap_or(&path)
                 .to_string_lossy()
                 .to_string();
@@ -351,7 +440,11 @@ fn find_matches(content: &str, query: Option<&str>, regex_pattern: Option<&str>)
                     format!("{} {:>4}: {}", marker, line_num, l)
                 })
                 .collect();
-            matches.push(format!("--- Match at line {} ---\n{}", i + 1, context_lines.join("\n")));
+            matches.push(format!(
+                "--- Match at line {} ---\n{}",
+                i + 1,
+                context_lines.join("\n")
+            ));
         }
     }
     matches
@@ -363,11 +456,20 @@ fn format_search_results(path: &str, term: &str, matches: &[String]) -> String {
     } else {
         let display = if matches.len() > 15 {
             let mut m = matches[..15].to_vec();
-            m.push(format!("... and {} more matches. Be more specific.", matches.len() - 15));
+            m.push(format!(
+                "... and {} more matches. Be more specific.",
+                matches.len() - 15
+            ));
             m
         } else {
             matches.to_vec()
         };
-        format!("File: {}\nFound {} match(es) for '{}'\n\n{}", path, matches.len(), term, display.join("\n\n"))
+        format!(
+            "File: {}\nFound {} match(es) for '{}'\n\n{}",
+            path,
+            matches.len(),
+            term,
+            display.join("\n\n")
+        )
     }
 }

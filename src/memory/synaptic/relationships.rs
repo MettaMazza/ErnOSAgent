@@ -32,17 +32,11 @@ impl SynapticGraph {
             }
         }
         self.save_edges().await;
-        tracing::info!(
-            "[SYNAPTIC] Edge: '{}' --[{}]--> '{}'",
-            from, relation, to
-        );
+        tracing::info!("[SYNAPTIC] Edge: '{}' --[{}]--> '{}'", from, relation, to);
     }
 
     /// Retrieve recent edges/relationships.
-    pub async fn get_recent_relationships(
-        &self,
-        limit: usize,
-    ) -> Vec<(String, String, String)> {
+    pub async fn get_recent_relationships(&self, limit: usize) -> Vec<(String, String, String)> {
         let edges = self.edges.read().await;
         edges
             .iter()

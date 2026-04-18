@@ -51,12 +51,30 @@ fn run(exec: &ToolExecutor, c: &ToolCall) -> ToolResult {
 fn all_tools_registered() {
     let e = executor();
     let expected = [
-        "codebase_read", "codebase_write", "codebase_patch", "codebase_list",
-        "codebase_search", "codebase_delete", "codebase_insert", "codebase_multi_patch",
-        "run_command", "system_recompile", "git_tool", "tool_forge",
-        "memory_tool", "scratchpad_tool", "lessons_tool", "timeline_tool",
-        "steering_tool", "interpretability_tool", "reasoning_tool",
-        "web_tool", "download_tool", "browser_navigate", "browser_click", "browser_type",
+        "codebase_read",
+        "codebase_write",
+        "codebase_patch",
+        "codebase_list",
+        "codebase_search",
+        "codebase_delete",
+        "codebase_insert",
+        "codebase_multi_patch",
+        "run_command",
+        "system_recompile",
+        "git_tool",
+        "tool_forge",
+        "memory_tool",
+        "scratchpad_tool",
+        "lessons_tool",
+        "timeline_tool",
+        "steering_tool",
+        "interpretability_tool",
+        "reasoning_tool",
+        "web_tool",
+        "download_tool",
+        "browser_navigate",
+        "browser_click",
+        "browser_type",
     ];
     for name in &expected {
         assert!(e.has_tool(name), "Tool '{}' not registered", name);
@@ -68,7 +86,10 @@ fn all_tools_registered() {
 #[test]
 fn memory_tool_status() {
     let e = executor();
-    let r = run(&e, &call("memory_tool", serde_json::json!({"action":"status"})));
+    let r = run(
+        &e,
+        &call("memory_tool", serde_json::json!({"action":"status"})),
+    );
     assert!(r.success, "memory_tool status failed: {:?}", r.error);
     assert!(r.output.contains("MEMORY SYSTEM STATUS"));
 }
@@ -76,21 +97,33 @@ fn memory_tool_status() {
 #[test]
 fn memory_tool_recall() {
     let e = executor();
-    let r = run(&e, &call("memory_tool", serde_json::json!({"action":"recall","query":"test"})));
+    let r = run(
+        &e,
+        &call(
+            "memory_tool",
+            serde_json::json!({"action":"recall","query":"test"}),
+        ),
+    );
     assert!(r.success, "memory_tool recall failed: {:?}", r.error);
 }
 
 #[test]
 fn memory_tool_consolidate() {
     let e = executor();
-    let r = run(&e, &call("memory_tool", serde_json::json!({"action":"consolidate"})));
+    let r = run(
+        &e,
+        &call("memory_tool", serde_json::json!({"action":"consolidate"})),
+    );
     assert!(r.success, "memory_tool consolidate failed: {:?}", r.error);
 }
 
 #[test]
 fn memory_tool_unknown_action() {
     let e = executor();
-    let r = run(&e, &call("memory_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("memory_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -99,24 +132,42 @@ fn memory_tool_unknown_action() {
 #[test]
 fn scratchpad_tool_list() {
     let e = executor();
-    let r = run(&e, &call("scratchpad_tool", serde_json::json!({"action":"list"})));
+    let r = run(
+        &e,
+        &call("scratchpad_tool", serde_json::json!({"action":"list"})),
+    );
     assert!(r.success, "scratchpad_tool list failed: {:?}", r.error);
 }
 
 #[test]
 fn scratchpad_tool_write_and_read() {
     let e = executor();
-    let w = run(&e, &call("scratchpad_tool", serde_json::json!({"action":"write","key":"e2e_test","value":"hello"})));
+    let w = run(
+        &e,
+        &call(
+            "scratchpad_tool",
+            serde_json::json!({"action":"write","key":"e2e_test","value":"hello"}),
+        ),
+    );
     assert!(w.success, "scratchpad write failed: {:?}", w.error);
 
-    let r = run(&e, &call("scratchpad_tool", serde_json::json!({"action":"read","key":"e2e_test"})));
+    let r = run(
+        &e,
+        &call(
+            "scratchpad_tool",
+            serde_json::json!({"action":"read","key":"e2e_test"}),
+        ),
+    );
     assert!(r.success, "scratchpad read failed: {:?}", r.error);
 }
 
 #[test]
 fn scratchpad_tool_missing_key() {
     let e = executor();
-    let r = run(&e, &call("scratchpad_tool", serde_json::json!({"action":"write"})));
+    let r = run(
+        &e,
+        &call("scratchpad_tool", serde_json::json!({"action":"write"})),
+    );
     assert!(!r.success);
 }
 
@@ -125,21 +176,33 @@ fn scratchpad_tool_missing_key() {
 #[test]
 fn lessons_tool_list() {
     let e = executor();
-    let r = run(&e, &call("lessons_tool", serde_json::json!({"action":"list"})));
+    let r = run(
+        &e,
+        &call("lessons_tool", serde_json::json!({"action":"list"})),
+    );
     assert!(r.success, "lessons_tool list failed: {:?}", r.error);
 }
 
 #[test]
 fn lessons_tool_search() {
     let e = executor();
-    let r = run(&e, &call("lessons_tool", serde_json::json!({"action":"search","query":"test"})));
+    let r = run(
+        &e,
+        &call(
+            "lessons_tool",
+            serde_json::json!({"action":"search","query":"test"}),
+        ),
+    );
     assert!(r.success, "lessons_tool search failed: {:?}", r.error);
 }
 
 #[test]
 fn lessons_tool_store_missing_rule() {
     let e = executor();
-    let r = run(&e, &call("lessons_tool", serde_json::json!({"action":"store"})));
+    let r = run(
+        &e,
+        &call("lessons_tool", serde_json::json!({"action":"store"})),
+    );
     assert!(!r.success);
 }
 
@@ -148,21 +211,30 @@ fn lessons_tool_store_missing_rule() {
 #[test]
 fn timeline_tool_recent() {
     let e = executor();
-    let r = run(&e, &call("timeline_tool", serde_json::json!({"action":"recent"})));
+    let r = run(
+        &e,
+        &call("timeline_tool", serde_json::json!({"action":"recent"})),
+    );
     assert!(r.success, "timeline_tool recent failed: {:?}", r.error);
 }
 
 #[test]
 fn timeline_tool_stats() {
     let e = executor();
-    let r = run(&e, &call("timeline_tool", serde_json::json!({"action":"stats"})));
+    let r = run(
+        &e,
+        &call("timeline_tool", serde_json::json!({"action":"stats"})),
+    );
     assert!(r.success, "timeline_tool stats failed: {:?}", r.error);
 }
 
 #[test]
 fn timeline_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("timeline_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("timeline_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -171,35 +243,71 @@ fn timeline_tool_unknown() {
 #[test]
 fn steering_tool_feature_list() {
     let e = executor();
-    let r = run(&e, &call("steering_tool", serde_json::json!({"action":"feature_list"})));
-    assert!(r.success, "steering_tool feature_list failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "steering_tool",
+            serde_json::json!({"action":"feature_list"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "steering_tool feature_list failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn steering_tool_feature_status() {
     let e = executor();
-    let r = run(&e, &call("steering_tool", serde_json::json!({"action":"feature_status"})));
-    assert!(r.success, "steering_tool feature_status failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "steering_tool",
+            serde_json::json!({"action":"feature_status"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "steering_tool feature_status failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn steering_tool_feature_steer() {
     let e = executor();
-    let r = run(&e, &call("steering_tool", serde_json::json!({"action":"feature_steer","feature_id":1,"scale":1.5})));
-    assert!(r.success, "steering_tool feature_steer failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "steering_tool",
+            serde_json::json!({"action":"feature_steer","feature_id":1,"scale":1.5}),
+        ),
+    );
+    assert!(
+        r.success,
+        "steering_tool feature_steer failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn steering_tool_vector_scan() {
     let e = executor();
-    let r = run(&e, &call("steering_tool", serde_json::json!({"action":"vector_scan"})));
+    let r = run(
+        &e,
+        &call("steering_tool", serde_json::json!({"action":"vector_scan"})),
+    );
     assert!(r.success, "steering_tool vector_scan failed: {:?}", r.error);
 }
 
 #[test]
 fn steering_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("steering_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("steering_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -208,42 +316,98 @@ fn steering_tool_unknown() {
 #[test]
 fn interpretability_tool_snapshot() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"snapshot"})));
-    assert!(r.success, "interpretability_tool snapshot failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"snapshot"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "interpretability_tool snapshot failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn interpretability_tool_features() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"features"})));
-    assert!(r.success, "interpretability_tool features failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"features"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "interpretability_tool features failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn interpretability_tool_safety_alerts() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"safety_alerts"})));
-    assert!(r.success, "interpretability_tool safety_alerts failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"safety_alerts"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "interpretability_tool safety_alerts failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn interpretability_tool_cognitive_profile() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"cognitive_profile"})));
-    assert!(r.success, "interpretability_tool cognitive_profile failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"cognitive_profile"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "interpretability_tool cognitive_profile failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn interpretability_tool_emotional_state() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"emotional_state"})));
-    assert!(r.success, "interpretability_tool emotional_state failed: {:?}", r.error);
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"emotional_state"}),
+        ),
+    );
+    assert!(
+        r.success,
+        "interpretability_tool emotional_state failed: {:?}",
+        r.error
+    );
 }
 
 #[test]
 fn interpretability_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("interpretability_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call(
+            "interpretability_tool",
+            serde_json::json!({"action":"explode"}),
+        ),
+    );
     assert!(!r.success);
 }
 
@@ -252,28 +416,43 @@ fn interpretability_tool_unknown() {
 #[test]
 fn reasoning_tool_review() {
     let e = executor();
-    let r = run(&e, &call("reasoning_tool", serde_json::json!({"action":"review"})));
+    let r = run(
+        &e,
+        &call("reasoning_tool", serde_json::json!({"action":"review"})),
+    );
     assert!(r.success, "reasoning_tool review failed: {:?}", r.error);
 }
 
 #[test]
 fn reasoning_tool_stats() {
     let e = executor();
-    let r = run(&e, &call("reasoning_tool", serde_json::json!({"action":"stats"})));
+    let r = run(
+        &e,
+        &call("reasoning_tool", serde_json::json!({"action":"stats"})),
+    );
     assert!(r.success, "reasoning_tool stats failed: {:?}", r.error);
 }
 
 #[test]
 fn reasoning_tool_store() {
     let e = executor();
-    let r = run(&e, &call("reasoning_tool", serde_json::json!({"action":"store","thinking":"test thought","decisions":["d1"],"outcome":"ok"})));
+    let r = run(
+        &e,
+        &call(
+            "reasoning_tool",
+            serde_json::json!({"action":"store","thinking":"test thought","decisions":["d1"],"outcome":"ok"}),
+        ),
+    );
     assert!(r.success, "reasoning_tool store failed: {:?}", r.error);
 }
 
 #[test]
 fn reasoning_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("reasoning_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("reasoning_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -282,14 +461,23 @@ fn reasoning_tool_unknown() {
 #[test]
 fn web_tool_missing_query() {
     let e = executor();
-    let r = run(&e, &call("web_tool", serde_json::json!({"action":"search"})));
+    let r = run(
+        &e,
+        &call("web_tool", serde_json::json!({"action":"search"})),
+    );
     assert!(!r.success);
 }
 
 #[test]
 fn web_tool_invalid_url() {
     let e = executor();
-    let r = run(&e, &call("web_tool", serde_json::json!({"action":"visit","url":"not-a-url"})));
+    let r = run(
+        &e,
+        &call(
+            "web_tool",
+            serde_json::json!({"action":"visit","url":"not-a-url"}),
+        ),
+    );
     assert!(!r.success);
     assert!(r.error.as_ref().unwrap().contains("http"));
 }
@@ -297,7 +485,10 @@ fn web_tool_invalid_url() {
 #[test]
 fn web_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("web_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("web_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -306,21 +497,30 @@ fn web_tool_unknown() {
 #[test]
 fn download_tool_list() {
     let e = executor();
-    let r = run(&e, &call("download_tool", serde_json::json!({"action":"list"})));
+    let r = run(
+        &e,
+        &call("download_tool", serde_json::json!({"action":"list"})),
+    );
     assert!(r.success, "download_tool list failed: {:?}", r.error);
 }
 
 #[test]
 fn download_tool_missing_url() {
     let e = executor();
-    let r = run(&e, &call("download_tool", serde_json::json!({"action":"download"})));
+    let r = run(
+        &e,
+        &call("download_tool", serde_json::json!({"action":"download"})),
+    );
     assert!(!r.success);
 }
 
 #[test]
 fn download_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("download_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("download_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -336,7 +536,10 @@ fn codebase_list() {
 #[test]
 fn codebase_read() {
     let e = executor();
-    let r = run(&e, &call("codebase_read", serde_json::json!({"path":"Cargo.toml"})));
+    let r = run(
+        &e,
+        &call("codebase_read", serde_json::json!({"path":"Cargo.toml"})),
+    );
     assert!(r.success, "codebase_read failed: {:?}", r.error);
     assert!(r.output.contains("[package]"));
 }
@@ -345,7 +548,13 @@ fn codebase_read() {
 fn codebase_search() {
     // codebase_search searches within a single file (not recursive directory search)
     let e = executor();
-    let r = run(&e, &call("codebase_search", serde_json::json!({"query":"[package]","path":"Cargo.toml"})));
+    let r = run(
+        &e,
+        &call(
+            "codebase_search",
+            serde_json::json!({"query":"[package]","path":"Cargo.toml"}),
+        ),
+    );
     assert!(r.success, "codebase_search failed: {:?}", r.error);
     assert!(r.output.contains("[package]"));
 }
@@ -353,7 +562,13 @@ fn codebase_search() {
 #[test]
 fn codebase_read_nonexistent() {
     let e = executor();
-    let r = run(&e, &call("codebase_read", serde_json::json!({"path":"nonexistent_file_xyz.rs"})));
+    let r = run(
+        &e,
+        &call(
+            "codebase_read",
+            serde_json::json!({"path":"nonexistent_file_xyz.rs"}),
+        ),
+    );
     assert!(!r.success);
 }
 
@@ -362,7 +577,10 @@ fn codebase_read_nonexistent() {
 #[tokio::test(flavor = "multi_thread")]
 async fn git_tool_status() {
     let e = executor();
-    let r = run(&e, &call("git_tool", serde_json::json!({"action":"status"})));
+    let r = run(
+        &e,
+        &call("git_tool", serde_json::json!({"action":"status"})),
+    );
     assert!(r.success, "git_tool status failed: {:?}", r.error);
 }
 
@@ -383,7 +601,10 @@ async fn git_tool_diff() {
 #[test]
 fn git_tool_unknown() {
     let e = executor();
-    let r = run(&e, &call("git_tool", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("git_tool", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -392,7 +613,13 @@ fn git_tool_unknown() {
 #[tokio::test(flavor = "multi_thread")]
 async fn run_command_echo() {
     let e = executor();
-    let r = run(&e, &call("run_command", serde_json::json!({"command":"echo hello_e2e"})));
+    let r = run(
+        &e,
+        &call(
+            "run_command",
+            serde_json::json!({"command":"echo hello_e2e"}),
+        ),
+    );
     assert!(r.success, "run_command failed: {:?}", r.error);
     assert!(r.output.contains("hello_e2e"));
 }
@@ -409,14 +636,20 @@ fn run_command_missing() {
 #[test]
 fn forge_list() {
     let e = executor();
-    let r = run(&e, &call("tool_forge", serde_json::json!({"action":"list"})));
+    let r = run(
+        &e,
+        &call("tool_forge", serde_json::json!({"action":"list"})),
+    );
     assert!(r.success, "tool_forge list failed: {:?}", r.error);
 }
 
 #[test]
 fn forge_unknown() {
     let e = executor();
-    let r = run(&e, &call("tool_forge", serde_json::json!({"action":"explode"})));
+    let r = run(
+        &e,
+        &call("tool_forge", serde_json::json!({"action":"explode"})),
+    );
     assert!(!r.success);
 }
 
@@ -426,10 +659,24 @@ fn forge_unknown() {
 fn browser_tool_navigate_data_uri() {
     let e = executor();
     // Using a data URI to bypass network latency and ensure test stability
-    let r = run(&e, &call("browser_navigate", serde_json::json!({
-        "url": "data:text/html,<html><body><h1>Test H1</h1></body></html>"
-    })));
+    let r = run(
+        &e,
+        &call(
+            "browser_navigate",
+            serde_json::json!({
+                "url": "data:text/html,<html><body><h1>Test H1</h1></body></html>"
+            }),
+        ),
+    );
     assert!(r.success, "browser_navigate failed: {:?}", r.error);
-    assert!(r.output.contains("Test H1"), "Output missing DOM content: {}", r.output);
-    assert!(r.output.contains("MEDIA:"), "Output missing media screenshot tag: {}", r.output);
+    assert!(
+        r.output.contains("Test H1"),
+        "Output missing DOM content: {}",
+        r.output
+    );
+    assert!(
+        r.output.contains("MEDIA:"),
+        "Output missing media screenshot tag: {}",
+        r.output
+    );
 }

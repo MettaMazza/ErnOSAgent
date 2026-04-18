@@ -11,7 +11,10 @@ use crate::tools::schema::ToolCall;
 pub(super) async fn action_execute(state: &TuringState) -> ActionResult {
     let (format_str, content) = {
         let mut g = state.grid.lock().await;
-        match g.read_current().map(|c| (c.format.clone(), c.content.clone())) {
+        match g
+            .read_current()
+            .map(|c| (c.format.clone(), c.content.clone()))
+        {
             Some(info) => {
                 let _ = g.update_status("Running").await;
                 info
@@ -45,15 +48,13 @@ pub(super) async fn action_execute(state: &TuringState) -> ActionResult {
     }
 }
 
-pub(super) async fn action_pipeline(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_pipeline(call: &ToolCall, state: &TuringState) -> ActionResult {
     let cells_raw = match call.arguments.get("cells").and_then(|v| v.as_str()) {
         Some(c) => c.to_string(),
         None => {
             return (
-                "Error: No cells specified for pipeline. Use 'cells': '(x,y,z),(x,y,z),...'".to_string(),
+                "Error: No cells specified for pipeline. Use 'cells': '(x,y,z),(x,y,z),...'"
+                    .to_string(),
                 false,
                 Some("No cells specified. Use 'cells': '(x,y,z),(x,y,z),...'".to_string()),
             )
@@ -62,7 +63,13 @@ pub(super) async fn action_pipeline(
 
     let pipeline_cells = match collect_pipeline_cells(&cells_raw, state).await {
         Ok(cells) => cells,
-        Err(err) => return (format!("Error: Pipeline setup failed: {}", err), false, Some(err)),
+        Err(err) => {
+            return (
+                format!("Error: Pipeline setup failed: {}", err),
+                false,
+                Some(err),
+            )
+        }
     };
 
     match state.alu.execute_pipeline(&pipeline_cells).await {
@@ -135,10 +142,7 @@ fn parse_coord_tuples(raw: &str) -> Result<Vec<(i32, i32, i32)>, String> {
     }
 }
 
-pub(super) async fn action_deploy_daemon(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_deploy_daemon(call: &ToolCall, state: &TuringState) -> ActionResult {
     let interval = call
         .arguments
         .get("interval")
@@ -168,7 +172,9 @@ async fn acquire_daemon_lock(
     state: &TuringState,
 ) -> Result<(String, String, (i32, i32, i32)), ActionResult> {
     let mut g = state.grid.lock().await;
-    let cell_info = g.read_current().map(|c| (c.format.clone(), c.content.clone()));
+    let cell_info = g
+        .read_current()
+        .map(|c| (c.format.clone(), c.content.clone()));
     let coords = g.get_cursor();
 
     match cell_info {
@@ -211,7 +217,10 @@ fn spawn_daemon_loop(
     tokio::spawn(async move {
         tracing::info!(
             "[DAEMON] Turing Daemon spawned on ({},{},{}) interval: {}s",
-            x, y, z, interval
+            x,
+            y,
+            z,
+            interval
         );
 
         loop {
@@ -226,7 +235,9 @@ fn spawn_daemon_loop(
                     if !stdout.is_empty() {
                         tracing::info!(
                             "[DAEMON] ({},{},{}) output: {}",
-                            x, y, z,
+                            x,
+                            y,
+                            z,
                             stdout.chars().take(200).collect::<String>()
                         );
                     }
@@ -244,13 +255,20 @@ fn spawn_daemon_loop(
 /// Check if the daemon lock is still active.
 async fn check_daemon_lock(
     grid: &std::sync::Arc<tokio::sync::Mutex<crate::computer::turing_grid::TuringGrid>>,
-    x: i32, y: i32, z: i32,
+    x: i32,
+    y: i32,
+    z: i32,
 ) -> bool {
     let g = grid.lock().await;
     match g.read_at(x, y, z) {
         Some(cell) if cell.daemon_active => true,
         _ => {
-            tracing::info!("[DAEMON] Daemon killed on ({},{},{}) — lock removed.", x, y, z);
+            tracing::info!(
+                "[DAEMON] Daemon killed on ({},{},{}) — lock removed.",
+                x,
+                y,
+                z
+            );
             false
         }
     }

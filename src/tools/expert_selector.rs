@@ -20,7 +20,10 @@ pub enum ExpertBackend {
     /// A cloud API provider with a specific model.
     CloudApi { provider: String, model: String },
     /// A local model available through the inference provider.
-    LocalModel { name: String, parameter_size: String },
+    LocalModel {
+        name: String,
+        parameter_size: String,
+    },
     /// User-specified override via env var.
     EnvOverride { model: String },
 }
@@ -40,7 +43,10 @@ impl std::fmt::Display for ExpertBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CloudApi { provider, model } => write!(f, "{model} (via {provider})"),
-            Self::LocalModel { name, parameter_size } => write!(f, "{name} ({parameter_size})"),
+            Self::LocalModel {
+                name,
+                parameter_size,
+            } => write!(f, "{name} ({parameter_size})"),
             Self::EnvOverride { model } => write!(f, "{model} (env override)"),
         }
     }
@@ -49,9 +55,7 @@ impl std::fmt::Display for ExpertBackend {
 /// Select the best expert model for distillation.
 ///
 /// Priority: env override → cloud API → largest local model.
-pub async fn select_expert_model(
-    provider: &Arc<dyn Provider>,
-) -> anyhow::Result<ExpertBackend> {
+pub async fn select_expert_model(provider: &Arc<dyn Provider>) -> anyhow::Result<ExpertBackend> {
     // 1. Check env override
     if let Some(backend) = check_env_override() {
         tracing::info!(model = %backend, "Expert model: env override");
@@ -70,9 +74,9 @@ pub async fn select_expert_model(
 
 /// Check for `ERNOS_EXPERT_MODEL` env override.
 fn check_env_override() -> Option<ExpertBackend> {
-    std::env::var("ERNOS_EXPERT_MODEL").ok().map(|model| {
-        ExpertBackend::EnvOverride { model }
-    })
+    std::env::var("ERNOS_EXPERT_MODEL")
+        .ok()
+        .map(|model| ExpertBackend::EnvOverride { model })
 }
 
 /// Detect available cloud API providers via env var keys.
@@ -100,9 +104,7 @@ fn detect_cloud_provider() -> Option<ExpertBackend> {
 }
 
 /// Query the local inference provider for available models and select the largest.
-async fn select_largest_local(
-    provider: &Arc<dyn Provider>,
-) -> anyhow::Result<ExpertBackend> {
+async fn select_largest_local(provider: &Arc<dyn Provider>) -> anyhow::Result<ExpertBackend> {
     let models = provider.list_models().await?;
 
     if models.is_empty() {
@@ -131,7 +133,10 @@ async fn select_largest_local(
 
 /// Find the model with the largest parameter count from a list of summaries.
 fn find_largest_model(models: &[ModelSummary]) -> &ModelSummary {
-    models.iter().max_by_key(|m| parse_param_size(&m.parameter_size)).unwrap()
+    models
+        .iter()
+        .max_by_key(|m| parse_param_size(&m.parameter_size))
+        .unwrap()
 }
 
 /// Parse a parameter size string like "26B", "122B", "7.5B" into a comparable integer.
@@ -227,7 +232,9 @@ mod tests {
 
     #[test]
     fn test_env_override_model_name() {
-        let backend = ExpertBackend::EnvOverride { model: "custom:latest".to_string() };
+        let backend = ExpertBackend::EnvOverride {
+            model: "custom:latest".to_string(),
+        };
         assert_eq!(backend.model_name(), "custom:latest");
     }
 }

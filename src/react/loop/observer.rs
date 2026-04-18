@@ -5,8 +5,8 @@
 // This is the original author's open-source work. Preserve this header.
 //! Observer audit pipeline and rejection handling.
 
-use super::{ReactConfig, ReactEvent, ReactResult};
 use super::learning::{self, LearningContext};
+use super::{ReactConfig, ReactEvent, ReactResult};
 use crate::observer::audit;
 use crate::provider::{Message, Provider};
 use crate::tools::executor::ToolExecutor;
@@ -39,17 +39,36 @@ pub(super) async fn handle_reply(
     learning_ctx: &mut LearningContext,
 ) -> ReplyOutcome {
     if !config.observer_enabled {
-        tracing::info!(turns = turn, tools = all_tool_results.len(), "ReAct loop complete (no observer)");
+        tracing::info!(
+            turns = turn,
+            tools = all_tool_results.len(),
+            "ReAct loop complete (no observer)"
+        );
         if let Some(ref buffers) = learning_ctx.buffers {
-            learning::capture_golden(buffers, system_prompt, &learning_ctx.user_message, reply_text, &learning_ctx.session_id, model);
+            learning::capture_golden(
+                buffers,
+                system_prompt,
+                &learning_ctx.user_message,
+                reply_text,
+                &learning_ctx.session_id,
+                model,
+            );
         }
         return deliver_response(reply_text, turn, all_tool_results, 0, 0, event_tx).await;
     }
 
     let audit_output = run_observer_audit(
-        provider, model, messages, config, executor, all_tool_results, reply_text, event_tx,
+        provider,
+        model,
+        messages,
+        config,
+        executor,
+        all_tool_results,
+        reply_text,
+        event_tx,
         &learning_ctx.user_message,
-    ).await;
+    )
+    .await;
 
     let audit_result = &audit_output.result;
 
@@ -80,23 +99,46 @@ pub(super) async fn handle_reply(
 
     if audit_result.verdict.is_allowed() {
         *audit_passes += 1;
-        tracing::info!(turns = turn, audit_passes = *audit_passes, "ReAct loop complete (audit passed)");
+        tracing::info!(
+            turns = turn,
+            audit_passes = *audit_passes,
+            "ReAct loop complete (audit passed)"
+        );
 
         if let Some(ref buffers) = learning_ctx.buffers {
             if *consecutive_audit_rejections == 0 {
-                learning::capture_golden(buffers, system_prompt, &learning_ctx.user_message, reply_text, &learning_ctx.session_id, model);
+                learning::capture_golden(
+                    buffers,
+                    system_prompt,
+                    &learning_ctx.user_message,
+                    reply_text,
+                    &learning_ctx.session_id,
+                    model,
+                );
             } else {
                 // Retroactive labeling: Observer's prior BLOCKED verdicts for this
                 // session were correct — the model had to correct itself to pass.
-                if let Err(e) = buffers.observer.mark_session_correct(&learning_ctx.session_id) {
+                if let Err(e) = buffers
+                    .observer
+                    .mark_session_correct(&learning_ctx.session_id)
+                {
                     tracing::warn!(error = %e, "Failed to retroactively label observer entries — non-fatal");
                 }
 
                 if let Some(ref rejected) = learning_ctx.last_rejected {
-                    let category = learning_ctx.last_failure_category.as_deref().unwrap_or("unknown");
+                    let category = learning_ctx
+                        .last_failure_category
+                        .as_deref()
+                        .unwrap_or("unknown");
                     learning::capture_preference(
-                        buffers, system_prompt, &learning_ctx.user_message,
-                        rejected, reply_text, category, &learning_ctx.session_id, model,
+                        buffers,
+                        system_prompt,
+                        &learning_ctx.user_message,
+                        rejected,
+                        reply_text,
+                        category,
+                        &learning_ctx.session_id,
+                        model,
                     );
                 }
             }
@@ -105,18 +147,35 @@ pub(super) async fn handle_reply(
         learning_ctx.last_failure_category = None;
 
         return deliver_response(
-            reply_text, turn, all_tool_results, *audit_passes, *total_audit_rejections, event_tx,
-        ).await;
+            reply_text,
+            turn,
+            all_tool_results,
+            *audit_passes,
+            *total_audit_rejections,
+            event_tx,
+        )
+        .await;
     }
 
     learning_ctx.last_rejected = Some(reply_text.to_string());
     learning_ctx.last_failure_category = Some(audit_result.failure_category.clone());
 
     handle_audit_rejection(
-        audit_result, reply_text, messages, config, all_tool_results, turn,
-        audit_passes, total_audit_rejections, consecutive_audit_rejections, event_tx,
-        learning_ctx, system_prompt, model,
-    ).await
+        audit_result,
+        reply_text,
+        messages,
+        config,
+        all_tool_results,
+        turn,
+        audit_passes,
+        total_audit_rejections,
+        consecutive_audit_rejections,
+        event_tx,
+        learning_ctx,
+        system_prompt,
+        model,
+    )
+    .await
 }
 
 async fn deliver_response(
@@ -127,7 +186,11 @@ async fn deliver_response(
     audit_rejections: usize,
     event_tx: &mpsc::Sender<ReactEvent>,
 ) -> ReplyOutcome {
-    let _ = event_tx.send(ReactEvent::ResponseReady { text: text.to_string() }).await;
+    let _ = event_tx
+        .send(ReactEvent::ResponseReady {
+            text: text.to_string(),
+        })
+        .await;
     ReplyOutcome::Deliver(ReactResult {
         response: text.to_string(),
         turns: turn,
@@ -154,14 +217,23 @@ async fn run_observer_audit(
     let capabilities = executor.available_tools().join(", ");
 
     let output = audit::audit_response(
-        provider, audit_model, messages, reply_text, &tool_context, &capabilities, user_message,
-    ).await;
+        provider,
+        audit_model,
+        messages,
+        reply_text,
+        &tool_context,
+        &capabilities,
+        user_message,
+    )
+    .await;
 
-    let _ = event_tx.send(ReactEvent::AuditCompleted {
-        verdict: output.result.verdict.clone(),
-        reason: output.result.failure_category.clone(),
-        confidence: output.result.confidence,
-    }).await;
+    let _ = event_tx
+        .send(ReactEvent::AuditCompleted {
+            verdict: output.result.verdict.clone(),
+            reason: output.result.failure_category.clone(),
+            confidence: output.result.confidence,
+        })
+        .await;
 
     output
 }
@@ -193,9 +265,13 @@ async fn handle_audit_rejection(
     // Persist every rejection into the RejectionBuffer for KTO training
     if let Some(ref buffers) = learning_ctx.buffers {
         learning::capture_rejection(
-            buffers, system_prompt, &learning_ctx.user_message,
-            reply_text, &audit_result.failure_category,
-            &learning_ctx.session_id, model,
+            buffers,
+            system_prompt,
+            &learning_ctx.user_message,
+            reply_text,
+            &audit_result.failure_category,
+            &learning_ctx.session_id,
+            model,
         );
     }
 
@@ -207,8 +283,7 @@ async fn handle_audit_rejection(
             Your responses keep failing audit. Strip your answer to the absolute minimum. \
             Answer ONLY what was asked. No preamble, no disclaimers, no elaboration. \
             Failure category: '{}'. Fix ONLY that and call reply_request.]",
-            consecutive_audit_rejections,
-            audit_result.failure_category,
+            consecutive_audit_rejections, audit_result.failure_category,
         )
     } else if *consecutive_audit_rejections >= 5 {
         // After 5, add stronger directive
@@ -217,8 +292,7 @@ async fn handle_audit_rejection(
             Your previous attempts were rejected. Re-read the user's original question carefully. \
             Provide a direct, factual answer. Do not speculate. Do not add unnecessary content. \
             The observer will keep rejecting until your response is correct.]",
-            consecutive_audit_rejections,
-            audit_result.failure_category,
+            consecutive_audit_rejections, audit_result.failure_category,
         )
     } else if *consecutive_audit_rejections >= 2 {
         messages.push(Message {

@@ -17,13 +17,13 @@
 //! Tier 7: Procedures — reusable workflows
 
 pub mod consolidation;
-pub mod timeline;
 pub mod embeddings;
 pub mod knowledge_graph;
-pub mod scratchpad;
 pub mod lessons;
 pub mod procedures;
+pub mod scratchpad;
 pub mod synaptic;
+pub mod timeline;
 
 use crate::provider::Message;
 use anyhow::{Context, Result};
@@ -122,11 +122,7 @@ impl MemoryManager {
     ///
     /// Allocation: Scratchpad (40%) → Lessons (30%) → Timeline (20%) → KG (10%).
     /// Each tier gets its share of the budget; unused budget is NOT redistributed.
-    pub async fn recall_context(
-        &self,
-        user_message: &str,
-        budget_tokens: usize,
-    ) -> Vec<Message> {
+    pub async fn recall_context(&self, user_message: &str, budget_tokens: usize) -> Vec<Message> {
         let mut context_messages = Vec::new();
         let total_chars = budget_tokens * 4; // 4 chars ≈ 1 token
 
@@ -278,9 +274,11 @@ impl MemoryManager {
         session_id: &str,
     ) -> Result<()> {
         // Store both sides in timeline
-        self.timeline.archive(session_id, user_msg)
+        self.timeline
+            .archive(session_id, user_msg)
             .with_context(|| "Failed to archive user message to timeline")?;
-        self.timeline.archive(session_id, assistant_msg)
+        self.timeline
+            .archive(session_id, assistant_msg)
             .with_context(|| "Failed to archive assistant message to timeline")?;
 
         tracing::debug!(
@@ -341,16 +339,19 @@ impl MemoryManager {
     pub fn clear(&mut self, data_dir: &Path) {
         // Zero in-memory stores
         self.timeline.clear_entries();
-        self.lessons      = lessons::LessonStore::new();
-        self.procedures   = procedures::ProcedureStore::new();
-        self.scratchpad   = scratchpad::ScratchpadStore::new();
-        self.embeddings   = embeddings::EmbeddingStore::new();
+        self.lessons = lessons::LessonStore::new();
+        self.procedures = procedures::ProcedureStore::new();
+        self.scratchpad = scratchpad::ScratchpadStore::new();
+        self.embeddings = embeddings::EmbeddingStore::new();
         self.consolidation = consolidation::ConsolidationEngine::new();
 
         // Delete backing files
         let files = [
-            "lessons.json", "procedures.json",
-            "scratchpad.json", "embeddings.json", "consolidation.json",
+            "lessons.json",
+            "procedures.json",
+            "scratchpad.json",
+            "embeddings.json",
+            "consolidation.json",
         ];
         for f in &files {
             let path = data_dir.join(f);

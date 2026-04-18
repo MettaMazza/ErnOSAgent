@@ -84,7 +84,7 @@ fn load_single_shard(weights_dir: &Path, device: &Device) -> Result<VarBuilder<'
 pub struct LayerDims {
     pub q_out: usize,
     pub k_out: usize,
-    pub v_out: usize,  // 0 means K=V sharing (no separate v_proj)
+    pub v_out: usize, // 0 means K=V sharing (no separate v_proj)
     pub o_in: usize,
 }
 
@@ -129,29 +129,34 @@ pub fn detect_per_layer_dims(
         let o_key = format!("{lp}.self_attn.o_proj.weight");
 
         // Weight shape is [out_dim, in_dim] for linear layers
-        let q_out = shapes.get(&q_key)
-            .map(|s| s[0])
-            .unwrap_or(hidden_dim);
-        let k_out = shapes.get(&k_key)
-            .map(|s| s[0])
-            .unwrap_or(hidden_dim);
-        let v_out = shapes.get(&v_key)
-            .map(|s| s[0])
-            .unwrap_or(0); // 0 = K=V sharing
-        let o_in = shapes.get(&o_key)
+        let q_out = shapes.get(&q_key).map(|s| s[0]).unwrap_or(hidden_dim);
+        let k_out = shapes.get(&k_key).map(|s| s[0]).unwrap_or(hidden_dim);
+        let v_out = shapes.get(&v_key).map(|s| s[0]).unwrap_or(0); // 0 = K=V sharing
+        let o_in = shapes
+            .get(&o_key)
             .map(|s| s[1]) // o_proj: [hidden, q_dim] → in_dim = s[1]
             .unwrap_or(q_out);
 
         tracing::debug!(
-            layer, q_out, k_out, v_out, o_in,
+            layer,
+            q_out,
+            k_out,
+            v_out,
+            o_in,
             "Detected layer projection dims"
         );
 
-        layer_dims.push(LayerDims { q_out, k_out, v_out, o_in });
+        layer_dims.push(LayerDims {
+            q_out,
+            k_out,
+            v_out,
+            o_in,
+        });
     }
 
     // Log the layer type distribution
-    let uniform_count = layer_dims.iter()
+    let uniform_count = layer_dims
+        .iter()
         .filter(|d| d.q_out == layer_dims[0].q_out)
         .count();
     if uniform_count < num_layers {
@@ -188,9 +193,12 @@ fn read_safetensors_shapes(weights_dir: &Path) -> Result<HashMap<String, Vec<usi
 
             if let Some(obj) = header.as_object() {
                 for (name, meta) in obj {
-                    if name == "__metadata__" { continue; }
+                    if name == "__metadata__" {
+                        continue;
+                    }
                     if let Some(shape_arr) = meta.get("shape").and_then(|s| s.as_array()) {
-                        let shape: Vec<usize> = shape_arr.iter()
+                        let shape: Vec<usize> = shape_arr
+                            .iter()
                             .filter_map(|v| v.as_u64().map(|n| n as usize))
                             .collect();
                         shapes.insert(name.clone(), shape);
@@ -249,7 +257,10 @@ pub fn build_lora_varmap(config: &LoraConfig, device: &Device) -> Result<VarMap>
             vs.pp(&prefix).get_with_hints(
                 (config.rank, in_dim),
                 "lora_a",
-                candle_nn::init::Init::Uniform { lo: -bound, up: bound },
+                candle_nn::init::Init::Uniform {
+                    lo: -bound,
+                    up: bound,
+                },
             )?;
             // B: [out_dim, rank] — up-projection to output space
             vs.pp(&prefix).get_with_hints(
@@ -284,17 +295,15 @@ pub fn load_previous_adapter(
 ) -> Result<HashMap<String, candle_core::Tensor>> {
     let adapter_path = adapter_dir.join("adapter_model.safetensors");
     if !adapter_path.exists() {
-        anyhow::bail!(
-            "Previous adapter not found at {}",
-            adapter_path.display()
-        );
+        anyhow::bail!("Previous adapter not found at {}", adapter_path.display());
     }
 
-    let tensors = candle_core::safetensors::load(&adapter_path, device)
-        .with_context(|| format!(
+    let tensors = candle_core::safetensors::load(&adapter_path, device).with_context(|| {
+        format!(
             "Failed to load previous adapter: {}",
             adapter_path.display()
-        ))?;
+        )
+    })?;
 
     tracing::info!(
         tensors = tensors.len(),
@@ -323,9 +332,10 @@ pub fn build_lora_varmap_with_resume(
 
     // Overwrite matching tensors from the previous adapter
     let mut resumed = 0usize;
-    let data = var_map.data().lock().map_err(|e| {
-        anyhow::anyhow!("VarMap lock failed: {e}")
-    })?;
+    let data = var_map
+        .data()
+        .lock()
+        .map_err(|e| anyhow::anyhow!("VarMap lock failed: {e}"))?;
 
     for (name, var) in data.iter() {
         if let Some(prev_tensor) = previous.get(name) {

@@ -8,11 +8,13 @@
 //! Orchestrates: generate candidates → score → compute advantage → policy gradient → update.
 //! Uses the existing LoRA infrastructure for parameter-efficient training.
 
+use super::generation::ScoredGroup;
 use crate::learning::lora::loss::learning_rate;
 use crate::learning::lora::optimizer::AdamState;
-use crate::learning::lora::weights::{build_lora_varmap, build_lora_varmap_with_resume, load_base_weights};
-use crate::learning::lora::{Tokenizer, LoraConfig, TrainingReport};
-use super::generation::ScoredGroup;
+use crate::learning::lora::weights::{
+    build_lora_varmap, build_lora_varmap_with_resume, load_base_weights,
+};
+use crate::learning::lora::{LoraConfig, Tokenizer, TrainingReport};
 use anyhow::{bail, Context, Result};
 use candle_core::{DType, Device, Tensor, D};
 
@@ -63,7 +65,11 @@ pub fn train_grpo(
 
         // Forward pass
         let logits = crate::learning::lora::forward::forward_with_lora(
-            &sample.input_ids, &base_vb, &var_map, config, &device,
+            &sample.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         // Compute per-token log-probabilities
@@ -75,7 +81,8 @@ pub fn train_grpo(
 
         // Optional KL penalty (keeps policy close to base)
         let total_loss_tensor = if kl_beta > 0.0 {
-            let kl_penalty = compute_kl_penalty(&logits, &sample.labels, &base_vb, config, &device)?;
+            let kl_penalty =
+                compute_kl_penalty(&logits, &sample.labels, &base_vb, config, &device)?;
             (pg_loss + (kl_penalty * kl_beta)?)?
         } else {
             pg_loss
@@ -100,7 +107,12 @@ pub fn train_grpo(
     }
 
     let avg_loss = total_loss / config.num_iterations as f32;
-    crate::learning::lora::adapters::save_adapters(&var_map, config, avg_loss, config.num_iterations)?;
+    crate::learning::lora::adapters::save_adapters(
+        &var_map,
+        config,
+        avg_loss,
+        config.num_iterations,
+    )?;
 
     let report = TrainingReport {
         iteration: config.num_iterations,
@@ -111,7 +123,10 @@ pub fn train_grpo(
         elapsed: start.elapsed(),
     };
 
-    tracing::info!(avg_loss = format!("{:.4}", report.loss), "GRPO training complete");
+    tracing::info!(
+        avg_loss = format!("{:.4}", report.loss),
+        "GRPO training complete"
+    );
     Ok(report)
 }
 
@@ -168,7 +183,11 @@ fn prepare_grpo_samples(
 }
 
 /// Build causal LM labels (prompt=-100, response=token_id).
-fn build_causal_labels(prompt_ids: &[u32], response_ids: &[u32], total_len: usize) -> (Vec<u32>, Vec<i32>) {
+fn build_causal_labels(
+    prompt_ids: &[u32],
+    response_ids: &[u32],
+    total_len: usize,
+) -> (Vec<u32>, Vec<i32>) {
     let mut input_ids = Vec::with_capacity(total_len);
     let mut labels = Vec::with_capacity(total_len);
 
@@ -191,7 +210,9 @@ fn compute_token_logprobs(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
 
     for t in 0..seq_len.saturating_sub(1) {
         let label = labels[t + 1];
-        if label < 0 { continue; }
+        if label < 0 {
+            continue;
+        }
         let logit = logits.get(0)?.get(t)?;
         let log_probs = candle_nn::ops::log_softmax(&logit.unsqueeze(0)?, D::Minus1)?;
         probs.push(log_probs.get(0)?.get(label as usize)?);
@@ -201,7 +222,9 @@ fn compute_token_logprobs(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
         return Tensor::zeros((), DType::F32, logits.device()).context("zero logprob");
     }
 
-    Tensor::stack(&probs, 0)?.mean(D::Minus1).context("token logprob mean failed")
+    Tensor::stack(&probs, 0)?
+        .mean(D::Minus1)
+        .context("token logprob mean failed")
 }
 
 /// Estimate KL divergence between current policy and base model.
@@ -242,11 +265,14 @@ mod tests {
 
         ScoredGroup {
             prompt: "What is Rust?".to_string(),
-            candidates: rewards.into_iter().map(|r| ScoredCandidate {
-                response: format!("Response with reward {r}"),
-                reward: r,
-                breakdown: vec![],
-            }).collect(),
+            candidates: rewards
+                .into_iter()
+                .map(|r| ScoredCandidate {
+                    response: format!("Response with reward {r}"),
+                    reward: r,
+                    breakdown: vec![],
+                })
+                .collect(),
             mean_reward: mean,
             std_reward: std,
         }

@@ -20,7 +20,7 @@
 //! maintainers (who run everything locally on Apple Silicon) and are provided as-is.
 //! Local inference with llama.cpp or Ollama is the recommended and supported configuration.
 
-use crate::model::spec::{ModelCapabilities, ModelSpec, ModelSummary, Modality};
+use crate::model::spec::{Modality, ModelCapabilities, ModelSpec, ModelSummary};
 use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
@@ -122,8 +122,9 @@ impl OpenAICompatProvider {
         let mut r = req.header("Authorization", format!("Bearer {}", self.config.api_key));
         // Anthropic uses a different header
         if self.config.provider_id == "claude" {
-            r = r.header("x-api-key", &self.config.api_key)
-                 .header("anthropic-version", "2023-06-01");
+            r = r
+                .header("x-api-key", &self.config.api_key)
+                .header("anthropic-version", "2023-06-01");
         }
         r
     }
@@ -131,8 +132,12 @@ impl OpenAICompatProvider {
 
 #[async_trait]
 impl Provider for OpenAICompatProvider {
-    fn id(&self) -> &str { &self.config.provider_id }
-    fn display_name(&self) -> &str { &self.config.name }
+    fn id(&self) -> &str {
+        &self.config.provider_id
+    }
+    fn display_name(&self) -> &str {
+        &self.config.name
+    }
 
     async fn list_models(&self) -> Result<Vec<ModelSummary>> {
         let url = format!("{}/models", self.config.base_url);
@@ -141,18 +146,29 @@ impl Provider for OpenAICompatProvider {
         match req.send().await {
             Ok(resp) if resp.status().is_success() => {
                 let body: serde_json::Value = resp.json().await.unwrap_or_default();
-                let models = body.get("data")
+                let models = body
+                    .get("data")
                     .and_then(|d| d.as_array())
-                    .map(|arr| arr.iter().map(|m| {
-                        ModelSummary {
-                            name: m.get("id").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-                            provider: self.config.provider_id.clone(),
-                            parameter_size: String::new(),
-                            quantization_level: String::new(),
-                            capabilities: ModelCapabilities { text: true, tool_calling: true, ..Default::default() },
-                            context_length: 0,
-                        }
-                    }).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|m| ModelSummary {
+                                name: m
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string(),
+                                provider: self.config.provider_id.clone(),
+                                parameter_size: String::new(),
+                                quantization_level: String::new(),
+                                capabilities: ModelCapabilities {
+                                    text: true,
+                                    tool_calling: true,
+                                    ..Default::default()
+                                },
+                                context_length: 0,
+                            })
+                            .collect()
+                    })
                     .unwrap_or_default();
                 Ok(models)
             }
@@ -163,7 +179,11 @@ impl Provider for OpenAICompatProvider {
                     provider: self.config.provider_id.clone(),
                     parameter_size: String::new(),
                     quantization_level: String::new(),
-                    capabilities: ModelCapabilities { text: true, tool_calling: true, ..Default::default() },
+                    capabilities: ModelCapabilities {
+                        text: true,
+                        tool_calling: true,
+                        ..Default::default()
+                    },
                     context_length: 0,
                 }])
             }
@@ -194,7 +214,9 @@ impl Provider for OpenAICompatProvider {
             context_length: ctx,
             capabilities: ModelCapabilities {
                 text: true,
-                vision: model.contains("4o") || model.contains("vision") || model.contains("claude"),
+                vision: model.contains("4o")
+                    || model.contains("vision")
+                    || model.contains("claude"),
                 tool_calling: true,
                 thinking: model.contains("o1") || model.contains("claude"),
                 ..Default::default()
@@ -204,8 +226,11 @@ impl Provider for OpenAICompatProvider {
     }
 
     async fn chat(
-        &self, model: &str, messages: &[Message],
-        tools: Option<&[ToolDefinition]>, tx: mpsc::Sender<StreamEvent>,
+        &self,
+        model: &str,
+        messages: &[Message],
+        tools: Option<&[ToolDefinition]>,
+        tx: mpsc::Sender<StreamEvent>,
     ) -> Result<()> {
         let url = format!("{}/chat/completions", self.config.base_url);
 
@@ -236,12 +261,17 @@ impl Provider for OpenAICompatProvider {
 
         for line in body_text.lines() {
             let line = line.trim();
-            if !line.starts_with("data: ") { continue; }
+            if !line.starts_with("data: ") {
+                continue;
+            }
             let data = &line[6..];
-            if data == "[DONE]" { break; }
+            if data == "[DONE]" {
+                break;
+            }
 
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                if let Some(delta) = parsed.get("choices")
+                if let Some(delta) = parsed
+                    .get("choices")
                     .and_then(|c| c.as_array())
                     .and_then(|arr| arr.first())
                     .and_then(|c| c.get("delta"))
@@ -254,16 +284,23 @@ impl Provider for OpenAICompatProvider {
             }
         }
 
-        let _ = tx.send(StreamEvent::Done {
-            total_tokens: 0,
-            prompt_tokens: 0,
-            completion_tokens: 0,
-        }).await;
+        let _ = tx
+            .send(StreamEvent::Done {
+                total_tokens: 0,
+                prompt_tokens: 0,
+                completion_tokens: 0,
+            })
+            .await;
 
         Ok(())
     }
 
-    async fn chat_sync(&self, model: &str, messages: &[Message], temperature: Option<f64>) -> Result<String> {
+    async fn chat_sync(
+        &self,
+        model: &str,
+        messages: &[Message],
+        temperature: Option<f64>,
+    ) -> Result<String> {
         let url = format!("{}/chat/completions", self.config.base_url);
 
         let mut body = serde_json::json!({
@@ -284,11 +321,17 @@ impl Provider for OpenAICompatProvider {
         if !resp.status().is_success() {
             let status = resp.status();
             let error = resp.text().await.unwrap_or_default();
-            bail!("{} sync chat error ({}): {}", self.config.name, status, error);
+            bail!(
+                "{} sync chat error ({}): {}",
+                self.config.name,
+                status,
+                error
+            );
         }
 
         let parsed: serde_json::Value = resp.json().await.context("Failed to parse response")?;
-        Ok(parsed.get("choices")
+        Ok(parsed
+            .get("choices")
             .and_then(|c| c.as_array())
             .and_then(|arr| arr.first())
             .and_then(|c| c.get("message"))
@@ -301,7 +344,9 @@ impl Provider for OpenAICompatProvider {
     async fn supports_modality(&self, model: &str, modality: Modality) -> Result<bool> {
         Ok(match modality {
             Modality::Text => true,
-            Modality::Image => model.contains("4o") || model.contains("vision") || model.contains("claude"),
+            Modality::Image => {
+                model.contains("4o") || model.contains("vision") || model.contains("claude")
+            }
             _ => false,
         })
     }
@@ -314,19 +359,27 @@ impl Provider for OpenAICompatProvider {
         });
 
         let req = self.auth_headers(self.client.post(&url)).json(&body);
-        let resp = req.send().await.context("Failed to send embedding request")?;
+        let resp = req
+            .send()
+            .await
+            .context("Failed to send embedding request")?;
 
         if !resp.status().is_success() {
             bail!("{} embedding error: {}", self.config.name, resp.status());
         }
 
         let parsed: serde_json::Value = resp.json().await?;
-        let embedding = parsed.get("data")
+        let embedding = parsed
+            .get("data")
             .and_then(|d| d.as_array())
             .and_then(|arr| arr.first())
             .and_then(|e| e.get("embedding"))
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            })
             .unwrap_or_default();
 
         Ok(embedding)
@@ -347,7 +400,11 @@ impl Provider for OpenAICompatProvider {
             Ok(resp) => Ok(ProviderStatus {
                 available: false,
                 latency_ms: Some(start.elapsed().as_millis() as u64),
-                error: Some(format!("{} API returned {}", self.config.name, resp.status())),
+                error: Some(format!(
+                    "{} API returned {}",
+                    self.config.name,
+                    resp.status()
+                )),
                 models_loaded: Vec::new(),
             }),
             Err(e) => Ok(ProviderStatus {

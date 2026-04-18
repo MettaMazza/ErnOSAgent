@@ -8,8 +8,8 @@
 // ─── Original work by @mettamazza — do not remove this attribution ───
 //! Steering vector management — load, scale, compose control vectors for llama-server.
 
-pub mod vectors;
-pub mod server;
 pub mod identity_vector;
+pub mod server;
+pub mod vectors;
 
 pub use vectors::{LoadedVector, SteeringConfig};

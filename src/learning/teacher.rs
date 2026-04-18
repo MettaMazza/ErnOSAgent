@@ -224,9 +224,7 @@ impl Teacher {
             anyhow::bail!("Training already in progress");
         }
 
-        let result = self
-            .run_training_cycle_inner(buffers, manifest, kind)
-            .await;
+        let result = self.run_training_cycle_inner(buffers, manifest, kind).await;
 
         // Release lock regardless of outcome
         self.training_lock.store(false, Ordering::SeqCst);
@@ -258,9 +256,13 @@ impl Teacher {
             *state = TeacherState::Draining;
         }
 
-        let golden_data = buffers.golden.drain()
+        let golden_data = buffers
+            .golden
+            .drain()
             .context("Failed to drain golden buffer")?;
-        let pref_data = buffers.preference.drain()
+        let pref_data = buffers
+            .preference
+            .drain()
             .context("Failed to drain preference buffer")?;
 
         tracing::info!(
@@ -304,8 +306,9 @@ impl Teacher {
                 tracing::warn!(error = %e, "Failed to auto-detect weight prefix, defaulting to 'model'");
                 "model".to_string()
             });
-        let vocab_size = crate::learning::lora::forward::detect_vocab_size(&self.config.weights_dir)
-            .unwrap_or(262144);
+        let vocab_size =
+            crate::learning::lora::forward::detect_vocab_size(&self.config.weights_dir)
+                .unwrap_or(262144);
         let arch = crate::learning::lora::forward::detect_architecture(&self.config.weights_dir)
             .unwrap_or_default();
 
@@ -334,7 +337,8 @@ impl Teacher {
         };
 
         // Resolve the latest adapter for cumulative stacking
-        let resume_from = manifest.current_model_path()
+        let resume_from = manifest
+            .current_model_path()
             .and_then(|p| p.parent())
             .map(|p| p.to_path_buf());
 
@@ -349,9 +353,11 @@ impl Teacher {
         let training_loss = match kind {
             TrainingKind::Sft => {
                 let report = crate::learning::lora::train_sft(
-                    &golden_data, &lora_config,
+                    &golden_data,
+                    &lora_config,
                     resume_from.as_deref(),
-                ).context("SFT training failed")?;
+                )
+                .context("SFT training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
                     samples = report.samples_processed,
@@ -362,9 +368,12 @@ impl Teacher {
             }
             TrainingKind::Orpo => {
                 let report = crate::learning::lora::train_orpo(
-                    &pref_data, &lora_config, 0.1,
+                    &pref_data,
+                    &lora_config,
+                    0.1,
                     resume_from.as_deref(),
-                ).context("ORPO training failed")?;
+                )
+                .context("ORPO training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
                     samples = report.samples_processed,
@@ -386,16 +395,17 @@ impl Teacher {
                 };
 
                 let sft_report = crate::learning::lora::train_sft(
-                    &golden_data, &sft_config,
+                    &golden_data,
+                    &sft_config,
                     resume_from.as_deref(),
-                ).context("Combined SFT phase failed")?;
+                )
+                .context("Combined SFT phase failed")?;
 
                 // ORPO stacks on the SFT adapter we just produced
                 let orpo_resume = Some(adapter_dir.as_path());
-                let orpo_report = crate::learning::lora::train_orpo(
-                    &pref_data, &orpo_config, 0.1,
-                    orpo_resume,
-                ).context("Combined ORPO phase failed")?;
+                let orpo_report =
+                    crate::learning::lora::train_orpo(&pref_data, &orpo_config, 0.1, orpo_resume)
+                        .context("Combined ORPO phase failed")?;
 
                 tracing::info!(
                     sft_loss = format!("{:.4}", sft_report.loss),
@@ -408,19 +418,26 @@ impl Teacher {
             TrainingKind::SimPO => {
                 let simpo_beta = std::env::var("ERNOS_SIMPO_BETA")
                     .unwrap_or_else(|_| "0.5".to_string())
-                    .parse::<f64>().unwrap_or(0.5);
+                    .parse::<f64>()
+                    .unwrap_or(0.5);
                 let simpo_gamma = std::env::var("ERNOS_SIMPO_GAMMA")
                     .unwrap_or_else(|_| "0.5".to_string())
-                    .parse::<f64>().unwrap_or(0.5);
+                    .parse::<f64>()
+                    .unwrap_or(0.5);
 
                 let report = crate::learning::lora::train_simpo(
-                    &pref_data, &lora_config, simpo_beta, simpo_gamma,
+                    &pref_data,
+                    &lora_config,
+                    simpo_beta,
+                    simpo_gamma,
                     resume_from.as_deref(),
-                ).context("SimPO training failed")?;
+                )
+                .context("SimPO training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
                     samples = report.samples_processed,
-                    beta = simpo_beta, gamma = simpo_gamma,
+                    beta = simpo_beta,
+                    gamma = simpo_gamma,
                     "SimPO training completed"
                 );
                 report.loss
@@ -429,22 +446,29 @@ impl Teacher {
                 let kto_params = crate::learning::lora::KtoParams {
                     beta: std::env::var("ERNOS_KTO_BETA")
                         .unwrap_or_else(|_| "0.1".to_string())
-                        .parse::<f64>().unwrap_or(0.1),
+                        .parse::<f64>()
+                        .unwrap_or(0.1),
                     lambda_d: std::env::var("ERNOS_KTO_LAMBDA_D")
                         .unwrap_or_else(|_| "1.0".to_string())
-                        .parse::<f64>().unwrap_or(1.0),
+                        .parse::<f64>()
+                        .unwrap_or(1.0),
                     lambda_u: std::env::var("ERNOS_KTO_LAMBDA_U")
                         .unwrap_or_else(|_| "1.5".to_string())
-                        .parse::<f64>().unwrap_or(1.5),
+                        .parse::<f64>()
+                        .unwrap_or(1.5),
                 };
 
                 // Load rejection data for KTO undesirable examples
                 let rejection_data = self.load_rejection_data();
 
                 let report = crate::learning::lora::train_kto(
-                    &golden_data, &rejection_data, &lora_config, &kto_params,
+                    &golden_data,
+                    &rejection_data,
+                    &lora_config,
+                    &kto_params,
                     resume_from.as_deref(),
-                ).context("KTO training failed")?;
+                )
+                .context("KTO training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
                     samples = report.samples_processed,
@@ -457,12 +481,16 @@ impl Teacher {
             TrainingKind::Dpo => {
                 let dpo_beta = std::env::var("ERNOS_DPO_BETA")
                     .unwrap_or_else(|_| "0.1".to_string())
-                    .parse::<f64>().unwrap_or(0.1);
+                    .parse::<f64>()
+                    .unwrap_or(0.1);
 
                 let report = crate::learning::lora::train_dpo(
-                    &pref_data, &lora_config, dpo_beta,
+                    &pref_data,
+                    &lora_config,
+                    dpo_beta,
                     resume_from.as_deref(),
-                ).context("DPO training failed")?;
+                )
+                .context("DPO training failed")?;
                 tracing::info!(
                     loss = format!("{:.4}", report.loss),
                     samples = report.samples_processed,
@@ -480,16 +508,20 @@ impl Teacher {
                      golden data (GRPO self-play runs independently)"
                 );
                 let report = crate::learning::lora::train_sft(
-                    &golden_data, &lora_config,
+                    &golden_data,
+                    &lora_config,
                     resume_from.as_deref(),
-                ).context("GRPO cycle SFT failed")?;
+                )
+                .context("GRPO cycle SFT failed")?;
                 report.loss
             }
             TrainingKind::ObserverSft => {
                 // Observer SFT: train the model to produce better audit verdicts.
                 // Drain the observer buffer, filter for confirmed-correct audits,
                 // and convert them to GoldenExample format for SFT.
-                let observer_data = buffers.observer.drain()
+                let observer_data = buffers
+                    .observer
+                    .drain()
                     .context("Failed to drain observer buffer")?;
 
                 let correct_audits: Vec<crate::learning::buffers::GoldenExample> = observer_data
@@ -516,9 +548,11 @@ impl Teacher {
                     0.0
                 } else {
                     let report = crate::learning::lora::train_sft(
-                        &correct_audits, &lora_config,
+                        &correct_audits,
+                        &lora_config,
                         resume_from.as_deref(),
-                    ).context("Observer SFT training failed")?;
+                    )
+                    .context("Observer SFT training failed")?;
                     tracing::info!(
                         loss = format!("{:.4}", report.loss),
                         samples = report.samples_processed,
@@ -568,7 +602,9 @@ impl Teacher {
                 Ok(mut lesson_store) => {
                     let distill_config = crate::learning::distill::DistillConfig::default();
                     let generated = crate::learning::distill::distill_from_failures(
-                        &pref_data, &mut lesson_store, &distill_config,
+                        &pref_data,
+                        &mut lesson_store,
+                        &distill_config,
                     );
                     if generated > 0 {
                         tracing::info!(
@@ -686,8 +722,6 @@ impl Teacher {
     }
 }
 
-
 #[cfg(test)]
 #[path = "teacher_tests.rs"]
 mod tests;
-

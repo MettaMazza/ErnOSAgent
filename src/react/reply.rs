@@ -80,7 +80,10 @@ mod tests {
         let params = &tool.function.parameters;
         assert!(params.get("properties").is_some());
         assert!(params["properties"]["message"]["type"].as_str() == Some("string"));
-        assert!(params["required"].as_array().unwrap().contains(&serde_json::json!("message")));
+        assert!(params["required"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("message")));
     }
 
     #[test]
@@ -97,6 +100,9 @@ mod tests {
         let params = &tool.function.parameters;
         assert!(params["properties"]["message"]["type"].as_str() == Some("string"));
         assert!(params["properties"]["reason"]["type"].as_str() == Some("string"));
-        assert!(params["required"].as_array().unwrap().contains(&serde_json::json!("message")));
+        assert!(params["required"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("message")));
     }
 }

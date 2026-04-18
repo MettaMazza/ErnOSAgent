@@ -58,8 +58,8 @@ impl KeyStore {
             };
             std::fs::create_dir_all(mesh_dir)
                 .with_context(|| format!("Failed to create mesh dir {}", mesh_dir.display()))?;
-            let json = serde_json::to_string_pretty(&keys)
-                .context("Failed to serialise key material")?;
+            let json =
+                serde_json::to_string_pretty(&keys).context("Failed to serialise key material")?;
             std::fs::write(&keys_path, json)
                 .with_context(|| format!("Failed to write keys to {}", keys_path.display()))?;
             tracing::info!(
@@ -70,7 +70,11 @@ impl KeyStore {
             keys
         };
 
-        Ok(Self { keys_path, keys, simulation })
+        Ok(Self {
+            keys_path,
+            keys,
+            simulation,
+        })
     }
 
     /// Get the derived PeerId for this node.
@@ -110,11 +114,13 @@ impl KeyStore {
         }
 
         use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-        let pub_bytes: [u8; 32] = public_key.try_into()
+        let pub_bytes: [u8; 32] = public_key
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid public key length: {}", public_key.len()))?;
-        let verifying_key = VerifyingKey::from_bytes(&pub_bytes)
-            .context("Invalid ed25519 public key")?;
-        let sig_bytes: [u8; 64] = signature.try_into()
+        let verifying_key =
+            VerifyingKey::from_bytes(&pub_bytes).context("Invalid ed25519 public key")?;
+        let sig_bytes: [u8; 64] = signature
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid signature length: {}", signature.len()))?;
         let sig = Signature::from_bytes(&sig_bytes);
         Ok(verifying_key.verify(payload, &sig).is_ok())
@@ -131,7 +137,8 @@ impl KeyStore {
         let secret_bytes: [u8; 32] = self.keys.dh_secret[..32]
             .try_into()
             .context("Invalid DH secret length")?;
-        let their_bytes: [u8; 32] = their_public.try_into()
+        let their_bytes: [u8; 32] = their_public
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid DH public key length: {}", their_public.len()))?;
         let our_secret = StaticSecret::from(secret_bytes);
         let their_key = PublicKey::from(their_bytes);
@@ -156,7 +163,8 @@ impl KeyStore {
             .context("Failed to derive nonce")?;
         let nonce = Nonce::from(nonce_bytes);
 
-        let ciphertext = cipher.encrypt(&nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(&nonce, plaintext)
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
         Ok(ciphertext)
     }
@@ -176,7 +184,8 @@ impl KeyStore {
             .context("Failed to derive nonce")?;
         let nonce = Nonce::from(nonce_bytes);
 
-        let plaintext = cipher.decrypt(&nonce, ciphertext)
+        let plaintext = cipher
+            .decrypt(&nonce, ciphertext)
             .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
         Ok(plaintext)
     }
@@ -186,10 +195,8 @@ impl KeyStore {
         if self.keys_path.exists() {
             // Overwrite with zeros before deletion
             let zeros = vec![0u8; 1024];
-            std::fs::write(&self.keys_path, &zeros)
-                .with_context(|| "Failed to overwrite keys")?;
-            std::fs::remove_file(&self.keys_path)
-                .with_context(|| "Failed to delete keys")?;
+            std::fs::write(&self.keys_path, &zeros).with_context(|| "Failed to overwrite keys")?;
+            std::fs::remove_file(&self.keys_path).with_context(|| "Failed to delete keys")?;
             tracing::warn!("Mesh identity keys destroyed");
         }
         Ok(())
@@ -266,8 +273,8 @@ mod tests {
 
     fn test_dir() -> PathBuf {
         let n = TEST_CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_crypto_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_crypto_test_{}_{}", std::process::id(), n));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }
@@ -333,7 +340,8 @@ mod tests {
         assert!(valid, "Real signature should verify");
 
         // Tampered payload should fail
-        let invalid = KeyStore::verify(&store.keys.signing_public, b"tampered", &signature).unwrap();
+        let invalid =
+            KeyStore::verify(&store.keys.signing_public, b"tampered", &signature).unwrap();
         assert!(!invalid, "Tampered payload should fail verification");
         cleanup(&dir);
     }
@@ -363,10 +371,16 @@ mod tests {
         let shared = store_a.dh_exchange(store_b.dh_public()).unwrap();
         let plaintext = b"secret mesh message payload";
         let ciphertext = KeyStore::encrypt(&shared, plaintext).unwrap();
-        assert_ne!(&ciphertext, plaintext, "Ciphertext must differ from plaintext");
+        assert_ne!(
+            &ciphertext, plaintext,
+            "Ciphertext must differ from plaintext"
+        );
 
         let decrypted = KeyStore::decrypt(&shared, &ciphertext).unwrap();
-        assert_eq!(decrypted, plaintext, "Decrypted must match original plaintext");
+        assert_eq!(
+            decrypted, plaintext,
+            "Decrypted must match original plaintext"
+        );
         cleanup(&dir_a);
         cleanup(&dir_b);
     }

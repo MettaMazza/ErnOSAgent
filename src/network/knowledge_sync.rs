@@ -67,7 +67,9 @@ impl KnowledgeSync {
         // Strip PII from the lesson text
         lesson.text = self.strip_pii(&lesson.text);
         // Also strip PII from keywords
-        lesson.keywords = lesson.keywords.into_iter()
+        lesson.keywords = lesson
+            .keywords
+            .into_iter()
             .map(|k| self.strip_pii(&k))
             .collect();
         // Clear origin (don't expose local identity)
@@ -110,12 +112,11 @@ impl KnowledgeSync {
         nodes: Vec<SynapticPayload>,
         edges: Vec<EdgePayload>,
     ) -> (Vec<SynapticPayload>, Vec<EdgePayload>) {
-        let cleaned_nodes = nodes.into_iter()
+        let cleaned_nodes = nodes
+            .into_iter()
             .map(|mut n| {
                 n.concept = self.strip_pii(&n.concept);
-                n.data = n.data.into_iter()
-                    .map(|d| self.strip_pii(&d))
-                    .collect();
+                n.data = n.data.into_iter().map(|d| self.strip_pii(&d)).collect();
                 n
             })
             .collect();
@@ -124,7 +125,11 @@ impl KnowledgeSync {
 
     /// Get sync statistics.
     pub fn stats(&self) -> (u64, u64, u64) {
-        (self.lessons_received, self.lessons_sent, self.lessons_rejected)
+        (
+            self.lessons_received,
+            self.lessons_sent,
+            self.lessons_rejected,
+        )
     }
 
     /// Record an outbound lesson send.
@@ -137,7 +142,9 @@ impl KnowledgeSync {
         let mut result = text.to_string();
         for (name, pattern) in &self.pii_patterns {
             if pattern.is_match(&result) {
-                result = pattern.replace_all(&result, &format!("[{}_REDACTED]", name.to_uppercase())).to_string();
+                result = pattern
+                    .replace_all(&result, &format!("[{}_REDACTED]", name.to_uppercase()))
+                    .to_string();
             }
         }
         result
@@ -162,11 +169,7 @@ impl KnowledgeSync {
         ];
 
         defs.iter()
-            .filter_map(|(name, pattern)| {
-                Regex::new(pattern)
-                    .ok()
-                    .map(|re| (name.to_string(), re))
-            })
+            .filter_map(|(name, pattern)| Regex::new(pattern).ok().map(|re| (name.to_string(), re)))
             .collect()
     }
 }
@@ -232,7 +235,10 @@ mod tests {
 
         let lesson = test_lesson("unique lesson content");
         assert!(sync.process_inbound(&lesson).is_ok());
-        assert!(sync.process_inbound(&lesson).is_err(), "Duplicate should be rejected");
+        assert!(
+            sync.process_inbound(&lesson).is_err(),
+            "Duplicate should be rejected"
+        );
     }
 
     #[test]

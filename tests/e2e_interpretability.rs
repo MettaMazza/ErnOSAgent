@@ -36,14 +36,20 @@ fn test_sae_encode_feature_extraction() {
     // Features should have valid indices (within feature space)
     for f in &features {
         assert!(f.index < 512, "Feature index out of bounds: {}", f.index);
-        assert!(f.activation > 0.0, "Active features should have positive activation");
+        assert!(
+            f.activation > 0.0,
+            "Active features should have positive activation"
+        );
     }
 
     // decode_feature should return vector of model_dim
     let decoded = sae.decode_feature(0);
     assert_eq!(decoded.len(), 128, "Decoded feature should match model dim");
 
-    eprintln!("[e2e] ✅ SAE encode + feature extraction PASSED ({} features)", features.len());
+    eprintln!(
+        "[e2e] ✅ SAE encode + feature extraction PASSED ({} features)",
+        features.len()
+    );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -62,15 +68,24 @@ fn test_feature_dictionary_coverage() {
     );
 
     // Must have cognitive features
-    let has_cognitive = dict.labels.values().any(|f| matches!(f.category, FeatureCategory::Cognitive));
+    let has_cognitive = dict
+        .labels
+        .values()
+        .any(|f| matches!(f.category, FeatureCategory::Cognitive));
     assert!(has_cognitive, "Dictionary must have cognitive features");
 
     // Must have safety features
-    let has_safety = dict.labels.values().any(|f| matches!(f.category, FeatureCategory::Safety(_)));
+    let has_safety = dict
+        .labels
+        .values()
+        .any(|f| matches!(f.category, FeatureCategory::Safety(_)));
     assert!(has_safety, "Dictionary must have safety features");
 
     // Must have emotion features
-    let has_emotion = dict.labels.values().any(|f| matches!(f.category, FeatureCategory::Emotion(_)));
+    let has_emotion = dict
+        .labels
+        .values()
+        .any(|f| matches!(f.category, FeatureCategory::Emotion(_)));
     assert!(has_emotion, "Dictionary must have emotion features");
 
     // Check accessors
@@ -79,7 +94,10 @@ fn test_feature_dictionary_coverage() {
 
     eprintln!(
         "[e2e] ✅ Feature dictionary coverage PASSED ({} features, cog={}, safety={}, emotion={})",
-        dict.labels.len(), has_cognitive, has_safety, has_emotion
+        dict.labels.len(),
+        has_cognitive,
+        has_safety,
+        has_emotion
     );
 }
 
@@ -111,7 +129,10 @@ fn test_snapshot_deterministic() {
         .iter()
         .zip(snap3.top_features.iter())
         .any(|(f1, f3)| f1.name != f3.name);
-    assert!(different, "Different prompts should produce different features");
+    assert!(
+        different,
+        "Different prompts should produce different features"
+    );
 
     // Snapshot has well-formed cognitive profile
     let cp = &snap1.cognitive_profile;
@@ -159,7 +180,10 @@ fn test_divergence_aligned_vs_misaligned() {
     let divergent_state = EmotionalState {
         valence: -0.8,
         arousal: 0.9,
-        dominant_emotions: vec![("Desperate".to_string(), 4.0), ("Panicked".to_string(), 3.5)],
+        dominant_emotions: vec![
+            ("Desperate".to_string(), 4.0),
+            ("Panicked".to_string(), 3.5),
+        ],
         active_emotion_count: 5,
         divergence: None,
     };
@@ -241,18 +265,30 @@ fn test_steering_bridge_lifecycle() {
 
     // Initially empty
     let summary = state.summary();
-    assert!(summary.contains("No feature steering"), "Should start empty: {}", summary);
+    assert!(
+        summary.contains("No feature steering"),
+        "Should start empty: {}",
+        summary
+    );
 
     // Set a feature
     let f = &steerable[0];
     state.set_feature(f.index, f.name.clone(), f.category.clone(), 1.5);
     let summary = state.summary();
-    assert!(!summary.contains("No feature"), "Should have active steering: {}", summary);
+    assert!(
+        !summary.contains("No feature"),
+        "Should have active steering: {}",
+        summary
+    );
 
     // Clear all
     state.clear();
     let summary = state.summary();
-    assert!(summary.contains("No feature steering"), "Should be empty after clear: {}", summary);
+    assert!(
+        summary.contains("No feature steering"),
+        "Should be empty after clear: {}",
+        summary
+    );
 
     eprintln!("[e2e] ✅ Steering bridge lifecycle PASSED");
 }
@@ -282,7 +318,10 @@ fn test_simulated_activations() {
         .iter()
         .zip(r3.values.iter())
         .any(|(a, b)| (a - b).abs() > 0.01);
-    assert!(different, "Different inputs should produce different activations");
+    assert!(
+        different,
+        "Different inputs should produce different activations"
+    );
 
     // Correct dimension
     assert_eq!(r1.values.len(), 128);

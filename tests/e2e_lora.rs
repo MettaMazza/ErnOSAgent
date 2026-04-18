@@ -52,7 +52,10 @@ fn test_lora_config_defaults() {
     assert_eq!(config.alpha, 32.0, "Default alpha should be 2 × rank");
     assert_eq!(config.num_layers(), 32, "Default has 32 layers");
     assert_eq!(config.hidden_dim(), 4096, "Default hidden_dim is 4096");
-    assert_eq!(config.num_iterations, 200, "Default iterations should be 200");
+    assert_eq!(
+        config.num_iterations, 200,
+        "Default iterations should be 200"
+    );
     assert_eq!(config.warmup_steps, 10);
     assert!(config.target_modules.contains(&"q_proj".to_string()));
     assert!(config.target_modules.contains(&"k_proj".to_string()));
@@ -71,10 +74,16 @@ fn test_parameter_estimation_default() {
     let estimated = lora::estimate_params(&config);
     // 32 layers × 3 modules × 2 matrices × (16 × 4096) = 12,582,912
     let expected = 32 * 3 * 2 * 16 * 4096;
-    assert_eq!(estimated, expected, "Default config should have ~12.6M params");
+    assert_eq!(
+        estimated, expected,
+        "Default config should have ~12.6M params"
+    );
     assert!(estimated > 12_000_000 && estimated < 15_000_000);
 
-    eprintln!("[e2e] ✅ Parameter estimation (default) PASSED: {} params", estimated);
+    eprintln!(
+        "[e2e] ✅ Parameter estimation (default) PASSED: {} params",
+        estimated
+    );
 }
 
 #[test]
@@ -96,7 +105,10 @@ fn test_parameter_estimation_small() {
     // 2 layers × 2 modules × 2 × (4 × 64) = 2048
     assert_eq!(small, 2048, "Small config param count mismatch");
 
-    eprintln!("[e2e] ✅ Parameter estimation (small) PASSED: {} params", small);
+    eprintln!(
+        "[e2e] ✅ Parameter estimation (small) PASSED: {} params",
+        small
+    );
 }
 
 #[test]
@@ -148,7 +160,10 @@ fn test_training_time_estimation() {
         eta.as_secs()
     );
 
-    eprintln!("[e2e] ✅ Training time estimation PASSED: {}s", eta.as_secs());
+    eprintln!(
+        "[e2e] ✅ Training time estimation PASSED: {}s",
+        eta.as_secs()
+    );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -176,7 +191,12 @@ fn test_lora_varmap_cpu() {
     let data = var_map.data().lock().unwrap();
 
     // 2 layers × 2 modules × 2 matrices (A + B) = 8 entries
-    assert_eq!(data.len(), 8, "Expected 8 VarMap entries, got {}", data.len());
+    assert_eq!(
+        data.len(),
+        8,
+        "Expected 8 VarMap entries, got {}",
+        data.len()
+    );
 
     for (name, var) in data.iter() {
         let t = var.as_tensor();
@@ -188,7 +208,8 @@ fn test_lora_varmap_cpu() {
             let vals = t.to_vec2::<f32>().unwrap();
             assert!(
                 vals.iter().flatten().all(|&x| x == 0.0),
-                "lora_b should be zero-initialized for {}", name
+                "lora_b should be zero-initialized for {}",
+                name
             );
         }
     }
@@ -210,8 +231,8 @@ fn test_cross_entropy_loss_synthetic() {
     let _logits = Tensor::from_slice(
         &[
             1.0f32, 0.0, 0.0, 0.0, // pos 0: predicts token 0
-            0.0, 2.0, 0.0, 0.0,     // pos 1: predicts token 1
-            0.0, 0.0, 3.0, 0.0,     // pos 2: predicts token 2
+            0.0, 2.0, 0.0, 0.0, // pos 1: predicts token 1
+            0.0, 0.0, 3.0, 0.0, // pos 2: predicts token 2
         ],
         (1, 3, 4),
         &device,
@@ -261,14 +282,23 @@ fn test_orpo_loss_formula() {
         .unwrap();
     let penalty_val = penalty.to_scalar::<f32>().unwrap();
     assert!(penalty_val > 0.0, "ORPO penalty must be positive");
-    assert!(penalty_val < 1.0, "ORPO penalty should be small when chosen is better");
+    assert!(
+        penalty_val < 1.0,
+        "ORPO penalty should be small when chosen is better"
+    );
 
     // Total ORPO = sft_loss + penalty
     let sft_loss = Tensor::new(0.5f32, &device).unwrap();
     let total = (sft_loss + penalty).unwrap().to_scalar::<f32>().unwrap();
-    assert!(total > 0.5, "Total ORPO loss should exceed SFT loss component");
+    assert!(
+        total > 0.5,
+        "Total ORPO loss should exceed SFT loss component"
+    );
 
-    eprintln!("[e2e] ✅ ORPO loss formula PASSED (log_odds={:.4}, penalty={:.4})", log_odds_val, penalty_val);
+    eprintln!(
+        "[e2e] ✅ ORPO loss formula PASSED (log_odds={:.4}, penalty={:.4})",
+        log_odds_val, penalty_val
+    );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -323,9 +353,10 @@ fn test_learning_rate_schedule() {
 #[test]
 #[cfg(target_os = "macos")]
 fn test_metal_device_available() {
-    use candle_core::{Device, DType, Tensor};
+    use candle_core::{DType, Device, Tensor};
 
-    let device = Device::new_metal(0).expect("Metal device not available on macOS — M3 Ultra required");
+    let device =
+        Device::new_metal(0).expect("Metal device not available on macOS — M3 Ultra required");
     let t = Tensor::zeros((4, 4), DType::F32, &device).unwrap();
     assert_eq!(t.dims(), &[4, 4]);
 

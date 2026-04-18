@@ -17,14 +17,14 @@
 //! Inspired by Anthropic's "Scaling Monosemanticity", Google's "Gemma Scope",
 //! and Anthropic's functional emotions research.
 
-pub mod sae;
-pub mod features;
-pub mod snapshot;
-pub mod extractor;
-pub mod trainer;
-pub mod steering_bridge;
-pub mod divergence;
 pub mod collector;
-pub mod train_runner;
+pub mod divergence;
+pub mod extractor;
+pub mod features;
 pub mod live;
 pub mod probe;
+pub mod sae;
+pub mod snapshot;
+pub mod steering_bridge;
+pub mod train_runner;
+pub mod trainer;

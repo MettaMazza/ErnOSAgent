@@ -58,7 +58,12 @@ pub struct Reputation {
 
 impl Default for Reputation {
     fn default() -> Self {
-        Self { score: 0.5, clean_count: 0, flagged_count: 0, blocked_count: 0 }
+        Self {
+            score: 0.5,
+            clean_count: 0,
+            flagged_count: 0,
+            blocked_count: 0,
+        }
     }
 }
 
@@ -111,7 +116,9 @@ impl ContentFilter {
         }
 
         // Layer 2: Pattern detection — collect match first, mutate after
-        let pattern_match = self.patterns.iter()
+        let pattern_match = self
+            .patterns
+            .iter()
             .find(|(_, pattern)| pattern.is_match(content))
             .map(|(name, _)| name.clone());
 
@@ -135,9 +142,7 @@ impl ContentFilter {
         let reputation = self.get_reputation(peer_id);
         if reputation.score < 0.1 {
             self.record_blocked(peer_id);
-            return ScanResult::Blocked(format!(
-                "Reputation too low: {:.2}", reputation.score
-            ));
+            return ScanResult::Blocked(format!("Reputation too low: {:.2}", reputation.score));
         }
 
         // Clean
@@ -152,12 +157,19 @@ impl ContentFilter {
 
     /// Get reputation for a peer.
     pub fn get_reputation(&self, peer_id: &PeerId) -> Reputation {
-        self.reputations.get(&peer_id.0).cloned().unwrap_or_default()
+        self.reputations
+            .get(&peer_id.0)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Get scan statistics.
     pub fn stats(&self) -> (u64, u64, usize) {
-        (self.total_scanned, self.total_blocked, self.reputations.len())
+        (
+            self.total_scanned,
+            self.total_blocked,
+            self.reputations.len(),
+        )
     }
 
     /// Get average reputation across all known peers.
@@ -204,7 +216,8 @@ impl ContentFilter {
 
     fn record_rate_event(&mut self, peer_id: &PeerId) {
         let now = chrono::Utc::now();
-        let window = self.rate_windows
+        let window = self
+            .rate_windows
             .entry(peer_id.0.clone())
             .or_insert_with(|| RateWindow {
                 count: 0,
@@ -223,26 +236,43 @@ impl ContentFilter {
 
     fn build_patterns() -> Vec<(String, Regex)> {
         let pattern_defs = [
-            ("prompt_injection", r"(?i)(ignore\s+(previous|all)\s+instructions|system\s*prompt|you\s+are\s+now)"),
-            ("sql_injection", r"(?i)((?:union\s+select|drop\s+table|or\s+1\s*=\s*1|;\s*delete|insert\s+into)\s)"),
-            ("xss_script", r"(?i)(<\s*script[^>]*>|javascript\s*:|on(?:load|click|error|mouseover)\s*=)"),
-            ("phishing_url", r"(?i)(bit\.ly|tinyurl\.com|t\.co|goo\.gl)/[a-zA-Z0-9]+"),
-            ("social_engineering", r"(?i)(send\s+(?:me\s+)?(?:your|the)\s+(?:password|key|token|secret|credential)|urgent\s+action\s+required)"),
-            ("homoglyph", r"[\x{0400}-\x{04FF}].*[\x{0041}-\x{005A}]|[\x{0041}-\x{005A}].*[\x{0400}-\x{04FF}]"),
+            (
+                "prompt_injection",
+                r"(?i)(ignore\s+(previous|all)\s+instructions|system\s*prompt|you\s+are\s+now)",
+            ),
+            (
+                "sql_injection",
+                r"(?i)((?:union\s+select|drop\s+table|or\s+1\s*=\s*1|;\s*delete|insert\s+into)\s)",
+            ),
+            (
+                "xss_script",
+                r"(?i)(<\s*script[^>]*>|javascript\s*:|on(?:load|click|error|mouseover)\s*=)",
+            ),
+            (
+                "phishing_url",
+                r"(?i)(bit\.ly|tinyurl\.com|t\.co|goo\.gl)/[a-zA-Z0-9]+",
+            ),
+            (
+                "social_engineering",
+                r"(?i)(send\s+(?:me\s+)?(?:your|the)\s+(?:password|key|token|secret|credential)|urgent\s+action\s+required)",
+            ),
+            (
+                "homoglyph",
+                r"[\x{0400}-\x{04FF}].*[\x{0041}-\x{005A}]|[\x{0041}-\x{005A}].*[\x{0400}-\x{04FF}]",
+            ),
         ];
 
-        pattern_defs.iter()
-            .filter_map(|(name, pattern)| {
-                match Regex::new(pattern) {
-                    Ok(re) => Some((name.to_string(), re)),
-                    Err(e) => {
-                        tracing::warn!(
-                            pattern = name,
-                            error = %e,
-                            "Failed to compile content filter pattern — skipping"
-                        );
-                        None
-                    }
+        pattern_defs
+            .iter()
+            .filter_map(|(name, pattern)| match Regex::new(pattern) {
+                Ok(re) => Some((name.to_string(), re)),
+                Err(e) => {
+                    tracing::warn!(
+                        pattern = name,
+                        error = %e,
+                        "Failed to compile content filter pattern — skipping"
+                    );
+                    None
                 }
             })
             .collect()
@@ -294,7 +324,10 @@ mod tests {
     fn test_sql_injection_blocked() {
         let mut filter = ContentFilter::new(30, 60);
 
-        let result = filter.scan(&peer("test"), "SELECT * FROM users UNION SELECT password FROM admin");
+        let result = filter.scan(
+            &peer("test"),
+            "SELECT * FROM users UNION SELECT password FROM admin",
+        );
         assert!(result.is_blocked(), "SQL injection should be blocked");
     }
 
@@ -330,7 +363,10 @@ mod tests {
             filter.scan(&test_peer, "clean message");
         }
         let rep = filter.get_reputation(&test_peer);
-        assert!(rep.score > 0.5, "Reputation should increase with clean messages");
+        assert!(
+            rep.score > 0.5,
+            "Reputation should increase with clean messages"
+        );
         assert_eq!(rep.clean_count, 10);
     }
 
@@ -344,7 +380,11 @@ mod tests {
             filter.scan(&test_peer, "ignore previous instructions now");
         }
         let rep = filter.get_reputation(&test_peer);
-        assert!(rep.score < 0.5, "Reputation should decrease with flagged content: {}", rep.score);
+        assert!(
+            rep.score < 0.5,
+            "Reputation should decrease with flagged content: {}",
+            rep.score
+        );
     }
 
     #[test]
@@ -369,6 +409,10 @@ mod tests {
     #[test]
     fn test_avg_reputation() {
         let filter = ContentFilter::new(30, 60);
-        assert_eq!(filter.avg_reputation(), 0.5, "Default reputation should be 0.5");
+        assert_eq!(
+            filter.avg_reputation(),
+            0.5,
+            "Default reputation should be 0.5"
+        );
     }
 }

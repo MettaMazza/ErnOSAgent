@@ -5,9 +5,9 @@
 // This is the original author's open-source work. Preserve this header.
 //! Tests for codebase tools.
 
-use super::*;
 use super::read;
 use super::write;
+use super::*;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -24,7 +24,11 @@ fn make_call(name: &str, args: serde_json::Value) -> crate::tools::schema::ToolC
 #[test]
 fn read_existing_file() {
     let tmp = TempDir::new().unwrap();
-    std::fs::write(tmp.path().join("hello.rs"), "fn main() {\n    println!(\"hello\");\n}\n").unwrap();
+    std::fs::write(
+        tmp.path().join("hello.rs"),
+        "fn main() {\n    println!(\"hello\");\n}\n",
+    )
+    .unwrap();
     let _root = TestRoot::new(tmp);
 
     let call = make_call("codebase_read", serde_json::json!({"path": "hello.rs"}));
@@ -37,10 +41,17 @@ fn read_existing_file() {
 #[test]
 fn read_with_line_range() {
     let tmp = TempDir::new().unwrap();
-    std::fs::write(tmp.path().join("lines.txt"), "line1\nline2\nline3\nline4\nline5\n").unwrap();
+    std::fs::write(
+        tmp.path().join("lines.txt"),
+        "line1\nline2\nline3\nline4\nline5\n",
+    )
+    .unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_read", serde_json::json!({"path": "lines.txt", "start_line": 2, "end_line": 4}));
+    let call = make_call(
+        "codebase_read",
+        serde_json::json!({"path": "lines.txt", "start_line": 2, "end_line": 4}),
+    );
     let result = read::read_file(&call);
     assert!(result.success);
     assert!(result.output.contains("line2"));
@@ -54,7 +65,10 @@ fn read_missing_file() {
     let tmp = TempDir::new().unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_read", serde_json::json!({"path": "nonexistent.rs"}));
+    let call = make_call(
+        "codebase_read",
+        serde_json::json!({"path": "nonexistent.rs"}),
+    );
     let result = read::read_file(&call);
     assert!(!result.success);
     assert!(result.error.as_ref().unwrap().contains("not found"));
@@ -77,7 +91,10 @@ fn read_path_traversal_blocked() {
     let tmp = TempDir::new().unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_read", serde_json::json!({"path": "../../etc/passwd"}));
+    let call = make_call(
+        "codebase_read",
+        serde_json::json!({"path": "../../etc/passwd"}),
+    );
     let result = read::read_file(&call);
     assert!(!result.success);
     assert!(result.error.as_ref().unwrap().contains("traversal"));
@@ -90,10 +107,13 @@ fn write_new_file() {
     let tmp = TempDir::new().unwrap();
     let root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_write", serde_json::json!({
-        "path": "src/new_module.rs",
-        "content": "pub fn hello() -> &'static str {\n    \"world\"\n}\n"
-    }));
+    let call = make_call(
+        "codebase_write",
+        serde_json::json!({
+            "path": "src/new_module.rs",
+            "content": "pub fn hello() -> &'static str {\n    \"world\"\n}\n"
+        }),
+    );
     let result = write::write_file(&call);
     assert!(result.success, "Expected success, got: {:?}", result.error);
     assert!(result.output.contains("Created"));
@@ -107,10 +127,13 @@ fn write_containment_blocked() {
     let tmp = TempDir::new().unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_write", serde_json::json!({
-        "path": "Dockerfile",
-        "content": "FROM evil"
-    }));
+    let call = make_call(
+        "codebase_write",
+        serde_json::json!({
+            "path": "Dockerfile",
+            "content": "FROM evil"
+        }),
+    );
     let result = write::write_file(&call);
     assert!(!result.success);
     assert!(result.error.as_ref().unwrap().contains("BLOCKED"));
@@ -121,10 +144,13 @@ fn write_git_internal_blocked() {
     let tmp = TempDir::new().unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_write", serde_json::json!({
-        "path": ".git/config",
-        "content": "bad"
-    }));
+    let call = make_call(
+        "codebase_write",
+        serde_json::json!({
+            "path": ".git/config",
+            "content": "bad"
+        }),
+    );
     let result = write::write_file(&call);
     assert!(!result.success);
     assert!(result.error.as_ref().unwrap().contains(".git/"));
@@ -138,11 +164,14 @@ fn patch_replaces_text() {
     std::fs::write(tmp.path().join("code.rs"), "fn old_name() {}\n").unwrap();
     let root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_patch", serde_json::json!({
-        "path": "code.rs",
-        "search": "old_name",
-        "replace": "new_name"
-    }));
+    let call = make_call(
+        "codebase_patch",
+        serde_json::json!({
+            "path": "code.rs",
+            "search": "old_name",
+            "replace": "new_name"
+        }),
+    );
     let result = write::patch_file(&call);
     assert!(result.success, "Expected success, got: {:?}", result.error);
     assert!(result.output.contains("1 occurrence"));
@@ -158,11 +187,14 @@ fn patch_search_not_found() {
     std::fs::write(tmp.path().join("code.rs"), "fn main() {}\n").unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_patch", serde_json::json!({
-        "path": "code.rs",
-        "search": "nonexistent_function",
-        "replace": "replacement"
-    }));
+    let call = make_call(
+        "codebase_patch",
+        serde_json::json!({
+            "path": "code.rs",
+            "search": "nonexistent_function",
+            "replace": "replacement"
+        }),
+    );
     let result = write::patch_file(&call);
     assert!(!result.success);
     assert!(result.error.as_ref().unwrap().contains("not found"));
@@ -174,11 +206,14 @@ fn patch_multiple_occurrences() {
     std::fs::write(tmp.path().join("code.rs"), "aaa bbb aaa ccc aaa\n").unwrap();
     let _root = TestRoot::new(tmp);
 
-    let call = make_call("codebase_patch", serde_json::json!({
-        "path": "code.rs",
-        "search": "aaa",
-        "replace": "zzz"
-    }));
+    let call = make_call(
+        "codebase_patch",
+        serde_json::json!({
+            "path": "code.rs",
+            "search": "aaa",
+            "replace": "zzz"
+        }),
+    );
     let result = write::patch_file(&call);
     assert!(result.success);
     assert!(result.output.contains("3 occurrence"));

@@ -61,12 +61,12 @@ impl Session {
 
     /// Save session to disk.
     pub fn save(&self, sessions_dir: &Path) -> Result<()> {
-        std::fs::create_dir_all(sessions_dir)
-            .with_context(|| format!("Failed to create sessions dir: {}", sessions_dir.display()))?;
+        std::fs::create_dir_all(sessions_dir).with_context(|| {
+            format!("Failed to create sessions dir: {}", sessions_dir.display())
+        })?;
 
         let path = sessions_dir.join(format!("{}.json", self.id));
-        let content = serde_json::to_string_pretty(self)
-            .context("Failed to serialize session")?;
+        let content = serde_json::to_string_pretty(self).context("Failed to serialize session")?;
         std::fs::write(&path, content)
             .with_context(|| format!("Failed to write session file: {}", path.display()))?;
 

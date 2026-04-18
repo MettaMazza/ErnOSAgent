@@ -5,8 +5,8 @@
 // This is the original author's open-source work. Preserve this header.
 //! Timeline tool — search and browse the session archive.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 
 fn timeline_dir() -> PathBuf {
@@ -14,7 +14,9 @@ fn timeline_dir() -> PathBuf {
 }
 
 fn timeline_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("stats");
 
@@ -24,13 +26,18 @@ fn timeline_tool(call: &ToolCall) -> ToolResult {
         "recent" => timeline_recent(call),
         "search" => timeline_search(call),
         "stats" => timeline_stats(call),
-        other => error_result(call, &format!("Unknown action: '{}'. Valid: recent, search, stats", other)),
+        other => error_result(
+            call,
+            &format!("Unknown action: '{}'. Valid: recent, search, stats", other),
+        ),
     }
 }
 
 fn load_all_entries() -> Vec<(String, String)> {
     let dir = timeline_dir();
-    if !dir.exists() { return Vec::new(); }
+    if !dir.exists() {
+        return Vec::new();
+    }
 
     let mut entries = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&dir) {
@@ -52,7 +59,9 @@ fn load_all_entries() -> Vec<(String, String)> {
 }
 
 fn timeline_recent(call: &ToolCall) -> ToolResult {
-    let limit = call.arguments.get("limit")
+    let limit = call
+        .arguments
+        .get("limit")
         .and_then(|v| v.as_u64())
         .unwrap_or(10) as usize;
 
@@ -63,7 +72,11 @@ fn timeline_recent(call: &ToolCall) -> ToolResult {
     let output = if recent.is_empty() {
         "Timeline is empty.".to_string()
     } else {
-        let mut out = format!("RECENT TIMELINE ({} of {} entries)\n", recent.len(), entries.len());
+        let mut out = format!(
+            "RECENT TIMELINE ({} of {} entries)\n",
+            recent.len(),
+            entries.len()
+        );
         for (i, (_file, content)) in recent.iter().enumerate() {
             let preview: String = content.chars().take(200).collect();
             out.push_str(&format!("  [{}] {}\n", start + i + 1, preview));
@@ -71,20 +84,35 @@ fn timeline_recent(call: &ToolCall) -> ToolResult {
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn timeline_search(call: &ToolCall) -> ToolResult {
-    let query = call.arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-    if query.is_empty() { return error_result(call, "Missing required argument: query"); }
+    let query = call
+        .arguments
+        .get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if query.is_empty() {
+        return error_result(call, "Missing required argument: query");
+    }
 
-    let limit = call.arguments.get("limit")
+    let limit = call
+        .arguments
+        .get("limit")
         .and_then(|v| v.as_u64())
         .unwrap_or(10) as usize;
 
     let entries = load_all_entries();
     let query_lower = query.to_lowercase();
-    let matches: Vec<(usize, &str)> = entries.iter()
+    let matches: Vec<(usize, &str)> = entries
+        .iter()
         .enumerate()
         .filter(|(_, (_, content))| content.to_lowercase().contains(&query_lower))
         .take(limit)
@@ -94,7 +122,11 @@ fn timeline_search(call: &ToolCall) -> ToolResult {
     let output = if matches.is_empty() {
         format!("No timeline entries matching '{}'.", query)
     } else {
-        let mut out = format!("Found {} match(es) for '{}' in timeline:\n", matches.len(), query);
+        let mut out = format!(
+            "Found {} match(es) for '{}' in timeline:\n",
+            matches.len(),
+            query
+        );
         for (i, content) in &matches {
             let preview: String = content.chars().take(200).collect();
             out.push_str(&format!("  [{}] {}\n", i + 1, preview));
@@ -102,21 +134,33 @@ fn timeline_search(call: &ToolCall) -> ToolResult {
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 fn timeline_stats(call: &ToolCall) -> ToolResult {
     let dir = timeline_dir();
     let file_count = if dir.exists() {
         std::fs::read_dir(&dir).map(|rd| rd.count()).unwrap_or(0)
-    } else { 0 };
+    } else {
+        0
+    };
 
     let entries = load_all_entries();
 
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("TIMELINE STATS\n  Session files: {}\n  Total entries: {}", file_count, entries.len()),
+        output: format!(
+            "TIMELINE STATS\n  Session files: {}\n  Total entries: {}",
+            file_count,
+            entries.len()
+        ),
         success: true,
         error: None,
     }
@@ -127,7 +171,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -135,7 +185,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "timeline_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "timeline_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

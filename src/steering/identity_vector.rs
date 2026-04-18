@@ -45,8 +45,9 @@ pub fn needs_generation(vectors_dir: &Path) -> bool {
 /// It captures ErnOS's identity, operational principles, and character.
 fn build_identity_corpus() -> String {
     let identity = crate::prompt::identity::load_identity(
-        &Path::new("__nonexistent__") // Forces default persona
-    ).unwrap_or_default();
+        &Path::new("__nonexistent__"), // Forces default persona
+    )
+    .unwrap_or_default();
 
     let kernel = crate::prompt::core::build_core_prompt();
 
@@ -112,7 +113,8 @@ pub async fn generate_identity_vector(
             "Activation dimension mismatch: got {}, SAE expects {}. \
             Make sure the identity vector is being generated from the MAIN inference model, \
             not the embedding model.",
-            activations.len(), sae.model_dim
+            activations.len(),
+            sae.model_dim
         );
     }
 
@@ -208,7 +210,8 @@ async fn extract_activations(
         "encoding_format": "float",
     });
 
-    let resp = client.post(&url)
+    let resp = client
+        .post(&url)
         .json(&body)
         .timeout(std::time::Duration::from_secs(30))
         .send()

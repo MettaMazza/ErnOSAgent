@@ -19,7 +19,10 @@ pub async fn list_jobs(
     let st = state.read().await;
     match &st.scheduler {
         Some(s) => Ok(Json(s.list_jobs().await)),
-        None => Err(api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled")),
+        None => Err(api_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Scheduler not enabled",
+        )),
     }
 }
 
@@ -29,7 +32,9 @@ pub async fn create_job(
     Json(body): Json<CreateJobRequest>,
 ) -> Result<Json<ScheduledJob>, (StatusCode, Json<ApiError>)> {
     let st = state.read().await;
-    let scheduler = st.scheduler.as_ref()
+    let scheduler = st
+        .scheduler
+        .as_ref()
         .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?;
 
     let job = ScheduledJob {
@@ -44,7 +49,8 @@ pub async fn create_job(
         delivery_channel: body.delivery_channel,
     };
 
-    scheduler.add_job(job)
+    scheduler
+        .add_job(job)
         .await
         .map(Json)
         .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()))
@@ -57,10 +63,13 @@ pub async fn update_job(
     Json(body): Json<CreateJobRequest>,
 ) -> Result<Json<ScheduledJob>, (StatusCode, Json<ApiError>)> {
     let st = state.read().await;
-    let scheduler = st.scheduler.as_ref()
+    let scheduler = st
+        .scheduler
+        .as_ref()
         .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?;
 
-    scheduler.update_job(&id, body)
+    scheduler
+        .update_job(&id, body)
         .await
         .map(Json)
         .map_err(|e| api_error(StatusCode::NOT_FOUND, &e.to_string()))
@@ -72,10 +81,13 @@ pub async fn delete_job(
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
     let st = state.read().await;
-    let scheduler = st.scheduler.as_ref()
+    let scheduler = st
+        .scheduler
+        .as_ref()
         .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?;
 
-    scheduler.delete_job(&id)
+    scheduler
+        .delete_job(&id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(|e| api_error(StatusCode::NOT_FOUND, &e.to_string()))
@@ -87,10 +99,13 @@ pub async fn toggle_job(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ApiError>)> {
     let st = state.read().await;
-    let scheduler = st.scheduler.as_ref()
+    let scheduler = st
+        .scheduler
+        .as_ref()
         .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?;
 
-    scheduler.toggle_job(&id)
+    scheduler
+        .toggle_job(&id)
         .await
         .map(|enabled| Json(serde_json::json!({ "enabled": enabled })))
         .map_err(|e| api_error(StatusCode::NOT_FOUND, &e.to_string()))
@@ -103,11 +118,13 @@ pub async fn run_job_now(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ApiError>)> {
     let scheduler = {
         let st = state.read().await;
-        st.scheduler.clone()
+        st.scheduler
+            .clone()
             .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?
     };
 
-    let result = scheduler.run_now(&id, &state)
+    let result = scheduler
+        .run_now(&id, &state)
         .await
         .map_err(|e| api_error(StatusCode::NOT_FOUND, &e.to_string()))?;
 
@@ -124,10 +141,14 @@ pub async fn job_logs(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ApiError>)> {
     let st = state.read().await;
-    let scheduler = st.scheduler.as_ref()
+    let scheduler = st
+        .scheduler
+        .as_ref()
         .ok_or_else(|| api_error(StatusCode::SERVICE_UNAVAILABLE, "Scheduler not enabled"))?;
 
-    let job = scheduler.get_job(&id).await
+    let job = scheduler
+        .get_job(&id)
+        .await
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Job not found"))?;
 
     Ok(Json(serde_json::json!({

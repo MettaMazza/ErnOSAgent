@@ -13,10 +13,10 @@
 //! 3. If audit passes AND confidence > threshold → deliver draft (fast path)
 //! 4. If audit fails OR confidence low → desktop 26B generates refined response
 
-use crate::model::spec::{ModelSpec, ModelSummary, Modality};
-use crate::provider::{Message, ProviderStatus, StreamEvent, ToolDefinition, Provider};
 use super::provider_local::MobileLocalProvider;
 use super::provider_relay::DesktopRelayProvider;
+use crate::model::spec::{Modality, ModelSpec, ModelSummary};
+use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -57,10 +57,7 @@ pub struct ChainProvider {
 }
 
 impl ChainProvider {
-    pub fn new(
-        local: Arc<MobileLocalProvider>,
-        relay: Arc<DesktopRelayProvider>,
-    ) -> Self {
+    pub fn new(local: Arc<MobileLocalProvider>, relay: Arc<DesktopRelayProvider>) -> Self {
         Self {
             local,
             relay,
@@ -181,8 +178,16 @@ impl Provider for ChainProvider {
     }
 
     async fn supports_modality(&self, model: &str, modality: Modality) -> Result<bool> {
-        let local = self.local.supports_modality(model, modality).await.unwrap_or(false);
-        let relay = self.relay.supports_modality(model, modality).await.unwrap_or(false);
+        let local = self
+            .local
+            .supports_modality(model, modality)
+            .await
+            .unwrap_or(false);
+        let relay = self
+            .relay
+            .supports_modality(model, modality)
+            .await
+            .unwrap_or(false);
         Ok(local || relay)
     }
 
@@ -296,6 +301,9 @@ mod tests {
         let health = chain.health().await.unwrap();
         assert!(health.available);
         // Desktop unavailable warning
-        assert!(health.error.as_ref().map_or(false, |e| e.contains("Desktop unavailable")));
+        assert!(health
+            .error
+            .as_ref()
+            .map_or(false, |e| e.contains("Desktop unavailable")));
     }
 }

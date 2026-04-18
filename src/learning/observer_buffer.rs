@@ -91,10 +91,12 @@ impl ObserverAuditBuffer {
 
     /// Record an Observer audit example.
     pub fn record(&self, example: &ObserverAuditExample) -> Result<()> {
-        let line = serde_json::to_string(example)
-            .context("Failed to serialize observer audit example")?;
+        let line =
+            serde_json::to_string(example).context("Failed to serialize observer audit example")?;
 
-        let mut writer = self.writer.write()
+        let mut writer = self
+            .writer
+            .write()
             .map_err(|e| anyhow::anyhow!("Observer buffer write lock poisoned: {e}"))?;
         writeln!(writer, "{}", line)?;
         writer.flush()?;
@@ -120,8 +122,8 @@ impl ObserverAuditBuffer {
             return Ok(Vec::new());
         }
 
-        let file = File::open(&self.path)
-            .with_context(|| "Failed to open observer buffer for reading")?;
+        let file =
+            File::open(&self.path).with_context(|| "Failed to open observer buffer for reading")?;
         let reader = BufReader::new(file);
         let mut entries = Vec::new();
 
@@ -154,7 +156,9 @@ impl ObserverAuditBuffer {
             .with_context(|| "Failed to truncate observer buffer")?;
 
         {
-            let mut writer = self.writer.write()
+            let mut writer = self
+                .writer
+                .write()
                 .map_err(|e| anyhow::anyhow!("Observer buffer lock poisoned: {e}"))?;
             *writer = BufWriter::new(file);
         }
@@ -210,7 +214,9 @@ impl ObserverAuditBuffer {
                 .append(true)
                 .open(&self.path)
                 .with_context(|| "Failed to reopen observer buffer for append")?;
-            let mut w = self.writer.write()
+            let mut w = self
+                .writer
+                .write()
                 .map_err(|e| anyhow::anyhow!("Observer buffer lock poisoned: {e}"))?;
             *w = BufWriter::new(append_file);
         }
@@ -235,7 +241,11 @@ mod tests {
             raw_response: format!("{{\"verdict\":\"{verdict}\"}}"),
             parsed_verdict: verdict.to_string(),
             confidence: 0.9,
-            failure_category: if verdict == "BLOCKED" { "ghost_tooling".to_string() } else { "none".to_string() },
+            failure_category: if verdict == "BLOCKED" {
+                "ghost_tooling".to_string()
+            } else {
+                "none".to_string()
+            },
             candidate_response: "test response".to_string(),
             was_correct: correct,
             model_id: "gemma4".to_string(),
@@ -252,7 +262,8 @@ mod tests {
 
         assert_eq!(buf.count(), 0);
 
-        buf.record(&make_example("ALLOWED", Some(true), "s1")).unwrap();
+        buf.record(&make_example("ALLOWED", Some(true), "s1"))
+            .unwrap();
         buf.record(&make_example("BLOCKED", None, "s1")).unwrap();
         assert_eq!(buf.count(), 2);
 
@@ -268,7 +279,8 @@ mod tests {
         let path = dir.path().join("observer_audit.jsonl");
         let buf = ObserverAuditBuffer::open(&path).unwrap();
 
-        buf.record(&make_example("ALLOWED", Some(true), "s1")).unwrap();
+        buf.record(&make_example("ALLOWED", Some(true), "s1"))
+            .unwrap();
         buf.record(&make_example("BLOCKED", None, "s1")).unwrap();
 
         let drained = buf.drain().unwrap();
@@ -305,7 +317,8 @@ mod tests {
 
         {
             let buf = ObserverAuditBuffer::open(&path).unwrap();
-            buf.record(&make_example("ALLOWED", Some(true), "s1")).unwrap();
+            buf.record(&make_example("ALLOWED", Some(true), "s1"))
+                .unwrap();
         }
 
         let buf2 = ObserverAuditBuffer::open(&path).unwrap();

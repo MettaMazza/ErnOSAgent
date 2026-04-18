@@ -5,13 +5,13 @@
 // This is the original author's open-source work. Preserve this header.
 //! STEM Mini Lab tool — university-grade calculation and science engine.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::time::Duration;
-use std::thread;
 use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 fn data_dir() -> PathBuf {
     crate::tools::executor::get_data_dir()
@@ -40,10 +40,14 @@ fn check_dependencies() -> Result<(), String> {
 }
 
 fn stem_lab(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let payload = call.arguments.get("payload")
+    let payload = call
+        .arguments
+        .get("payload")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -80,7 +84,7 @@ fn execute_sandbox(call: &ToolCall, action: &str, payload: &str) -> ToolResult {
     // 2. Prepare Sandbox Python Script
     let wrapper_code = match action {
         "solve" => format!(
-r#"
+            r#"
 import sympy
 from sympy import *
 import json
@@ -91,9 +95,11 @@ try:
     print(json.dumps({{"success": True, "result": str(result)}}))
 except Exception as e:
     print(json.dumps({{"success": False, "error": str(e)}}))
-"#, payload),
+"#,
+            payload
+        ),
         "compute" | "stats" | "matrix" => format!(
-r#"
+            r#"
 import numpy as np
 import scipy
 import sympy
@@ -121,7 +127,9 @@ try:
 except Exception as e:
     sys.stdout = old_stdout
     print(json.dumps({{"success": False, "error": str(e)}}))
-"#, payload.replace("\n", "\n    ")),
+"#,
+            payload.replace("\n", "\n    ")
+        ),
         _ => "".to_string(), // Handled by outer match
     };
 
@@ -135,7 +143,7 @@ except Exception as e:
     // 3. Execution with 10s Timeout using Threading
     let temp_file_clone = temp_file.clone();
     let (tx, rx) = mpsc::channel();
-    
+
     thread::spawn(move || {
         let output = Command::new("python3")
             .arg(temp_file_clone.to_str().unwrap())
@@ -149,15 +157,22 @@ except Exception as e:
         Ok(Ok(out)) => {
             let stdout_str = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr_str = String::from_utf8_lossy(&out.stderr).to_string();
-            
+
             if out.status.success() {
                 // Parse the JSON result from the python wrapper
                 let parsed: Result<serde_json::Value, _> = serde_json::from_str(stdout_str.trim());
                 match parsed {
                     Ok(json) => {
-                        if json.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
-                            let result_val = json.get("result").or(json.get("output"))
-                                .and_then(|v| v.as_str()).unwrap_or("No output returned");
+                        if json
+                            .get("success")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
+                            let result_val = json
+                                .get("result")
+                                .or(json.get("output"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("No output returned");
                             tracing::info!(action = %action, "stem_lab execution succeeded [GHOST TOOL TELEMETRY LIVE]");
                             ToolResult {
                                 tool_call_id: call.id.clone(),
@@ -167,8 +182,14 @@ except Exception as e:
                                 error: None,
                             }
                         } else {
-                            let err_val = json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown python runtime error");
-                            error_result(call, &format!("Python Sandbox Runtime Error:\n{}", err_val))
+                            let err_val = json
+                                .get("error")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown python runtime error");
+                            error_result(
+                                call,
+                                &format!("Python Sandbox Runtime Error:\n{}", err_val),
+                            )
                         }
                     }
                     Err(_) => {
@@ -189,56 +210,72 @@ except Exception as e:
                 }
             } else {
                 tracing::error!(action = %action, "stem_lab process failed [GHOST TOOL TELEMETRY LIVE]");
-                error_result(call, &format!("Process Error:\n{}\n{}", stdout_str, stderr_str))
+                error_result(
+                    call,
+                    &format!("Process Error:\n{}\n{}", stdout_str, stderr_str),
+                )
             }
         }
         Ok(Err(e)) => {
             tracing::error!(error = %e, "stem_lab execution failed to start [GHOST TOOL TELEMETRY LIVE]");
             error_result(call, &format!("Execution IO command failed: {}", e))
         }
-        Err(_) => { // Timeout
+        Err(_) => {
+            // Timeout
             tracing::warn!("stem_lab execution timed out [GHOST TOOL TELEMETRY LIVE]");
-            error_result(call, "Execution Timeout: The STEM lab evaluation exceeded the 10-second sandbox limit.")
+            error_result(
+                call,
+                "Execution Timeout: The STEM lab evaluation exceeded the 10-second sandbox limit.",
+            )
         }
     };
 
     // Cleanup temp script
     let _ = std::fs::remove_file(&temp_file);
-    
+
     res
 }
 
 fn execute_lookup(call: &ToolCall, action: &str, payload: &str) -> ToolResult {
     tracing::info!(action = %action, payload = %payload, "stem_lab lookup executed [GHOST TOOL TELEMETRY LIVE]");
     let db_path = data_dir().join("science_db.json");
-    
+
     if !db_path.exists() {
-        return error_result(call, "Database Error: science_db.json does not exist. Please use web_search.");
+        return error_result(
+            call,
+            "Database Error: science_db.json does not exist. Please use web_search.",
+        );
     }
-    
+
     let db_content = match std::fs::read_to_string(&db_path) {
         Ok(c) => c,
         Err(e) => return error_result(call, &format!("Failed to read database: {}", e)),
     };
-    
+
     let json: serde_json::Value = match serde_json::from_str(&db_content) {
         Ok(v) => v,
         Err(_) => return error_result(call, "Database Error: science_db.json is corrupted."),
     };
-    
+
     // Simplistic search through db
     let query_lower = payload.to_lowercase();
-    let root_key = if action == "physics_lookup" { "physics" } else { "chemistry" };
-    
+    let root_key = if action == "physics_lookup" {
+        "physics"
+    } else {
+        "chemistry"
+    };
+
     let mut found = String::new();
     if let Some(target_db) = json.get(root_key).and_then(|v| v.as_object()) {
         for (k, v) in target_db {
-            if k.to_lowercase().contains(&query_lower) || v.to_string().to_lowercase().contains(&query_lower) {
+            if k.to_lowercase().contains(&query_lower)
+                || v.to_string().to_lowercase().contains(&query_lower)
+            {
                 found.push_str(&format!("{}: {}\n", k, v.to_string()));
             }
         }
     }
-    
+
     if found.is_empty() {
         ToolResult {
             tool_call_id: call.id.clone(),
@@ -260,7 +297,7 @@ fn execute_lookup(call: &ToolCall, action: &str, payload: &str) -> ToolResult {
 
 fn execute_experiment_prompt(call: &ToolCall, payload: &str) -> ToolResult {
     tracing::info!(payload = %payload, "stem_lab returning experimental prompt [GHOST TOOL TELEMETRY LIVE]");
-    
+
     let format = r#"
 [STEM LAB EXPERIMENTAL DESIGN CHECKLIST]
 You have requested to design an experiment for the following query:
@@ -274,7 +311,7 @@ To proceed with university-grade rigor, you MUST output a response detailing:
 
 Do not assume premises. State limits and empirical falsifiability requirements plainly.
 "#;
-    
+
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),

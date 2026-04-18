@@ -6,15 +6,13 @@
 //! Steering vector, neural activity, and feature steering routes.
 
 use super::SteeringVectorDto;
+use super::{api_error, ApiError, ScaleRequest};
 use crate::web::state::SharedState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use super::{ScaleRequest, ApiError, api_error};
 
-pub async fn get_steering(
-    State(state): State<SharedState>,
-) -> Json<Vec<SteeringVectorDto>> {
+pub async fn get_steering(State(state): State<SharedState>) -> Json<Vec<SteeringVectorDto>> {
     let st = state.read().await;
     let vectors: Vec<SteeringVectorDto> = st
         .steering_config
@@ -47,11 +45,17 @@ pub async fn toggle_steering(
     Path(name): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
     let mut st = state.write().await;
-    let vector = st.steering_config
+    let vector = st
+        .steering_config
         .vectors
         .iter_mut()
         .find(|v| v.name == name)
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, &format!("Vector '{}' not found", name)))?;
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                &format!("Vector '{}' not found", name),
+            )
+        })?;
     vector.active = !vector.active;
     tracing::info!(name = %name, active = vector.active, "Steering vector toggled");
     Ok(StatusCode::OK)
@@ -59,9 +63,7 @@ pub async fn toggle_steering(
 
 // ── Neural Activity (Interpretability) ──────────────────────────────
 
-pub async fn neural_snapshot(
-    State(state): State<SharedState>,
-) -> Json<serde_json::Value> {
+pub async fn neural_snapshot(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let st = state.read().await;
     let last_prompt: String = st
         .session_mgr
@@ -119,7 +121,11 @@ pub async fn steer_feature(
     if req.scale == 0.0 {
         tracing::info!(feature = req.feature_index, "Feature steering removed");
     } else {
-        let direction = if req.scale > 0.0 { "amplify" } else { "suppress" };
+        let direction = if req.scale > 0.0 {
+            "amplify"
+        } else {
+            "suppress"
+        };
         tracing::info!(
             feature = req.feature_index,
             direction = direction,

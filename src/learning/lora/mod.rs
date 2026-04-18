@@ -22,27 +22,29 @@
 //! - `training`: full SFT and ORPO training loops
 //! - `adapters`: PEFT-compatible safetensors export
 
-pub(crate) mod optimizer;
-pub mod weights;
+pub mod adapters;
+pub mod ewc;
 pub mod forward;
 pub(crate) mod loss;
-pub mod loss_simpo;
-pub mod loss_kto;
 pub mod loss_dpo;
-pub mod ewc;
+pub mod loss_kto;
+pub mod loss_simpo;
+pub(crate) mod optimizer;
 pub mod training;
 pub mod training_alignment;
-pub mod adapters;
+pub mod weights;
 
 // Re-exports for backward compatibility
-pub use training::{train_sft, train_orpo};
-pub use training_alignment::{train_simpo, train_kto, train_dpo};
-pub use weights::{build_lora_varmap, build_lora_varmap_with_resume, load_base_weights, load_previous_adapter};
-pub use loss::compute_orpo_loss;
-pub use loss_simpo::compute_simpo_loss;
-pub use loss_kto::{compute_kto_loss, KtoParams};
-pub use loss_dpo::compute_dpo_loss;
 pub use adapters::save_adapters;
+pub use loss::compute_orpo_loss;
+pub use loss_dpo::compute_dpo_loss;
+pub use loss_kto::{compute_kto_loss, KtoParams};
+pub use loss_simpo::compute_simpo_loss;
+pub use training::{train_orpo, train_sft};
+pub use training_alignment::{train_dpo, train_kto, train_simpo};
+pub use weights::{
+    build_lora_varmap, build_lora_varmap_with_resume, load_base_weights, load_previous_adapter,
+};
 
 use crate::learning::buffers::{GoldenExample, PreferencePair};
 use anyhow::Result;
@@ -60,8 +62,13 @@ pub struct Tokenizer {
 impl Tokenizer {
     /// Load the tokenizer from a `tokenizer.json` file on disk.
     pub fn load(model_path: &Path) -> Result<Self> {
-        let inner = tokenizers::Tokenizer::from_file(model_path)
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer from {}: {}", model_path.display(), e))?;
+        let inner = tokenizers::Tokenizer::from_file(model_path).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to load tokenizer from {}: {}",
+                model_path.display(),
+                e
+            )
+        })?;
 
         let bos_id = inner.token_to_id("<bos>").unwrap_or(2u32);
         let eos_id = inner.token_to_id("<eos>").unwrap_or(1u32);
@@ -74,7 +81,11 @@ impl Tokenizer {
             "Tokenizer loaded"
         );
 
-        Ok(Self { inner, bos_id, eos_id })
+        Ok(Self {
+            inner,
+            bos_id,
+            eos_id,
+        })
     }
 
     /// Encode text into token IDs, prepending BOS.
@@ -129,8 +140,12 @@ pub struct LoraConfig {
 
 impl LoraConfig {
     // Convenience accessors
-    pub fn num_layers(&self) -> usize { self.arch.num_layers }
-    pub fn hidden_dim(&self) -> usize { self.arch.hidden_dim }
+    pub fn num_layers(&self) -> usize {
+        self.arch.num_layers
+    }
+    pub fn hidden_dim(&self) -> usize {
+        self.arch.hidden_dim
+    }
 }
 
 impl Default for LoraConfig {
@@ -214,8 +229,10 @@ pub fn tokenize_preference(
         pair.system_prompt, pair.user_message
     );
 
-    let chosen_ids = tokenizer.encode_with_eos(&format!("{}<end_of_turn>", pair.chosen_response))?;
-    let rejected_ids = tokenizer.encode_with_eos(&format!("{}<end_of_turn>", pair.rejected_response))?;
+    let chosen_ids =
+        tokenizer.encode_with_eos(&format!("{}<end_of_turn>", pair.chosen_response))?;
+    let rejected_ids =
+        tokenizer.encode_with_eos(&format!("{}<end_of_turn>", pair.rejected_response))?;
     let prompt_ids = tokenizer.encode(&prompt)?;
 
     let total_c = (prompt_ids.len() + chosen_ids.len()).min(max_len);
@@ -225,8 +242,16 @@ pub fn tokenize_preference(
     let (r_ids, r_labels) = build_causal_lm_labels(&prompt_ids, &rejected_ids, total_r);
 
     Ok((
-        TrainingSample { input_ids: c_ids, labels: c_labels, source: SampleSource::PreferenceChosen },
-        TrainingSample { input_ids: r_ids, labels: r_labels, source: SampleSource::PreferenceRejected },
+        TrainingSample {
+            input_ids: c_ids,
+            labels: c_labels,
+            source: SampleSource::PreferenceChosen,
+        },
+        TrainingSample {
+            input_ids: r_ids,
+            labels: r_labels,
+            source: SampleSource::PreferenceRejected,
+        },
     ))
 }
 

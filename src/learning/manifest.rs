@@ -103,8 +103,8 @@ impl AdapterManifest {
     /// Persist the manifest to disk.
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
-            let content = serde_json::to_string_pretty(self)
-                .context("Failed to serialize manifest")?;
+            let content =
+                serde_json::to_string_pretty(self).context("Failed to serialize manifest")?;
             std::fs::write(path, content)
                 .with_context(|| format!("Failed to write manifest: {}", path.display()))?;
         }
@@ -260,7 +260,9 @@ mod tests {
     #[test]
     fn test_promote() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/models/v1.gguf"), 5, 3, 0.1).unwrap();
+        manifest
+            .promote("v1", Path::new("/models/v1.gguf"), 5, 3, 0.1)
+            .unwrap();
 
         assert_eq!(manifest.current.as_deref(), Some("v1"));
         assert_eq!(manifest.history.len(), 1);
@@ -270,8 +272,12 @@ mod tests {
     #[test]
     fn test_promote_multiple() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1).unwrap();
-        manifest.promote("v2", Path::new("/m/v2.gguf"), 3, 2, 0.08).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1)
+            .unwrap();
+        manifest
+            .promote("v2", Path::new("/m/v2.gguf"), 3, 2, 0.08)
+            .unwrap();
 
         assert_eq!(manifest.current.as_deref(), Some("v2"));
         assert_eq!(manifest.history.len(), 2);
@@ -283,8 +289,12 @@ mod tests {
     #[test]
     fn test_rollback() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1).unwrap();
-        manifest.promote("v2", Path::new("/m/v2.gguf"), 3, 2, 0.08).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1)
+            .unwrap();
+        manifest
+            .promote("v2", Path::new("/m/v2.gguf"), 3, 2, 0.08)
+            .unwrap();
 
         manifest.rollback().unwrap();
         assert_eq!(manifest.current.as_deref(), Some("v1"));
@@ -294,7 +304,9 @@ mod tests {
     #[test]
     fn test_rollback_no_history() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1)
+            .unwrap();
 
         assert!(manifest.rollback().is_err());
     }
@@ -305,11 +317,15 @@ mod tests {
         manifest.retention = 3;
 
         for i in 1..=5 {
-            manifest.promote(
-                &format!("v{}", i),
-                Path::new(&format!("/m/v{}.gguf", i)),
-                1, 0, 0.1,
-            ).unwrap();
+            manifest
+                .promote(
+                    &format!("v{}", i),
+                    Path::new(&format!("/m/v{}.gguf", i)),
+                    1,
+                    0,
+                    0.1,
+                )
+                .unwrap();
         }
 
         // Should only keep 3
@@ -326,7 +342,9 @@ mod tests {
 
         {
             let mut manifest = AdapterManifest::open(&path).unwrap();
-            manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 3, 0.1).unwrap();
+            manifest
+                .promote("v1", Path::new("/m/v1.gguf"), 5, 3, 0.1)
+                .unwrap();
         }
 
         let reloaded = AdapterManifest::open(&path).unwrap();
@@ -337,7 +355,9 @@ mod tests {
     #[test]
     fn test_health_check() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 5, 0, 0.1)
+            .unwrap();
         assert!(!manifest.history[0].health_check_passed);
 
         manifest.mark_healthy().unwrap();
@@ -347,8 +367,12 @@ mod tests {
     #[test]
     fn test_total_training_data() {
         let mut manifest = AdapterManifest::new_in_memory();
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 5, 3, 0.1).unwrap();
-        manifest.promote("v2", Path::new("/m/v2.gguf"), 4, 2, 0.08).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 5, 3, 0.1)
+            .unwrap();
+        manifest
+            .promote("v2", Path::new("/m/v2.gguf"), 4, 2, 0.08)
+            .unwrap();
 
         let (golden, pref) = manifest.total_training_data();
         assert_eq!(golden, 9);
@@ -368,7 +392,9 @@ mod tests {
         let mut manifest = AdapterManifest::new_in_memory();
         assert!(manifest.current_model_path().is_none());
 
-        manifest.promote("v1", Path::new("/m/v1.gguf"), 0, 0, 0.0).unwrap();
+        manifest
+            .promote("v1", Path::new("/m/v1.gguf"), 0, 0, 0.0)
+            .unwrap();
         assert_eq!(manifest.current_model_path(), Some(Path::new("/m/v1.gguf")));
     }
 }

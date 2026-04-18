@@ -92,7 +92,8 @@ fn test_context_creation() {
     let model = LlamaModel::load(ModelParams {
         model_path: model_path.to_str().unwrap().to_string(),
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     let ctx = LlamaContext::new(&model, ContextParams::default());
     assert!(ctx.is_ok());
@@ -117,16 +118,18 @@ fn test_stub_generation() {
     let model = LlamaModel::load(ModelParams {
         model_path: model_path.to_str().unwrap().to_string(),
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     let mut ctx = LlamaContext::new(&model, ContextParams::default()).unwrap();
     let cancel = CancelFlag::new();
     let mut tokens = Vec::new();
 
-    let count = ctx.generate(
-        &[], &SamplingParams::default(), 100, &cancel,
-        |tok| tokens.push(tok),
-    ).unwrap();
+    let count = ctx
+        .generate(&[], &SamplingParams::default(), 100, &cancel, |tok| {
+            tokens.push(tok)
+        })
+        .unwrap();
 
     assert!(count > 0);
     assert!(!tokens.is_empty());
@@ -142,17 +145,19 @@ fn test_stub_generation_cancellation() {
     let model = LlamaModel::load(ModelParams {
         model_path: model_path.to_str().unwrap().to_string(),
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     let mut ctx = LlamaContext::new(&model, ContextParams::default()).unwrap();
     let cancel = CancelFlag::new();
     cancel.cancel();
 
     let mut tokens = Vec::new();
-    let count = ctx.generate(
-        &[], &SamplingParams::default(), 100, &cancel,
-        |tok| tokens.push(tok),
-    ).unwrap();
+    let count = ctx
+        .generate(&[], &SamplingParams::default(), 100, &cancel, |tok| {
+            tokens.push(tok)
+        })
+        .unwrap();
 
     assert_eq!(count, 0);
     assert!(tokens.is_empty());

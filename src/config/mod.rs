@@ -13,9 +13,9 @@
 //! - `neo4j`: Neo4j auto-detection from env vars and docker-compose.yml
 //! - `app`: AppConfig methods (load, save, path helpers)
 
+mod app;
 mod defaults;
 mod neo4j;
-mod app;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -64,7 +64,9 @@ pub struct LlamaCppConfig {
     pub embedding_port: u16,
 }
 
-fn default_embed_port() -> u16 { 8081 }
+fn default_embed_port() -> u16 {
+    8081
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaConfig {
@@ -163,7 +165,9 @@ pub struct DiscordConfig {
     pub sentinel_enabled: bool,
 }
 
-fn default_role_duration() -> u64 { 7 }
+fn default_role_duration() -> u64 {
+    7
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramConfig {

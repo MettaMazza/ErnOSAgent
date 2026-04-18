@@ -35,7 +35,9 @@ impl WhatsAppAdapter {
 
 #[async_trait]
 impl PlatformAdapter for WhatsAppAdapter {
-    fn name(&self) -> &str { "WhatsApp" }
+    fn name(&self) -> &str {
+        "WhatsApp"
+    }
 
     fn is_configured(&self) -> bool {
         !self.config.token.is_empty() && !self.config.phone_number_id.is_empty()
@@ -49,7 +51,9 @@ impl PlatformAdapter for WhatsAppAdapter {
         let verify_token = self.config.verify_token.clone();
         let tx = self.tx.clone();
         let port = self.config.webhook_port;
-        let admin_user_ids: Vec<String> = self.config.admin_user_id
+        let admin_user_ids: Vec<String> = self
+            .config
+            .admin_user_id
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -59,7 +63,9 @@ impl PlatformAdapter for WhatsAppAdapter {
         self.shutdown = Some(shutdown_tx);
 
         tokio::spawn(async move {
-            if let Err(e) = run_webhook_server(port, verify_token, tx, shutdown_rx, admin_user_ids).await {
+            if let Err(e) =
+                run_webhook_server(port, verify_token, tx, shutdown_rx, admin_user_ids).await
+            {
                 tracing::error!(error = %e, "WhatsApp webhook server error");
             }
         });
@@ -136,7 +142,11 @@ async fn run_webhook_server(
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
     admin_user_ids: Vec<String>,
 ) -> Result<()> {
-    use axum::{extract::Query, routing::{get, post}, Json, Router};
+    use axum::{
+        extract::Query,
+        routing::{get, post},
+        Json, Router,
+    };
     use serde::Deserialize;
 
     #[derive(Deserialize)]
@@ -171,15 +181,20 @@ async fn run_webhook_server(
                                 Some(v) => v,
                                 None => continue,
                             };
-                            if let Some(messages) = value.get("messages").and_then(|m| m.as_array()) {
+                            if let Some(messages) = value.get("messages").and_then(|m| m.as_array())
+                            {
                                 for msg in messages {
-                                    let from = msg.get("from").and_then(|f| f.as_str()).unwrap_or("");
-                                    let text = msg.get("text")
+                                    let from =
+                                        msg.get("from").and_then(|f| f.as_str()).unwrap_or("");
+                                    let text = msg
+                                        .get("text")
                                         .and_then(|t| t.get("body"))
                                         .and_then(|b| b.as_str())
                                         .unwrap_or("");
 
-                                    if text.is_empty() { continue; }
+                                    if text.is_empty() {
+                                        continue;
+                                    }
 
                                     let platform_msg = PlatformMessage {
                                         platform: "whatsapp".to_string(),
@@ -188,7 +203,11 @@ async fn run_webhook_server(
                                         user_name: from.to_string(),
                                         content: text.to_string(),
                                         attachments: Vec::new(),
-                                        message_id: msg.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string(),
+                                        message_id: msg
+                                            .get("id")
+                                            .and_then(|i| i.as_str())
+                                            .unwrap_or("")
+                                            .to_string(),
                                         guild_id: None,
                                         is_admin: admin_ids.iter().any(|id| id == from),
                                     };
@@ -214,7 +233,9 @@ async fn run_webhook_server(
     tracing::info!(port = port, "WhatsApp webhook server listening");
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(async { let _ = shutdown_rx.await; })
+        .with_graceful_shutdown(async {
+            let _ = shutdown_rx.await;
+        })
         .await
         .map_err(|e| anyhow::anyhow!("WhatsApp webhook server error: {e}"))
 }

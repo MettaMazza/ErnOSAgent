@@ -12,7 +12,6 @@
 //!   Encoder: f_i(x) = ReLU(W_enc_i · x + b_enc_i)
 //!   Decoder: x̂ = b_dec + Σ f_i(x) · W_dec_·,i
 
-
 use serde::{Deserialize, Serialize};
 
 /// SAE activation function architecture.
@@ -277,11 +276,7 @@ impl SparseAutoencoder {
             .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
             .collect();
 
-        tracing::debug!(
-            tensor = name,
-            elements = floats.len(),
-            "Loaded SAE tensor"
-        );
+        tracing::debug!(tensor = name, elements = floats.len(), "Loaded SAE tensor");
         Ok(floats)
     }
 }

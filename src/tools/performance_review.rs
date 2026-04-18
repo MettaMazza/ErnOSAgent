@@ -48,7 +48,10 @@ fn gather_failure_patterns(buffers: &TrainingBuffers) -> String {
     let mut sorted: Vec<_> = categories.into_iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(&a.1));
 
-    let mut report = format!("FAILURE PATTERNS ({} total preference pairs)\n", pairs.len());
+    let mut report = format!(
+        "FAILURE PATTERNS ({} total preference pairs)\n",
+        pairs.len()
+    );
     for (category, count) in &sorted {
         let pct = (*count as f64 / pairs.len() as f64) * 100.0;
         report.push_str(&format!("  {category}: {count} ({pct:.0}%)\n"));
@@ -58,7 +61,9 @@ fn gather_failure_patterns(buffers: &TrainingBuffers) -> String {
     report.push_str("\nMost recent failures:\n");
     for pair in pairs.iter().rev().take(3) {
         let preview = if pair.rejected_response.len() > 80 {
-            let boundary = pair.rejected_response.char_indices()
+            let boundary = pair
+                .rejected_response
+                .char_indices()
                 .take_while(|(i, _)| *i <= 80)
                 .last()
                 .map(|(i, _)| i)
@@ -67,10 +72,7 @@ fn gather_failure_patterns(buffers: &TrainingBuffers) -> String {
         } else {
             pair.rejected_response.clone()
         };
-        report.push_str(&format!(
-            "  [{}] {}\n",
-            pair.failure_category, preview
-        ));
+        report.push_str(&format!("  [{}] {}\n", pair.failure_category, preview));
     }
 
     report
@@ -96,7 +98,9 @@ fn gather_success_patterns(buffers: &TrainingBuffers) -> String {
     report.push_str("\nMost recent golden interactions:\n");
     for ex in examples.iter().rev().take(3) {
         let user_preview = if ex.user_message.len() > 60 {
-            let boundary = ex.user_message.char_indices()
+            let boundary = ex
+                .user_message
+                .char_indices()
                 .take_while(|(i, _)| *i <= 60)
                 .last()
                 .map(|(i, _)| i)
@@ -120,16 +124,22 @@ fn gather_lessons() -> String {
 
     match std::fs::read_to_string(&path) {
         Ok(content) => {
-            let lessons: Vec<serde_json::Value> = serde_json::from_str(&content)
-                .unwrap_or_default();
+            let lessons: Vec<serde_json::Value> =
+                serde_json::from_str(&content).unwrap_or_default();
             if lessons.is_empty() {
                 return "No lessons stored yet.".to_string();
             }
 
             let mut report = format!("LEARNED LESSONS ({} total)\n", lessons.len());
             for lesson in lessons.iter().take(5) {
-                let rule = lesson.get("rule").and_then(|v| v.as_str()).unwrap_or("(no rule)");
-                let confidence = lesson.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let rule = lesson
+                    .get("rule")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("(no rule)");
+                let confidence = lesson
+                    .get("confidence")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 report.push_str(&format!("  [{:.0}%] {rule}\n", confidence * 100.0));
             }
             report
@@ -182,7 +192,9 @@ fn performance_review_handler(
     buffers: Arc<TrainingBuffers>,
 ) -> impl Fn(&ToolCall) -> ToolResult + Send + Sync {
     move |call: &ToolCall| {
-        let scope_str = call.arguments.get("scope")
+        let scope_str = call
+            .arguments
+            .get("scope")
             .and_then(|v| v.as_str())
             .unwrap_or("full");
 
@@ -214,9 +226,18 @@ mod tests {
     #[test]
     fn test_review_scope_from_str() {
         assert!(matches!(ReviewScope::from_str("full"), ReviewScope::Full));
-        assert!(matches!(ReviewScope::from_str("failures"), ReviewScope::Failures));
-        assert!(matches!(ReviewScope::from_str("successes"), ReviewScope::Successes));
-        assert!(matches!(ReviewScope::from_str("unknown"), ReviewScope::Full));
+        assert!(matches!(
+            ReviewScope::from_str("failures"),
+            ReviewScope::Failures
+        ));
+        assert!(matches!(
+            ReviewScope::from_str("successes"),
+            ReviewScope::Successes
+        ));
+        assert!(matches!(
+            ReviewScope::from_str("unknown"),
+            ReviewScope::Full
+        ));
     }
 
     #[test]

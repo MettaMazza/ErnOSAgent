@@ -12,13 +12,13 @@
 //! 4. Save checkpoints and final weights as safetensors
 //! 5. Can resume from checkpoint if interrupted
 
-use crate::interpretability::collector::{self, ActivationCollector, format_eta};
+use crate::interpretability::collector::{self, format_eta, ActivationCollector};
 use crate::interpretability::trainer::{SaeTrainer, TrainConfig};
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::Instant;
 use tokio::process::Command;
-use std::process::Stdio;
 
 /// Training run configuration.
 #[derive(Debug, Clone)]
@@ -153,16 +153,19 @@ async fn collect_activations(
     }
 
     // Log progress start
-    log_progress(progress_path, &TrainingProgress {
-        phase: "collection".to_string(),
-        step: 0,
-        total_steps: corpus.len(),
-        progress_pct: 0.0,
-        elapsed_secs: 0,
-        eta_secs: 0,
-        eta_human: "calculating...".to_string(),
-        metrics: serde_json::json!({"corpus_size": corpus.len()}),
-    });
+    log_progress(
+        progress_path,
+        &TrainingProgress {
+            phase: "collection".to_string(),
+            step: 0,
+            total_steps: corpus.len(),
+            progress_pct: 0.0,
+            elapsed_secs: 0,
+            eta_secs: 0,
+            eta_human: "calculating...".to_string(),
+            metrics: serde_json::json!({"corpus_size": corpus.len()}),
+        },
+    );
 
     // Collect
     let activations = collector.collect_batch(&corpus, 100).await?;
@@ -175,19 +178,22 @@ async fn collect_activations(
     // Save to disk
     ActivationCollector::save_activations(&activations, activations_path, dim)?;
 
-    log_progress(progress_path, &TrainingProgress {
-        phase: "collection_complete".to_string(),
-        step: activations.len(),
-        total_steps: corpus.len(),
-        progress_pct: 100.0,
-        elapsed_secs: 0,
-        eta_secs: 0,
-        eta_human: "done".to_string(),
-        metrics: serde_json::json!({
-            "samples_collected": activations.len(),
-            "activation_dim": dim,
-        }),
-    });
+    log_progress(
+        progress_path,
+        &TrainingProgress {
+            phase: "collection_complete".to_string(),
+            step: activations.len(),
+            total_steps: corpus.len(),
+            progress_pct: 100.0,
+            elapsed_secs: 0,
+            eta_secs: 0,
+            eta_human: "done".to_string(),
+            metrics: serde_json::json!({
+                "samples_collected": activations.len(),
+                "activation_dim": dim,
+            }),
+        },
+    );
 
     Ok((activations, dim))
 }
@@ -271,28 +277,34 @@ async fn train_sae(
                 rate_steps_sec = format!("{:.1}", rate),
                 elapsed = format_eta(elapsed),
                 eta = format_eta(eta),
-                progress_pct = format!("{:.1}%", stats.step as f64 / config.num_steps as f64 * 100.0),
+                progress_pct = format!(
+                    "{:.1}%",
+                    stats.step as f64 / config.num_steps as f64 * 100.0
+                ),
                 "SAE training progress"
             );
 
-            log_progress(progress_path, &TrainingProgress {
-                phase: "training".to_string(),
-                step: stats.step,
-                total_steps: config.num_steps,
-                progress_pct: stats.step as f64 / config.num_steps as f64 * 100.0,
-                elapsed_secs: elapsed.as_secs(),
-                eta_secs: eta.as_secs(),
-                eta_human: format_eta(eta),
-                metrics: serde_json::json!({
-                    "reconstruction_loss": stats.reconstruction_loss,
-                    "l1_loss": stats.l1_loss,
-                    "total_loss": stats.total_loss,
-                    "active_features": stats.active_features,
-                    "dead_features": stats.dead_features,
-                    "feature_density": stats.feature_density,
-                    "steps_per_sec": rate,
-                }),
-            });
+            log_progress(
+                progress_path,
+                &TrainingProgress {
+                    phase: "training".to_string(),
+                    step: stats.step,
+                    total_steps: config.num_steps,
+                    progress_pct: stats.step as f64 / config.num_steps as f64 * 100.0,
+                    elapsed_secs: elapsed.as_secs(),
+                    eta_secs: eta.as_secs(),
+                    eta_human: format_eta(eta),
+                    metrics: serde_json::json!({
+                        "reconstruction_loss": stats.reconstruction_loss,
+                        "l1_loss": stats.l1_loss,
+                        "total_loss": stats.total_loss,
+                        "active_features": stats.active_features,
+                        "dead_features": stats.dead_features,
+                        "feature_density": stats.feature_density,
+                        "steps_per_sec": rate,
+                    }),
+                },
+            );
         }
 
         // Checkpoint
@@ -322,27 +334,28 @@ async fn train_sae(
     // Final checkpoint
     trainer.checkpoint()?;
 
-    log_progress(progress_path, &TrainingProgress {
-        phase: "training_complete".to_string(),
-        step: config.num_steps,
-        total_steps: config.num_steps,
-        progress_pct: 100.0,
-        elapsed_secs: total_start.elapsed().as_secs(),
-        eta_secs: 0,
-        eta_human: "done".to_string(),
-        metrics: serde_json::json!({
-            "output_path": output_path.display().to_string(),
-            "total_elapsed": format_eta(total_start.elapsed()),
-        }),
-    });
+    log_progress(
+        progress_path,
+        &TrainingProgress {
+            phase: "training_complete".to_string(),
+            step: config.num_steps,
+            total_steps: config.num_steps,
+            progress_pct: 100.0,
+            elapsed_secs: total_start.elapsed().as_secs(),
+            eta_secs: 0,
+            eta_human: "done".to_string(),
+            metrics: serde_json::json!({
+                "output_path": output_path.display().to_string(),
+                "total_elapsed": format_eta(total_start.elapsed()),
+            }),
+        },
+    );
 
     Ok(())
 }
 
 /// Start a llama-server instance in embedding mode with the Gemma 4 model.
-async fn start_gemma_embedding_server(
-    config: &TrainingRunConfig,
-) -> Result<tokio::process::Child> {
+async fn start_gemma_embedding_server(config: &TrainingRunConfig) -> Result<tokio::process::Child> {
     if config.model_path.is_empty() {
         bail!("No model path configured (LLAMACPP_MODEL_PATH)");
     }
@@ -356,21 +369,29 @@ async fn start_gemma_embedding_server(
 
     let child = Command::new(&config.server_binary)
         .args([
-            "--model", &config.model_path,
-            "--port", &config.embed_port.to_string(),
-            "--n-gpu-layers", &config.n_gpu_layers.to_string(),
+            "--model",
+            &config.model_path,
+            "--port",
+            &config.embed_port.to_string(),
+            "--n-gpu-layers",
+            &config.n_gpu_layers.to_string(),
             "--embeddings",
-            "--pooling", "mean",
-            "--batch-size", "2048",
-            "--ubatch-size", "2048",
+            "--pooling",
+            "mean",
+            "--batch-size",
+            "2048",
+            "--ubatch-size",
+            "2048",
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .with_context(|| format!(
-            "Failed to start embedding server with model '{}'",
-            config.model_path
-        ))?;
+        .with_context(|| {
+            format!(
+                "Failed to start embedding server with model '{}'",
+                config.model_path
+            )
+        })?;
 
     Ok(child)
 }
@@ -437,16 +458,19 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let path = tmp.path().join("progress.jsonl");
 
-        log_progress(&path, &TrainingProgress {
-            phase: "test".to_string(),
-            step: 1,
-            total_steps: 100,
-            progress_pct: 1.0,
-            elapsed_secs: 5,
-            eta_secs: 495,
-            eta_human: "8m 15s".to_string(),
-            metrics: serde_json::json!({"loss": 0.5}),
-        });
+        log_progress(
+            &path,
+            &TrainingProgress {
+                phase: "test".to_string(),
+                step: 1,
+                total_steps: 100,
+                progress_pct: 1.0,
+                elapsed_secs: 5,
+                eta_secs: 495,
+                eta_human: "8m 15s".to_string(),
+                metrics: serde_json::json!({"loss": 0.5}),
+            },
+        );
 
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(content.contains("\"phase\":\"test\""));

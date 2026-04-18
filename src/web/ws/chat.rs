@@ -18,14 +18,24 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, user_message: &str, images: Vec<String>) {
+pub(super) async fn handle_chat(
+    socket: &mut WebSocket,
+    state: &SharedState,
+    user_message: &str,
+    images: Vec<String>,
+) {
     {
         let st = state.read().await;
         if st.is_generating {
             st.cancel_token.store(true, Ordering::SeqCst);
-            let _ = send_json(socket, &ServerMessage::Error {
-                message: "Interrupting active generation. Please wait a moment and send again.".to_string(),
-            }).await;
+            let _ = send_json(
+                socket,
+                &ServerMessage::Error {
+                    message: "Interrupting active generation. Please wait a moment and send again."
+                        .to_string(),
+                },
+            )
+            .await;
             return;
         }
     }
@@ -48,7 +58,11 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
         let budget = (st.model_spec.context_length as usize * 15 / 100).max(2000);
         (
             st.config.observer.enabled,
-            if st.config.observer.model.is_empty() { None } else { Some(st.config.observer.model.clone()) },
+            if st.config.observer.model.is_empty() {
+                None
+            } else {
+                Some(st.config.observer.model.clone())
+            },
             budget,
             Arc::clone(&st.executor),
             st.model_spec.context_length,
@@ -61,8 +75,8 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
     let (training_buffers, session_id, cancel_token, user_data_dir) = {
         let st = state.read().await;
         (
-            st.training_buffers.clone(), 
-            st.session_mgr.active().id.clone(), 
+            st.training_buffers.clone(),
+            st.session_mgr.active().id.clone(),
             Arc::clone(&st.cancel_token),
             st.config.general.data_dir.clone(),
         )
@@ -70,14 +84,33 @@ pub(super) async fn handle_chat(socket: &mut WebSocket, state: &SharedState, use
 
     let (event_tx, event_rx) = mpsc::channel::<ReactEvent>(256);
     let react_handle = spawn_react_loop(
-        provider, model, messages, tools, system_prompt, identity_prompt,
-        event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        context_length, executor, user_data_dir,
+        provider,
+        model,
+        messages,
+        tools,
+        system_prompt,
+        identity_prompt,
+        event_tx,
+        training_buffers,
+        session_id,
+        observer_enabled,
+        observer_model,
+        context_length,
+        executor,
+        user_data_dir,
         #[cfg(feature = "discord")]
         None,
     );
 
-    stream_react_events(socket, state, user_message, event_rx, react_handle, cancel_token).await;
+    stream_react_events(
+        socket,
+        state,
+        user_message,
+        event_rx,
+        react_handle,
+        cancel_token,
+    )
+    .await;
     finalize_chat_turn(socket, state).await;
 }
 
@@ -85,23 +118,46 @@ pub(crate) async fn build_chat_context(
     state: &SharedState,
     user_message: &str,
     memory_budget: usize,
-) -> (Arc<dyn crate::provider::Provider>, String, Vec<Message>, Vec<crate::provider::ToolDefinition>, String, String) {
+) -> (
+    Arc<dyn crate::provider::Provider>,
+    String,
+    Vec<Message>,
+    Vec<crate::provider::ToolDefinition>,
+    String,
+    String,
+) {
     let st = state.read().await;
     let core = st.core_prompt.clone();
     let identity = st.identity_prompt.clone();
     let memory_summary = st.memory_mgr.status_summary().await;
     let msg_count = st.session_mgr.active().messages.len();
-    let usage = context::context_usage(&st.session_mgr.active().messages, st.model_spec.context_length);
+    let usage = context::context_usage(
+        &st.session_mgr.active().messages,
+        st.model_spec.context_length,
+    );
 
     let tool_names = tool_schemas::all_tool_names();
     let ctx_prompt = prompt::context::build_context_prompt(
-        &st.model_spec, &st.session_mgr.active().title, msg_count, usage,
-        &tool_names, &st.steering_config, &memory_summary, "",
+        &st.model_spec,
+        &st.session_mgr.active().title,
+        msg_count,
+        usage,
+        &tool_names,
+        &st.steering_config,
+        &memory_summary,
+        "",
     );
 
     let system_prompt = prompt::assemble_system_prompt(&core, &ctx_prompt, &identity);
-    let mut msgs = vec![Message { role: "system".to_string(), content: system_prompt.clone(), images: Vec::new() }];
-    let memory_ctx = st.memory_mgr.recall_context(user_message, memory_budget).await;
+    let mut msgs = vec![Message {
+        role: "system".to_string(),
+        content: system_prompt.clone(),
+        images: Vec::new(),
+    }];
+    let memory_ctx = st
+        .memory_mgr
+        .recall_context(user_message, memory_budget)
+        .await;
     msgs.extend(memory_ctx);
     msgs.extend(st.session_mgr.active().messages.clone());
 
@@ -113,7 +169,14 @@ pub(crate) async fn build_chat_context(
     if !disabled.is_empty() {
         tools.retain(|t| !disabled.contains(&t.function.name));
     }
-    (Arc::clone(&st.provider), st.config.general.active_model.clone(), msgs, tools, system_prompt, identity)
+    (
+        Arc::clone(&st.provider),
+        st.config.general.active_model.clone(),
+        msgs,
+        tools,
+        system_prompt,
+        identity,
+    )
 }
 
 pub(crate) fn spawn_react_loop(
@@ -131,22 +194,36 @@ pub(crate) fn spawn_react_loop(
     context_length: u64,
     executor: Arc<crate::tools::executor::ToolExecutor>,
     user_data_dir: std::path::PathBuf,
-    #[cfg(feature = "discord")]
-    discord_http: Option<std::sync::Arc<serenity::http::Http>>,
+    #[cfg(feature = "discord")] discord_http: Option<std::sync::Arc<serenity::http::Http>>,
 ) -> tokio::task::JoinHandle<anyhow::Result<react_loop::ReactResult>> {
-    let react_config = ReactConfig { observer_enabled, observer_model, context_length };
+    let react_config = ReactConfig {
+        observer_enabled,
+        observer_model,
+        context_length,
+    };
 
     tokio::spawn(async move {
-        crate::tools::executor::RUNTIME_DATA_DIR.scope(user_data_dir, async move {
-            react_loop::execute_react_loop(
-                &provider, &model, messages, &tools, &executor,
-                &react_config, &system_prompt, &identity_prompt, event_tx,
-                training_buffers, &session_id,
-                #[cfg(feature = "discord")]
-                discord_http,
-                None, // No cancel token for user chat
-            ).await
-        }).await
+        crate::tools::executor::RUNTIME_DATA_DIR
+            .scope(user_data_dir, async move {
+                react_loop::execute_react_loop(
+                    &provider,
+                    &model,
+                    messages,
+                    &tools,
+                    &executor,
+                    &react_config,
+                    &system_prompt,
+                    &identity_prompt,
+                    event_tx,
+                    training_buffers,
+                    &session_id,
+                    #[cfg(feature = "discord")]
+                    discord_http,
+                    None, // No cancel token for user chat
+                )
+                .await
+            })
+            .await
     })
 }
 
@@ -219,18 +296,26 @@ async fn stream_react_events(
         }
         Ok(Err(e)) => {
             tracing::error!(error = %e, "ReAct loop returned error — notifying frontend");
-            let _ = send_json(socket, &ServerMessage::Error {
-                message: format!("Generation failed: {}", e),
-            }).await;
+            let _ = send_json(
+                socket,
+                &ServerMessage::Error {
+                    message: format!("Generation failed: {}", e),
+                },
+            )
+            .await;
         }
         Err(e) if e.is_cancelled() => {
             tracing::info!("ReAct loop task was cancelled");
         }
         Err(e) => {
             tracing::error!(error = %e, "ReAct loop task panicked — notifying frontend");
-            let _ = send_json(socket, &ServerMessage::Error {
-                message: format!("Internal error: {}", e),
-            }).await;
+            let _ = send_json(
+                socket,
+                &ServerMessage::Error {
+                    message: format!("Internal error: {}", e),
+                },
+            )
+            .await;
         }
     }
 }
@@ -246,17 +331,27 @@ async fn map_react_event(
         ReactEvent::Token(token) => Some(ServerMessage::Token { content: token }),
         ReactEvent::Thinking(token) => Some(ServerMessage::Thinking { content: token }),
         ReactEvent::TurnStarted { turn } => Some(ServerMessage::ReactTurn { turn }),
-        ReactEvent::ToolExecuting { name, id: _, arguments } => Some(ServerMessage::ToolCall { name, arguments }),
+        ReactEvent::ToolExecuting {
+            name,
+            id: _,
+            arguments,
+        } => Some(ServerMessage::ToolCall { name, arguments }),
         ReactEvent::ToolCompleted { name: _, result } => {
             // Extract MEDIA: URLs from tool output (image_tool puts them here)
             let (clean_output, tool_images) = extract_media_urls(&result.output);
             turn_images.extend(tool_images);
             Some(ServerMessage::ToolResult {
-                name: result.name.clone(), output: clean_output, success: result.success,
+                name: result.name.clone(),
+                output: clean_output,
+                success: result.success,
             })
         }
         ReactEvent::AuditRunning => None,
-        ReactEvent::AuditCompleted { verdict, reason: _, confidence } => Some(ServerMessage::Audit {
+        ReactEvent::AuditCompleted {
+            verdict,
+            reason: _,
+            confidence,
+        } => Some(ServerMessage::Audit {
             verdict: format!("{}", verdict),
             confidence,
         }),
@@ -268,9 +363,16 @@ async fn map_react_event(
             persist_response(state, user_message, &clean_text).await;
             let usage = {
                 let st = state.read().await;
-                context::context_usage(&st.session_mgr.active().messages, st.model_spec.context_length)
+                context::context_usage(
+                    &st.session_mgr.active().messages,
+                    st.model_spec.context_length,
+                )
             };
-            Some(ServerMessage::Done { response: clean_text, context_usage: usage, images: all_images })
+            Some(ServerMessage::Done {
+                response: clean_text,
+                context_usage: usage,
+                images: all_images,
+            })
         }
         ReactEvent::Error(msg) => Some(ServerMessage::Error { message: msg }),
         ReactEvent::NeuralSnapshot(snap) => Some(ServerMessage::NeuralSnapshot {
@@ -282,11 +384,16 @@ async fn map_react_event(
 pub(crate) async fn persist_response(state: &SharedState, user_message: &str, text: &str) {
     let mut st = state.write().await;
     st.session_mgr.active_mut().add_message(Message {
-        role: "assistant".to_string(), content: text.to_string(), images: Vec::new(),
+        role: "assistant".to_string(),
+        content: text.to_string(),
+        images: Vec::new(),
     });
     let _ = st.session_mgr.save_active();
     let session_id = st.session_mgr.active_id().to_string();
-    let _ = st.memory_mgr.ingest_turn(user_message, text, &session_id).await;
+    let _ = st
+        .memory_mgr
+        .ingest_turn(user_message, text, &session_id)
+        .await;
 
     // Generate embeddings for the turn — failures are logged as errors, not silently swallowed
     let combined = format!("{}\n{}", user_message, text);
@@ -295,16 +402,24 @@ pub(crate) async fn persist_response(state: &SharedState, user_message: &str, te
     match provider.embed(&combined, &model).await {
         Ok(vector) => {
             let dim = vector.len();
-            match st.memory_mgr.embeddings.insert(&combined, "timeline", vector) {
+            match st
+                .memory_mgr
+                .embeddings
+                .insert(&combined, "timeline", vector)
+            {
                 Ok(_) => tracing::info!(
                     embeddings = st.memory_mgr.embeddings.count(),
                     dimensions = dim,
                     "Embedding generated and stored for turn"
                 ),
-                Err(e) => tracing::error!(error = %e, "EMBEDDING STORE FAILED — vector generated but storage failed"),
+                Err(e) => {
+                    tracing::error!(error = %e, "EMBEDDING STORE FAILED — vector generated but storage failed")
+                }
             }
         }
-        Err(e) => tracing::error!(error = %e, "EMBEDDING GENERATION FAILED — provider.embed() returned error"),
+        Err(e) => {
+            tracing::error!(error = %e, "EMBEDDING GENERATION FAILED — provider.embed() returned error")
+        }
     }
 }
 
@@ -346,7 +461,11 @@ fn extract_media_urls(text: &str) -> (String, Vec<String>) {
     }
 
     // Trim trailing empty lines
-    while clean_lines.last().map(|l| l.trim().is_empty()).unwrap_or(false) {
+    while clean_lines
+        .last()
+        .map(|l| l.trim().is_empty())
+        .unwrap_or(false)
+    {
         clean_lines.pop();
     }
 

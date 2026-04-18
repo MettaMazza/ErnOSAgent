@@ -36,7 +36,12 @@ pub(super) async fn collect_inference(
     cancel_token: Option<&Arc<std::sync::atomic::AtomicBool>>,
 ) -> Result<InferenceOutput> {
     let start = std::time::Instant::now();
-    tracing::info!(turn = turn, messages = messages.len(), tools = tools.len(), "collect_inference START");
+    tracing::info!(
+        turn = turn,
+        messages = messages.len(),
+        tools = tools.len(),
+        "collect_inference START"
+    );
 
     let (tx, mut rx) = mpsc::channel::<StreamEvent>(256);
 
@@ -105,26 +110,36 @@ pub(super) async fn collect_inference(
                 if !is_thinking {
                     response_text.push_str("<think>\n");
                 }
-                
+
                 response_text.push_str(&token);
                 let _ = event_tx.send(ReactEvent::Thinking(token)).await;
             }
-            StreamEvent::ToolCall { id, name, arguments } => {
+            StreamEvent::ToolCall {
+                id,
+                name,
+                arguments,
+            } => {
                 let is_thinking = response_text.rfind("<think>").map_or(false, |start| {
                     match response_text[start..].rfind("</think>") {
                         Some(_) => false,
                         None => true,
                     }
                 });
-                
+
                 if is_thinking {
-                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
+                    if !response_text.ends_with("</think>\n")
+                        && !response_text.ends_with("</think>")
+                    {
                         response_text.push_str("\n</think>\n");
                     }
                 }
                 match serde_json::from_str::<serde_json::Value>(&arguments) {
                     Ok(args) => {
-                        tool_calls.push(ToolCall { id, name, arguments: args });
+                        tool_calls.push(ToolCall {
+                            id,
+                            name,
+                            arguments: args,
+                        });
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, tool = %name, "Failed to parse tool call JSON arguments");
@@ -145,13 +160,19 @@ pub(super) async fn collect_inference(
                         None => true,
                     }
                 });
-                
+
                 if is_thinking {
-                    if !response_text.ends_with("</think>\n") && !response_text.ends_with("</think>") {
+                    if !response_text.ends_with("</think>\n")
+                        && !response_text.ends_with("</think>")
+                    {
                         response_text.push_str("\n</think>\n");
                     }
                 }
-                tracing::info!(turn = turn, elapsed_ms = start.elapsed().as_millis(), "collect_inference stream DONE");
+                tracing::info!(
+                    turn = turn,
+                    elapsed_ms = start.elapsed().as_millis(),
+                    "collect_inference stream DONE"
+                );
                 break;
             }
             StreamEvent::Error(e) => {
@@ -159,7 +180,11 @@ pub(super) async fn collect_inference(
                 tracing::error!(error = %e, turn = turn, elapsed_ms = start.elapsed().as_millis(), "Inference stream error");
             }
             StreamEvent::ThoughtSpiral { summary } => {
-                tracing::warn!(turn = turn, summary_len = summary.len(), "🌀 Thought spiral detected during inference");
+                tracing::warn!(
+                    turn = turn,
+                    summary_len = summary.len(),
+                    "🌀 Thought spiral detected during inference"
+                );
                 thought_spiral = Some(summary);
                 break;
             }
@@ -177,20 +202,38 @@ pub(super) async fn collect_inference(
         });
     }
 
-    tracing::info!(turn = turn, response_len = response_text.len(), tool_calls = tool_calls.len(), elapsed_ms = start.elapsed().as_millis(), "collect_inference stream loop ended — awaiting join handle");
+    tracing::info!(
+        turn = turn,
+        response_len = response_text.len(),
+        tool_calls = tool_calls.len(),
+        elapsed_ms = start.elapsed().as_millis(),
+        "collect_inference stream loop ended — awaiting join handle"
+    );
 
     let join_result = inference_handle.await;
     match &join_result {
         Ok(Ok(())) => tracing::info!(turn = turn, "inference task joined successfully"),
         Ok(Err(e)) => tracing::error!(error = %e, turn = turn, "inference task returned error"),
-        Err(e) => tracing::error!(error = %e, turn = turn, "inference task panicked or was cancelled"),
+        Err(e) => {
+            tracing::error!(error = %e, turn = turn, "inference task panicked or was cancelled")
+        }
     }
     join_result
         .context("Inference task panicked")?
         .context("Inference failed")?;
 
-    tracing::info!(turn = turn, response_len = response_text.len(), tool_calls = tool_calls.len(), elapsed_ms = start.elapsed().as_millis(), "collect_inference END");
-    Ok(InferenceOutput { response_text, tool_calls, thought_spiral })
+    tracing::info!(
+        turn = turn,
+        response_len = response_text.len(),
+        tool_calls = tool_calls.len(),
+        elapsed_ms = start.elapsed().as_millis(),
+        "collect_inference END"
+    );
+    Ok(InferenceOutput {
+        response_text,
+        tool_calls,
+        thought_spiral,
+    })
 }
 
 /// Execute non-reply tool calls and inject results into context.
@@ -204,28 +247,27 @@ pub(super) async fn execute_tool_calls(
     messages: &mut Vec<Message>,
     all_tool_results: &mut Vec<ToolResult>,
     event_tx: &mpsc::Sender<ReactEvent>,
-    #[cfg(feature = "discord")]
-    discord_http: &Option<std::sync::Arc<serenity::http::Http>>,
+    #[cfg(feature = "discord")] discord_http: &Option<std::sync::Arc<serenity::http::Http>>,
 ) {
     for call in tool_calls {
         if schema::is_reply_request(call) {
             continue;
         }
 
-        let _ = event_tx.send(ReactEvent::ToolExecuting {
-            name: call.name.clone(),
-            id: call.id.clone(),
-            arguments: serde_json::to_string(&call.arguments).unwrap_or_default(),
-        }).await;
+        let _ = event_tx
+            .send(ReactEvent::ToolExecuting {
+                name: call.name.clone(),
+                id: call.id.clone(),
+                arguments: serde_json::to_string(&call.arguments).unwrap_or_default(),
+            })
+            .await;
 
         // Discord tool pre-dispatch — async tools that need the HTTP client
         #[cfg(feature = "discord")]
         let discord_result = if call.name.starts_with("discord_") {
             if let Some(ref http) = discord_http {
                 let args = call.arguments.as_object().cloned().unwrap_or_default();
-                crate::tools::discord_tools::execute_discord_tool(
-                    &call.name, &args, http,
-                ).await
+                crate::tools::discord_tools::execute_discord_tool(&call.name, &args, http).await
             } else {
                 None
             }
@@ -245,18 +287,21 @@ pub(super) async fn execute_tool_calls(
         #[cfg(not(feature = "discord"))]
         let result = executor.execute(call);
 
-        let _ = event_tx.send(ReactEvent::ToolCompleted {
-            name: call.name.clone(),
-            result: result.clone(),
-        }).await;
+        let _ = event_tx
+            .send(ReactEvent::ToolCompleted {
+                name: call.name.clone(),
+                result: result.clone(),
+            })
+            .await;
 
         // Multimodal feedback: attach generated image (or browser screenshot)
         // so Gemma 4 can SEE what it created or interacted with.
-        let tool_images = if (call.name == "image_tool" || call.name.starts_with("browser_")) && result.success {
-            extract_media_image(&result.output)
-        } else {
-            Vec::new()
-        };
+        let tool_images =
+            if (call.name == "image_tool" || call.name.starts_with("browser_")) && result.success {
+                extract_media_image(&result.output)
+            } else {
+                Vec::new()
+            };
 
         messages.push(Message {
             role: "tool".to_string(),

@@ -36,34 +36,32 @@ impl KokoroTTS {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("src/voice/tts_worker.py"));
 
-        let python_bin = std::env::var("ERNOSAGENT_TTS_PYTHON")
-            .unwrap_or_else(|_| {
-                // Auto-discover ErnOS TTS venv, then fall back to system python3
-                let venv_python = dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".ernosagent/venv-tts/bin/python3");
-                if venv_python.exists() {
-                    venv_python.to_string_lossy().to_string()
-                } else {
-                    "python3".to_string()
-                }
-            });
+        let python_bin = std::env::var("ERNOSAGENT_TTS_PYTHON").unwrap_or_else(|_| {
+            // Auto-discover ErnOS TTS venv, then fall back to system python3
+            let venv_python = dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".ernosagent/venv-tts/bin/python3");
+            if venv_python.exists() {
+                venv_python.to_string_lossy().to_string()
+            } else {
+                "python3".to_string()
+            }
+        });
 
-        let models_dir = std::env::var("ERNOSAGENT_TTS_MODELS_DIR")
-            .unwrap_or_else(|_| {
-                // Default to data_dir/models, then project-local models/
-                let data_models = dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".ernosagent/models");
-                if data_models.exists() {
-                    data_models.to_string_lossy().to_string()
-                } else {
-                    "models".to_string()
-                }
-            });
+        let models_dir = std::env::var("ERNOSAGENT_TTS_MODELS_DIR").unwrap_or_else(|_| {
+            // Default to data_dir/models, then project-local models/
+            let data_models = dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".ernosagent/models");
+            if data_models.exists() {
+                data_models.to_string_lossy().to_string()
+            } else {
+                "models".to_string()
+            }
+        });
 
-        let voice = std::env::var("ERNOSAGENT_TTS_VOICE")
-            .unwrap_or_else(|_| "am_michael".to_string());
+        let voice =
+            std::env::var("ERNOSAGENT_TTS_VOICE").unwrap_or_else(|_| "am_michael".to_string());
 
         let tts = Self {
             cache_dir,

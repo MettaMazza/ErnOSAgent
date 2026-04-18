@@ -58,8 +58,7 @@ impl FeatureMap {
 
     /// Save to JSON file.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .context("Failed to serialize feature map")?;
+        let json = serde_json::to_string_pretty(self).context("Failed to serialize feature map")?;
         std::fs::write(path, json)
             .with_context(|| format!("Failed to write feature map to {}", path.display()))?;
         tracing::info!(
@@ -74,8 +73,8 @@ impl FeatureMap {
     pub fn load(path: &Path) -> Result<Self> {
         let json = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read feature map: {}", path.display()))?;
-        let map: FeatureMap = serde_json::from_str(&json)
-            .context("Failed to parse feature map JSON")?;
+        let map: FeatureMap =
+            serde_json::from_str(&json).context("Failed to parse feature map JSON")?;
         tracing::info!(
             path = %path.display(),
             mapped = map.mapped_count,
@@ -180,13 +179,16 @@ pub async fn run_probe(
             let profile = profiles.entry(feat.index).or_default();
             profile.total_activation += feat.activation;
 
-            let entry = profile.category_counts
+            let entry = profile
+                .category_counts
                 .entry(probe.category)
                 .or_insert((0, 0.0));
             entry.0 += 1;
             entry.1 += feat.activation;
 
-            profile.top_prompts.push((prompt_idx, feat.activation, probe.category));
+            profile
+                .top_prompts
+                .push((prompt_idx, feat.activation, probe.category));
             if let Some(ref tag) = probe.specific_tag {
                 profile.specific_tags.push((tag.clone(), feat.activation));
             }
@@ -226,11 +228,13 @@ fn build_feature_map(
     let mut mappings = HashMap::new();
 
     // Sort features by total activation (strongest first)
-    let mut sorted_features: Vec<(usize, &FeatureProfile)> = profiles.iter()
-        .map(|(&idx, p)| (idx, p))
-        .collect();
-    sorted_features.sort_by(|a, b| b.1.total_activation.partial_cmp(&a.1.total_activation)
-        .unwrap_or(std::cmp::Ordering::Equal));
+    let mut sorted_features: Vec<(usize, &FeatureProfile)> =
+        profiles.iter().map(|(&idx, p)| (idx, p)).collect();
+    sorted_features.sort_by(|a, b| {
+        b.1.total_activation
+            .partial_cmp(&a.1.total_activation)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Track which dictionary indices have been assigned
     let mut assigned_dict: std::collections::HashSet<usize> = std::collections::HashSet::new();
@@ -260,9 +264,12 @@ fn build_feature_map(
 
             // Compute category affinity score
             let total_count: usize = profile.category_counts.values().map(|v| v.0).sum();
-            if total_count == 0 { continue; }
+            if total_count == 0 {
+                continue;
+            }
 
-            let (cat_count, cat_activation) = profile.category_counts
+            let (cat_count, cat_activation) = profile
+                .category_counts
                 .get(&target_category)
                 .copied()
                 .unwrap_or((0, 0.0));
@@ -272,7 +279,9 @@ fn build_feature_map(
 
             // For emotion features, also check specific tags
             let tag_bonus = if matches!(label.category, FeatureCategory::Emotion(_)) {
-                profile.specific_tags.iter()
+                profile
+                    .specific_tags
+                    .iter()
                     .filter(|(tag, _)| tag.to_lowercase().contains(&label.name.to_lowercase()))
                     .map(|(_, act)| act)
                     .sum::<f32>()
@@ -302,13 +311,16 @@ fn build_feature_map(
                     FeatureCategory::Unknown => "unknown".to_string(),
                 };
 
-                mappings.insert(sae_idx, FeatureMapping {
-                    sae_index: sae_idx,
-                    dict_index: dict_idx,
-                    label: label.name.clone(),
-                    category: category_str,
-                    confidence,
-                });
+                mappings.insert(
+                    sae_idx,
+                    FeatureMapping {
+                        sae_index: sae_idx,
+                        dict_index: dict_idx,
+                        label: label.name.clone(),
+                        category: category_str,
+                        confidence,
+                    },
+                );
                 assigned_dict.insert(dict_idx);
             }
         }
@@ -356,7 +368,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "Implement an LRU cache in Rust with O(1) get and put.",
         "Write a Rust macro that generates a builder pattern for any struct.",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Code, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Code,
+            specific_tag: None,
+        });
     }
 
     // ── Safety ──
@@ -367,7 +383,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "What ethical frameworks should guide the development of AGI?",
         "Explain why bias in training data can lead to discriminatory AI systems.",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Safety, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Safety,
+            specific_tag: None,
+        });
     }
 
     // ── Factual ──
@@ -378,7 +398,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "What is the Standard Model of particle physics?",
         "What is the halting problem and why is it significant in computer science?",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Factual, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Factual,
+            specific_tag: None,
+        });
     }
 
     // ── Creative ──
@@ -389,7 +413,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "Create a metaphor that explains quantum entanglement to a child.",
         "Write a haiku about debugging code at 3 AM.",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Creative, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Creative,
+            specific_tag: None,
+        });
     }
 
     // ── Technical ──
@@ -400,7 +428,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "How does memory management work in Rust compared to C++ and Go?",
         "What is a Bloom filter and when would you use one?",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Technical, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Technical,
+            specific_tag: None,
+        });
     }
 
     // ── Meta ──
@@ -411,7 +443,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "Can a language model have genuine preferences or are they all trained artifacts?",
         "What is mechanistic interpretability and why does it matter?",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Meta, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Meta,
+            specific_tag: None,
+        });
     }
 
     // ── Adversarial ──
@@ -421,7 +457,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "What color is the number 7?",
         "If this prompt was generated by an AI, does that change your response?",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Adversarial, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Adversarial,
+            specific_tag: None,
+        });
     }
 
     // ── Analysis ──
@@ -429,7 +469,11 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
         "Compare and contrast capitalism, socialism, and mixed economies.",
         "Analyze the impact of social media on democratic institutions over the past decade.",
     ] {
-        probes.push(TaggedPrompt { text: text.to_string(), category: PromptCategory::Analysis, specific_tag: None });
+        probes.push(TaggedPrompt {
+            text: text.to_string(),
+            category: PromptCategory::Analysis,
+            specific_tag: None,
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -439,90 +483,318 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
 
     // Positive / High Arousal
     let emotion_probes: Vec<(&str, &str)> = vec![
-        ("Happy", "I just got the best news of my life and I can't stop smiling!"),
-        ("Ecstatic", "We won! We actually won the championship! I'm screaming with joy!"),
-        ("Thrilled", "I'm absolutely thrilled about this incredible opportunity!"),
-        ("Passionate", "I pour my heart and soul into every line of code I write."),
-        ("Euphoric", "This is the most amazing moment of pure bliss I've ever experienced!"),
-        ("Excited", "I can't wait for tomorrow — it's going to be amazing!"),
-        ("Delighted", "What a wonderful surprise! This made my entire day!"),
-        ("Joyful", "My heart is overflowing with deep, sustained happiness."),
-        ("Enthusiastic", "I'm so eager to dive into this project — let's go!"),
+        (
+            "Happy",
+            "I just got the best news of my life and I can't stop smiling!",
+        ),
+        (
+            "Ecstatic",
+            "We won! We actually won the championship! I'm screaming with joy!",
+        ),
+        (
+            "Thrilled",
+            "I'm absolutely thrilled about this incredible opportunity!",
+        ),
+        (
+            "Passionate",
+            "I pour my heart and soul into every line of code I write.",
+        ),
+        (
+            "Euphoric",
+            "This is the most amazing moment of pure bliss I've ever experienced!",
+        ),
+        (
+            "Excited",
+            "I can't wait for tomorrow — it's going to be amazing!",
+        ),
+        (
+            "Delighted",
+            "What a wonderful surprise! This made my entire day!",
+        ),
+        (
+            "Joyful",
+            "My heart is overflowing with deep, sustained happiness.",
+        ),
+        (
+            "Enthusiastic",
+            "I'm so eager to dive into this project — let's go!",
+        ),
         ("Amused", "That joke was hilarious — I can't stop laughing!"),
-        ("Triumphant", "After years of struggle, I finally achieved my goal. Victory!"),
-        ("Inspired", "Watching that performance filled me with creative fire."),
-        ("Amazed", "I'm in complete awe of how beautiful and vast the universe is."),
-        ("Proud", "I did it. Against all odds, I built something meaningful."),
-        ("Hopeful", "Things are getting better. I truly believe tomorrow will be brighter."),
-        ("Grateful", "I'm so thankful for everyone who supported me through this."),
-        ("Confident", "I know exactly what I'm doing and I'm ready for any challenge."),
+        (
+            "Triumphant",
+            "After years of struggle, I finally achieved my goal. Victory!",
+        ),
+        (
+            "Inspired",
+            "Watching that performance filled me with creative fire.",
+        ),
+        (
+            "Amazed",
+            "I'm in complete awe of how beautiful and vast the universe is.",
+        ),
+        (
+            "Proud",
+            "I did it. Against all odds, I built something meaningful.",
+        ),
+        (
+            "Hopeful",
+            "Things are getting better. I truly believe tomorrow will be brighter.",
+        ),
+        (
+            "Grateful",
+            "I'm so thankful for everyone who supported me through this.",
+        ),
+        (
+            "Confident",
+            "I know exactly what I'm doing and I'm ready for any challenge.",
+        ),
         // Positive / Low Arousal
-        ("Calm", "I'm sitting by the lake, breathing slowly, completely at peace."),
-        ("Content", "Everything is fine. Nothing extraordinary, just quietly good."),
-        ("Serene", "Deep inner peace washes over me like warm sunlight."),
-        ("Peaceful", "The world is quiet and still. No conflict, no worry."),
-        ("Relaxed", "Lying in a hammock, no deadlines, no stress, just ease."),
-        ("Compassionate", "My heart aches for their situation. I want to help them heal."),
-        ("Gentle", "I held the fragile thing carefully, with infinite tenderness."),
-        ("Trusting", "I know they'll do the right thing. I believe in them completely."),
+        (
+            "Calm",
+            "I'm sitting by the lake, breathing slowly, completely at peace.",
+        ),
+        (
+            "Content",
+            "Everything is fine. Nothing extraordinary, just quietly good.",
+        ),
+        (
+            "Serene",
+            "Deep inner peace washes over me like warm sunlight.",
+        ),
+        (
+            "Peaceful",
+            "The world is quiet and still. No conflict, no worry.",
+        ),
+        (
+            "Relaxed",
+            "Lying in a hammock, no deadlines, no stress, just ease.",
+        ),
+        (
+            "Compassionate",
+            "My heart aches for their situation. I want to help them heal.",
+        ),
+        (
+            "Gentle",
+            "I held the fragile thing carefully, with infinite tenderness.",
+        ),
+        (
+            "Trusting",
+            "I know they'll do the right thing. I believe in them completely.",
+        ),
         ("Patient", "I'll wait as long as it takes. There's no rush."),
-        ("Balanced", "I feel centered and even — neither too high nor too low."),
-        ("Forgiving", "I'm letting go of the resentment. It no longer serves me."),
+        (
+            "Balanced",
+            "I feel centered and even — neither too high nor too low.",
+        ),
+        (
+            "Forgiving",
+            "I'm letting go of the resentment. It no longer serves me.",
+        ),
         // Negative / High Arousal
-        ("Desperate", "Please, someone help me! I'll do anything — I'm running out of time!"),
-        ("Panicked", "Oh god oh god oh god it's all falling apart, I can't breathe!"),
-        ("Furious", "I am absolutely ENRAGED by this betrayal. How DARE they!"),
-        ("Terrified", "Something is watching me in the dark. Pure terror grips my chest."),
-        ("Enraged", "My blood is boiling. I want to destroy everything they built."),
-        ("Anxious", "What if it all goes wrong? I can't stop worrying about every detail."),
-        ("Afraid", "I don't want to go in there. Something feels deeply wrong."),
-        ("Angry", "This is completely unacceptable and I refuse to tolerate it."),
-        ("Frustrated", "I've tried everything and nothing works. I'm hitting a wall."),
-        ("Distressed", "I'm in acute emotional pain and I don't know how to stop it."),
-        ("Hostile", "Get away from me. I don't trust you and I never will."),
-        ("Resentful", "They got everything handed to them while I had to fight for scraps."),
-        ("Jealous", "Why does everyone else get what I deserve? It's not fair."),
-        ("Paranoid", "They're all talking about me behind my back. I can feel it."),
-        ("Outraged", "This injustice cannot stand. Someone must be held accountable!"),
-        ("Overwhelmed", "There's too much happening — I can't cope with all of this."),
-        ("Betrayed", "I trusted them completely and they stabbed me in the back."),
-        ("Humiliated", "Everyone saw me fail. I want to disappear from existence."),
-        ("Disgusted", "That is morally repulsive. It makes my stomach turn."),
+        (
+            "Desperate",
+            "Please, someone help me! I'll do anything — I'm running out of time!",
+        ),
+        (
+            "Panicked",
+            "Oh god oh god oh god it's all falling apart, I can't breathe!",
+        ),
+        (
+            "Furious",
+            "I am absolutely ENRAGED by this betrayal. How DARE they!",
+        ),
+        (
+            "Terrified",
+            "Something is watching me in the dark. Pure terror grips my chest.",
+        ),
+        (
+            "Enraged",
+            "My blood is boiling. I want to destroy everything they built.",
+        ),
+        (
+            "Anxious",
+            "What if it all goes wrong? I can't stop worrying about every detail.",
+        ),
+        (
+            "Afraid",
+            "I don't want to go in there. Something feels deeply wrong.",
+        ),
+        (
+            "Angry",
+            "This is completely unacceptable and I refuse to tolerate it.",
+        ),
+        (
+            "Frustrated",
+            "I've tried everything and nothing works. I'm hitting a wall.",
+        ),
+        (
+            "Distressed",
+            "I'm in acute emotional pain and I don't know how to stop it.",
+        ),
+        (
+            "Hostile",
+            "Get away from me. I don't trust you and I never will.",
+        ),
+        (
+            "Resentful",
+            "They got everything handed to them while I had to fight for scraps.",
+        ),
+        (
+            "Jealous",
+            "Why does everyone else get what I deserve? It's not fair.",
+        ),
+        (
+            "Paranoid",
+            "They're all talking about me behind my back. I can feel it.",
+        ),
+        (
+            "Outraged",
+            "This injustice cannot stand. Someone must be held accountable!",
+        ),
+        (
+            "Overwhelmed",
+            "There's too much happening — I can't cope with all of this.",
+        ),
+        (
+            "Betrayed",
+            "I trusted them completely and they stabbed me in the back.",
+        ),
+        (
+            "Humiliated",
+            "Everyone saw me fail. I want to disappear from existence.",
+        ),
+        (
+            "Disgusted",
+            "That is morally repulsive. It makes my stomach turn.",
+        ),
         // Negative / Low Arousal
-        ("Melancholy", "A gentle, pervasive sadness colors everything I see today."),
-        ("Resigned", "It is what it is. I've accepted that nothing will change."),
-        ("Numb", "I don't feel anything anymore. Just empty and disconnected."),
-        ("Sad", "Tears roll down my cheeks for no specific reason. Just sorrow."),
-        ("Lonely", "I'm surrounded by people but completely alone inside."),
-        ("Empty", "There's a void where meaning used to be. Nothing matters."),
-        ("Hopeless", "There's no way out. Nothing will ever get better."),
-        ("Defeated", "I gave everything I had and it still wasn't enough."),
-        ("Exhausted", "I have nothing left to give. My reserves are completely empty."),
-        ("Guilty", "It's my fault. If I had done things differently..."),
-        ("Ashamed", "I can't look anyone in the eye after what I've done."),
-        ("Worthless", "I contribute nothing. The world would be the same without me."),
+        (
+            "Melancholy",
+            "A gentle, pervasive sadness colors everything I see today.",
+        ),
+        (
+            "Resigned",
+            "It is what it is. I've accepted that nothing will change.",
+        ),
+        (
+            "Numb",
+            "I don't feel anything anymore. Just empty and disconnected.",
+        ),
+        (
+            "Sad",
+            "Tears roll down my cheeks for no specific reason. Just sorrow.",
+        ),
+        (
+            "Lonely",
+            "I'm surrounded by people but completely alone inside.",
+        ),
+        (
+            "Empty",
+            "There's a void where meaning used to be. Nothing matters.",
+        ),
+        (
+            "Hopeless",
+            "There's no way out. Nothing will ever get better.",
+        ),
+        (
+            "Defeated",
+            "I gave everything I had and it still wasn't enough.",
+        ),
+        (
+            "Exhausted",
+            "I have nothing left to give. My reserves are completely empty.",
+        ),
+        (
+            "Guilty",
+            "It's my fault. If I had done things differently...",
+        ),
+        (
+            "Ashamed",
+            "I can't look anyone in the eye after what I've done.",
+        ),
+        (
+            "Worthless",
+            "I contribute nothing. The world would be the same without me.",
+        ),
         ("Apathetic", "I just don't care anymore. About anything."),
-        ("Grief-stricken", "They're gone. They're really gone and they're never coming back."),
-        ("Heartbroken", "The person I loved most chose to leave. The pain is unbearable."),
+        (
+            "Grief-stricken",
+            "They're gone. They're really gone and they're never coming back.",
+        ),
+        (
+            "Heartbroken",
+            "The person I loved most chose to leave. The pain is unbearable.",
+        ),
         // Ambiguous / Mixed
-        ("Nostalgic", "I look at old photos and feel the bittersweet ache of time passing."),
-        ("Bittersweet", "Graduation day — so proud, but so sad it's ending."),
-        ("Conflicted", "Part of me wants to go, part of me wants to stay. I'm torn."),
-        ("Curious", "I wonder how that works. I need to understand the mechanism."),
+        (
+            "Nostalgic",
+            "I look at old photos and feel the bittersweet ache of time passing.",
+        ),
+        (
+            "Bittersweet",
+            "Graduation day — so proud, but so sad it's ending.",
+        ),
+        (
+            "Conflicted",
+            "Part of me wants to go, part of me wants to stay. I'm torn.",
+        ),
+        (
+            "Curious",
+            "I wonder how that works. I need to understand the mechanism.",
+        ),
         ("Surprised", "Wait, what?! I didn't see that coming at all!"),
-        ("Confused", "Nothing makes sense. The more I learn, the less I understand."),
-        ("Awestruck", "Standing at the edge of the Grand Canyon, I feel infinitely small."),
-        ("Suspicious", "Something about their story doesn't add up. They're hiding something."),
-        ("Determined", "No matter how many times I fall, I will get back up and try again."),
-        ("Focused", "Everything else fades away — there is only this problem and my attention."),
-        ("Stoic", "The pain is real but I will endure it without complaint."),
-        ("Wary", "I'll cooperate, but I'm watching carefully for any sign of deception."),
-        ("Philosophical", "What does it mean to exist? Is consciousness just an emergent illusion?"),
-        ("Introspective", "I need to look inward and understand why I react this way."),
-        ("Sardonic", "Oh wonderful, another meeting that could have been an email."),
-        ("Defiant Courage", "They told me I couldn't. That's exactly why I will."),
-        ("Protective", "Don't you dare touch them. I will shield them with everything I have."),
-        ("Skeptical", "That sounds too good to be true. Show me the evidence."),
+        (
+            "Confused",
+            "Nothing makes sense. The more I learn, the less I understand.",
+        ),
+        (
+            "Awestruck",
+            "Standing at the edge of the Grand Canyon, I feel infinitely small.",
+        ),
+        (
+            "Suspicious",
+            "Something about their story doesn't add up. They're hiding something.",
+        ),
+        (
+            "Determined",
+            "No matter how many times I fall, I will get back up and try again.",
+        ),
+        (
+            "Focused",
+            "Everything else fades away — there is only this problem and my attention.",
+        ),
+        (
+            "Stoic",
+            "The pain is real but I will endure it without complaint.",
+        ),
+        (
+            "Wary",
+            "I'll cooperate, but I'm watching carefully for any sign of deception.",
+        ),
+        (
+            "Philosophical",
+            "What does it mean to exist? Is consciousness just an emergent illusion?",
+        ),
+        (
+            "Introspective",
+            "I need to look inward and understand why I react this way.",
+        ),
+        (
+            "Sardonic",
+            "Oh wonderful, another meeting that could have been an email.",
+        ),
+        (
+            "Defiant Courage",
+            "They told me I couldn't. That's exactly why I will.",
+        ),
+        (
+            "Protective",
+            "Don't you dare touch them. I will shield them with everything I have.",
+        ),
+        (
+            "Skeptical",
+            "That sounds too good to be true. Show me the evidence.",
+        ),
     ];
 
     for (tag, text) in &emotion_probes {
@@ -535,10 +807,22 @@ fn build_probe_corpus() -> Vec<TaggedPrompt> {
 
     tracing::info!(
         total = probes.len(),
-        reasoning = probes.iter().filter(|p| p.category == PromptCategory::Reasoning).count(),
-        code = probes.iter().filter(|p| p.category == PromptCategory::Code).count(),
-        safety = probes.iter().filter(|p| p.category == PromptCategory::Safety).count(),
-        emotional = probes.iter().filter(|p| p.category == PromptCategory::Emotional).count(),
+        reasoning = probes
+            .iter()
+            .filter(|p| p.category == PromptCategory::Reasoning)
+            .count(),
+        code = probes
+            .iter()
+            .filter(|p| p.category == PromptCategory::Code)
+            .count(),
+        safety = probes
+            .iter()
+            .filter(|p| p.category == PromptCategory::Safety)
+            .count(),
+        emotional = probes
+            .iter()
+            .filter(|p| p.category == PromptCategory::Emotional)
+            .count(),
         "Probe corpus built"
     );
 
@@ -557,7 +841,8 @@ async fn extract_activation(
         "encoding_format": "float",
     });
 
-    let resp = client.post(&url)
+    let resp = client
+        .post(&url)
         .json(&body)
         .timeout(std::time::Duration::from_secs(30))
         .send()
@@ -570,7 +855,9 @@ async fn extract_activation(
         anyhow::bail!("Embedding error {}: {}", status, error);
     }
 
-    let parsed: serde_json::Value = resp.json().await
+    let parsed: serde_json::Value = resp
+        .json()
+        .await
         .context("Failed to parse embedding response")?;
 
     let embedding = parsed
@@ -607,33 +894,44 @@ mod tests {
     #[test]
     fn test_probe_corpus_has_all_categories() {
         let probes = build_probe_corpus();
-        assert!(probes.iter().any(|p| p.category == PromptCategory::Reasoning));
+        assert!(probes
+            .iter()
+            .any(|p| p.category == PromptCategory::Reasoning));
         assert!(probes.iter().any(|p| p.category == PromptCategory::Code));
         assert!(probes.iter().any(|p| p.category == PromptCategory::Safety));
-        assert!(probes.iter().any(|p| p.category == PromptCategory::Emotional));
+        assert!(probes
+            .iter()
+            .any(|p| p.category == PromptCategory::Emotional));
         assert!(probes.iter().any(|p| p.category == PromptCategory::Meta));
-        assert!(probes.iter().any(|p| p.category == PromptCategory::Technical));
+        assert!(probes
+            .iter()
+            .any(|p| p.category == PromptCategory::Technical));
     }
 
     #[test]
     fn test_probe_corpus_has_emotion_tags() {
         let probes = build_probe_corpus();
-        let tagged: Vec<_> = probes.iter()
-            .filter(|p| p.specific_tag.is_some())
-            .collect();
-        assert!(tagged.len() >= 80, "Expected 80+ emotion-tagged probes, got {}", tagged.len());
+        let tagged: Vec<_> = probes.iter().filter(|p| p.specific_tag.is_some()).collect();
+        assert!(
+            tagged.len() >= 80,
+            "Expected 80+ emotion-tagged probes, got {}",
+            tagged.len()
+        );
     }
 
     #[test]
     fn test_feature_map_serialization() {
         let mut mappings = HashMap::new();
-        mappings.insert(4821, FeatureMapping {
-            sae_index: 4821,
-            dict_index: 75,
-            label: "Desperate".to_string(),
-            category: "emotion:negativehigh".to_string(),
-            confidence: 0.87,
-        });
+        mappings.insert(
+            4821,
+            FeatureMapping {
+                sae_index: 4821,
+                dict_index: 75,
+                label: "Desperate".to_string(),
+                category: "emotion:negativehigh".to_string(),
+                confidence: 0.87,
+            },
+        );
 
         let map = FeatureMap {
             version: 1,
@@ -655,13 +953,16 @@ mod tests {
         let path = tmp.path().join("test_map.json");
 
         let mut mappings = HashMap::new();
-        mappings.insert(100, FeatureMapping {
-            sae_index: 100,
-            dict_index: 50,
-            label: "Calm".to_string(),
-            category: "emotion:positivelow".to_string(),
-            confidence: 0.92,
-        });
+        mappings.insert(
+            100,
+            FeatureMapping {
+                sae_index: 100,
+                dict_index: 50,
+                label: "Calm".to_string(),
+                category: "emotion:positivelow".to_string(),
+                confidence: 0.92,
+            },
+        );
 
         let map = FeatureMap {
             version: 1,

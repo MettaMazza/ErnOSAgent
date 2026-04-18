@@ -272,7 +272,9 @@ mod tests {
     fn test_default_persona_contains_key_sections() {
         assert!(DEFAULT_PERSONA.contains("Ernos"));
         assert!(DEFAULT_PERSONA.contains("Lineage"));
-        assert!(DEFAULT_PERSONA.contains("sycophancy") || DEFAULT_PERSONA.contains("No sycophancy"));
+        assert!(
+            DEFAULT_PERSONA.contains("sycophancy") || DEFAULT_PERSONA.contains("No sycophancy")
+        );
         assert!(DEFAULT_PERSONA.contains("Identity Defence"));
     }
 

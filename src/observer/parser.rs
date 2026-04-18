@@ -15,8 +15,13 @@ use anyhow::{bail, Result};
 /// Tries 3 extraction stages before giving up.
 pub fn parse_audit_response(raw: &str) -> Result<AuditResult> {
     let json_str = extract_json_from_response(raw)?;
-    let result: AuditResult = serde_json::from_str(&json_str)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize AuditResult: {} from JSON: {}", e, json_str))?;
+    let result: AuditResult = serde_json::from_str(&json_str).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to deserialize AuditResult: {} from JSON: {}",
+            e,
+            json_str
+        )
+    })?;
     Ok(result)
 }
 
@@ -49,7 +54,10 @@ pub fn extract_json_from_response(raw: &str) -> Result<String> {
         }
     }
 
-    bail!("No valid JSON object found in observer response. Raw: {}", truncate(raw, 200))
+    bail!(
+        "No valid JSON object found in observer response. Raw: {}",
+        truncate(raw, 200)
+    )
 }
 
 /// Extract JSON from markdown code fences.

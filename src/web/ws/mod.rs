@@ -60,13 +60,22 @@ pub(crate) enum ServerMessage {
     #[serde(rename = "tool_call")]
     ToolCall { name: String, arguments: String },
     #[serde(rename = "tool_result")]
-    ToolResult { name: String, output: String, success: bool },
+    ToolResult {
+        name: String,
+        output: String,
+        success: bool,
+    },
     #[serde(rename = "audit")]
     Audit { verdict: String, confidence: f32 },
     #[serde(rename = "react_turn")]
     ReactTurn { turn: usize },
     #[serde(rename = "done")]
-    Done { response: String, context_usage: f32, #[serde(skip_serializing_if = "Vec::is_empty")] images: Vec<String> },
+    Done {
+        response: String,
+        context_usage: f32,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        images: Vec<String>,
+    },
     #[serde(rename = "cancelled")]
     Cancelled,
     #[serde(rename = "error")]
@@ -74,9 +83,18 @@ pub(crate) enum ServerMessage {
     #[serde(rename = "neural_snapshot")]
     NeuralSnapshot { snapshot: serde_json::Value },
     #[serde(rename = "session_loaded")]
-    SessionLoaded { session_id: String, title: String, messages: Vec<MessageDto> },
+    SessionLoaded {
+        session_id: String,
+        title: String,
+        messages: Vec<MessageDto>,
+    },
     #[serde(rename = "status")]
-    Status { model: String, context_usage: f32, memory: String, is_generating: bool },
+    Status {
+        model: String,
+        context_usage: f32,
+        memory: String,
+        is_generating: bool,
+    },
 }
 
 #[derive(Serialize)]
@@ -100,10 +118,14 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         let loaded = ServerMessage::SessionLoaded {
             session_id: session.id.clone(),
             title: session.title.clone(),
-            messages: session.messages.iter().map(|m| MessageDto {
-                role: m.role.clone(),
-                content: m.content.clone(),
-            }).collect(),
+            messages: session
+                .messages
+                .iter()
+                .map(|m| MessageDto {
+                    role: m.role.clone(),
+                    content: m.content.clone(),
+                })
+                .collect(),
         };
         let _ = send_json(&mut socket, &loaded).await;
     }
@@ -117,17 +139,27 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
     while let Some(msg) = socket.recv().await {
         let msg = match msg {
             Ok(ws::Message::Text(text)) => text,
-            Ok(ws::Message::Close(_)) => { tracing::info!("WebSocket closed by client"); break; }
+            Ok(ws::Message::Close(_)) => {
+                tracing::info!("WebSocket closed by client");
+                break;
+            }
             Ok(_) => continue,
-            Err(e) => { tracing::warn!(error = %e, "WebSocket receive error"); break; }
+            Err(e) => {
+                tracing::warn!(error = %e, "WebSocket receive error");
+                break;
+            }
         };
 
         let client_msg: ClientMessage = match serde_json::from_str(&msg) {
             Ok(m) => m,
             Err(e) => {
-                let _ = send_json(&mut socket, &ServerMessage::Error {
-                    message: format!("Invalid message: {}", e),
-                }).await;
+                let _ = send_json(
+                    &mut socket,
+                    &ServerMessage::Error {
+                        message: format!("Invalid message: {}", e),
+                    },
+                )
+                .await;
                 continue;
             }
         };
@@ -159,7 +191,10 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
                         session.messages.pop();
                     }
                     // Grab the user message text, then pop it too (handle_chat will re-add it)
-                    let user_text = session.messages.iter().rev()
+                    let user_text = session
+                        .messages
+                        .iter()
+                        .rev()
                         .find(|m| m.role == "user")
                         .map(|m| m.content.clone());
                     if user_text.is_some() {
@@ -170,24 +205,32 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
                         // Inject a regen hint so the model knows to take a different angle
                         session.messages.push(crate::provider::Message {
                             role: "system".to_string(),
-                            content: "[REGENERATION REQUESTED] The user was not satisfied with your \
+                            content:
+                                "[REGENERATION REQUESTED] The user was not satisfied with your \
                                 previous response and has asked you to try again. Take a fresh \
                                 perspective — vary your reasoning, structure, tone, and approach. \
                                 Do not repeat or closely mirror your previous attempt. Be more \
                                 creative, more thorough, or more concise as the situation demands."
-                                .to_string(),
+                                    .to_string(),
                             images: Vec::new(),
                         });
                     }
                     user_text
                 };
                 if let Some(user_msg) = last_user_msg {
-                    tracing::info!(prompt_len = user_msg.len(), "Regenerate — re-running with regen hint");
+                    tracing::info!(
+                        prompt_len = user_msg.len(),
+                        "Regenerate — re-running with regen hint"
+                    );
                     chat::handle_chat(&mut socket, &state, &user_msg, Vec::new()).await;
                 } else {
-                    let _ = send_json(&mut socket, &ServerMessage::Error {
-                        message: "No user message to regenerate from".to_string(),
-                    }).await;
+                    let _ = send_json(
+                        &mut socket,
+                        &ServerMessage::Error {
+                            message: "No user message to regenerate from".to_string(),
+                        },
+                    )
+                    .await;
                 }
             }
             ClientMessage::SwitchSession { session_id } => {
@@ -204,7 +247,10 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
 
 pub(crate) async fn send_json(socket: &mut WebSocket, msg: &ServerMessage) -> Result<(), ()> {
     match serde_json::to_string(msg) {
-        Ok(json) => socket.send(ws::Message::Text(json.into())).await.map_err(|_| ()),
+        Ok(json) => socket
+            .send(ws::Message::Text(json.into()))
+            .await
+            .map_err(|_| ()),
         Err(_) => Err(()),
     }
 }
@@ -240,18 +286,23 @@ pub(crate) fn consume_resume_state() -> Option<String> {
     let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
 
     // Check platform — if it's a Discord recompile, don't consume here
-    let platform = parsed.get("platform")
+    let platform = parsed
+        .get("platform")
         .and_then(|v| v.as_str())
         .unwrap_or("");
     if platform == "discord" || platform == "telegram" {
-        tracing::info!(platform = platform, "Resume state is for platform adapter — skipping web UI consumption");
+        tracing::info!(
+            platform = platform,
+            "Resume state is for platform adapter — skipping web UI consumption"
+        );
         return None;
     }
 
     // Consume the file so it doesn't fire again
     let _ = std::fs::remove_file(resume_path);
 
-    let compiled_at = parsed.get("compiled_at")
+    let compiled_at = parsed
+        .get("compiled_at")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
 
@@ -278,6 +329,10 @@ pub(crate) fn consume_resume_state() -> Option<String> {
         If there is changelog context below, mention what changed at a high level.\n\
         Changelog context: {}]",
         compiled_at,
-        if changelog.is_empty() { "No changelog available.".to_string() } else { changelog }
+        if changelog.is_empty() {
+            "No changelog available.".to_string()
+        } else {
+            changelog
+        }
     ))
 }

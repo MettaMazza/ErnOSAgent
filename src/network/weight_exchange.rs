@@ -54,13 +54,10 @@ impl WeightExchange {
     }
 
     /// Record an adapter announcement from a peer.
-    pub fn record_announcement(
-        &mut self,
-        version: String,
-        manifest_json: String,
-        origin: PeerId,
-    ) {
-        let is_newer = self.local_version.as_ref()
+    pub fn record_announcement(&mut self, version: String, manifest_json: String, origin: PeerId) {
+        let is_newer = self
+            .local_version
+            .as_ref()
             .map(|local| version > *local)
             .unwrap_or(true);
 
@@ -71,28 +68,36 @@ impl WeightExchange {
             "LoRA adapter announced"
         );
 
-        self.known_versions.insert(version.clone(), AdapterVersion {
-            version,
-            manifest_json,
-            origin,
-            announced_at: chrono::Utc::now().to_rfc3339(),
-            size_bytes: None,
-            applied: false,
-        });
+        self.known_versions.insert(
+            version.clone(),
+            AdapterVersion {
+                version,
+                manifest_json,
+                origin,
+                announced_at: chrono::Utc::now().to_rfc3339(),
+                size_bytes: None,
+                applied: false,
+            },
+        );
     }
 
     /// Check if a newer version is available on the mesh.
     pub fn has_newer_version(&self) -> Option<&AdapterVersion> {
         let local = self.local_version.as_deref().unwrap_or("0.0.0");
-        self.known_versions.values()
+        self.known_versions
+            .values()
             .filter(|v| v.version.as_str() > local && !v.applied)
             .max_by(|a, b| a.version.cmp(&b.version))
     }
 
     /// Store received adapter bytes to disk.
     pub fn store_adapter(&self, version: &str, bytes: &[u8]) -> Result<PathBuf> {
-        std::fs::create_dir_all(&self.adapters_dir)
-            .with_context(|| format!("Failed to create adapters dir: {}", self.adapters_dir.display()))?;
+        std::fs::create_dir_all(&self.adapters_dir).with_context(|| {
+            format!(
+                "Failed to create adapters dir: {}",
+                self.adapters_dir.display()
+            )
+        })?;
 
         let path = self.adapters_dir.join(format!("lora_v{}.bin", version));
         std::fs::write(&path, bytes)
@@ -135,8 +140,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_weight_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_weight_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }

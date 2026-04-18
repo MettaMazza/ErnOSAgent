@@ -32,8 +32,12 @@ mod mesh_integration {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_mesh_integ_{}_{}_{}", name, std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!(
+            "ernos_mesh_integ_{}_{}_{}",
+            name,
+            std::process::id(),
+            n
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }
@@ -104,35 +108,39 @@ mod mesh_integration {
         let freeloader = PeerId("freeloader".into());
 
         // Cannot submit — no contributions
-        let result = pool.submit_job(ComputeJob {
-            job_id: "j1".into(),
-            model: "qwen3.5:7b".into(),
-            prompt: "test".into(),
-            max_tokens: 100,
-            requester: freeloader.clone(),
-            assigned_to: None,
-            status: JobStatus::Queued,
-            result: None,
-            submitted_at: chrono::Utc::now().to_rfc3339(),
-            completed_at: None,
-        }).await;
+        let result = pool
+            .submit_job(ComputeJob {
+                job_id: "j1".into(),
+                model: "qwen3.5:7b".into(),
+                prompt: "test".into(),
+                max_tokens: 100,
+                requester: freeloader.clone(),
+                assigned_to: None,
+                status: JobStatus::Queued,
+                result: None,
+                submitted_at: chrono::Utc::now().to_rfc3339(),
+                completed_at: None,
+            })
+            .await;
 
         assert!(result.is_err(), "Freeloader should be rejected");
 
         // After contributing, they can submit
         let lenient_pool = ComputePool::new(-5);
-        let result = lenient_pool.submit_job(ComputeJob {
-            job_id: "j2".into(),
-            model: "qwen3.5:7b".into(),
-            prompt: "test".into(),
-            max_tokens: 100,
-            requester: freeloader,
-            assigned_to: None,
-            status: JobStatus::Queued,
-            result: None,
-            submitted_at: chrono::Utc::now().to_rfc3339(),
-            completed_at: None,
-        }).await;
+        let result = lenient_pool
+            .submit_job(ComputeJob {
+                job_id: "j2".into(),
+                model: "qwen3.5:7b".into(),
+                prompt: "test".into(),
+                max_tokens: 100,
+                requester: freeloader,
+                assigned_to: None,
+                status: JobStatus::Queued,
+                result: None,
+                submitted_at: chrono::Utc::now().to_rfc3339(),
+                completed_at: None,
+            })
+            .await;
 
         assert!(result.is_ok());
     }
@@ -178,9 +186,7 @@ mod mesh_integration {
         assert!(scan.is_blocked());
 
         // Report to sanction engine (critical)
-        let quarantined = engine.record_violation(
-            &peer, Violation::PoisonAttempt, "XSS injection"
-        );
+        let quarantined = engine.record_violation(&peer, Violation::PoisonAttempt, "XSS injection");
         assert!(quarantined, "Critical violation should quarantine");
     }
 

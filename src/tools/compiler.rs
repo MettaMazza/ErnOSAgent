@@ -8,8 +8,8 @@
 //! Pipeline: test gate → warning gate → build → changelog → resume state → binary swap → exit.
 //! Ported from HIVE's `compiler_tool.rs` with ErnOSAgent-specific adaptations.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 
 /// Filter out warnings from external dependencies (not our code).
@@ -85,10 +85,12 @@ async fn run_recompile_pipeline(project_root: &PathBuf) -> Result<String, String
     if let Ok(output) = diff_result {
         let diff_text = String::from_utf8_lossy(&output.stdout);
         if diff_text.trim().is_empty() {
-             return Err("RECOMPILE ABORTED: No codebase changes detected. You cannot run system_recompile unless you have modified the source code using codebase_edit. Please choose a different tool or action.".to_string());
+            return Err("RECOMPILE ABORTED: No codebase changes detected. You cannot run system_recompile unless you have modified the source code using codebase_edit. Please choose a different tool or action.".to_string());
         }
     } else {
-        return Err("RECOMPILE ABORTED: Failed to run git diff to verify codebase changes.".to_string());
+        return Err(
+            "RECOMPILE ABORTED: Failed to run git diff to verify codebase changes.".to_string(),
+        );
     }
 
     // ── STAGE 1: Test Gate ───────────────────────────────────────────
@@ -146,14 +148,15 @@ async fn run_recompile_pipeline(project_root: &PathBuf) -> Result<String, String
             tracing::info!("system_recompile: all tests passed, zero warnings");
         }
         Ok(Err(e)) => {
-            return Err(format!("RECOMPILE ABORTED: Could not run cargo test: {}", e));
+            return Err(format!(
+                "RECOMPILE ABORTED: Could not run cargo test: {}",
+                e
+            ));
         }
         Err(_) => {
-            return Err(
-                "RECOMPILE ABORTED: Test suite timed out after 10 minutes. \
+            return Err("RECOMPILE ABORTED: Test suite timed out after 10 minutes. \
                 This may indicate a hanging test or missing dependencies."
-                    .to_string(),
-            );
+                .to_string());
         }
     }
 
@@ -215,7 +218,8 @@ async fn run_recompile_pipeline(project_root: &PathBuf) -> Result<String, String
             .unwrap_or_default();
 
         let explanation = if diff_text.trim().is_empty() {
-            "The system rebuilt itself from unchanged source code (verification rebuild).".to_string()
+            "The system rebuilt itself from unchanged source code (verification rebuild)."
+                .to_string()
         } else {
             format!(
                 "The system rebuilt itself after detecting code changes. {} file(s) modified.",
@@ -368,7 +372,9 @@ mod tests {
     fn test_is_own_warning() {
         assert!(is_own_warning("warning: unused variable `x`"));
         assert!(is_own_warning("some context warning[E0001]"));
-        assert!(!is_own_warning("warning: use of deprecated function -- imap-proto"));
+        assert!(!is_own_warning(
+            "warning: use of deprecated function -- imap-proto"
+        ));
         assert!(!is_own_warning("note: this is just a note"));
         assert!(!is_own_warning("warning: 1 warning generated"));
     }

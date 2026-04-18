@@ -61,11 +61,13 @@ impl TuringGrid {
         self.cells
             .iter()
             .filter_map(|(key, cell)| {
-                parse_coord(key).filter(|&(x, y, z)| {
-                    (x - cx).abs() <= radius
-                        && (y - cy).abs() <= radius
-                        && (z - cz).abs() <= radius
-                }).map(|coords| (coords, cell.format.clone()))
+                parse_coord(key)
+                    .filter(|&(x, y, z)| {
+                        (x - cx).abs() <= radius
+                            && (y - cy).abs() <= radius
+                            && (z - cz).abs() <= radius
+                    })
+                    .map(|coords| (coords, cell.format.clone()))
             })
             .collect()
     }
@@ -83,7 +85,9 @@ impl TuringGrid {
         format!(
             "--- Turing Grid Index ({} cells) ---\nCursor: ({},{},{})\n\n{}{}",
             self.cells.len(),
-            self.cursor.0, self.cursor.1, self.cursor.2,
+            self.cursor.0,
+            self.cursor.1,
+            self.cursor.2,
             entries.join("\n"),
             label_section
         )
@@ -209,7 +213,10 @@ fn format_cell_entries(
             } else {
                 format!(" | {} link(s)", cell.links.len())
             };
-            format!("• ({}) [{}{}]{} — {}", key, cell.format, link_info, label_tags, preview)
+            format!(
+                "• ({}) [{}{}]{} — {}",
+                key, cell.format, link_info, label_tags, preview
+            )
         })
         .collect()
 }

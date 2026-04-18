@@ -17,9 +17,10 @@ impl SynapticGraph {
         let to_lower = to.to_lowercase();
         {
             let mut edges = self.edges.write().await;
-            if let Some(edge) = edges.iter_mut().find(|e| {
-                e.from.to_lowercase() == from_lower && e.to.to_lowercase() == to_lower
-            }) {
+            if let Some(edge) = edges
+                .iter_mut()
+                .find(|e| e.from.to_lowercase() == from_lower && e.to.to_lowercase() == to_lower)
+            {
                 edge.weight = (edge.weight + 0.1).min(1.0);
                 edge.activation_count += 1;
                 if edge.activation_count >= 3 {
@@ -79,7 +80,9 @@ impl SynapticGraph {
         if pruned > 0 {
             tracing::info!(
                 "[SYNAPTIC] Decay: {} decayed, {} pruned, {} permanent",
-                decayed, pruned, permanent_count
+                decayed,
+                pruned,
+                permanent_count
             );
         }
 
@@ -117,8 +120,7 @@ impl SynapticGraph {
         {
             let mut edges = self.edges.write().await;
             let already = edges.iter().any(|e| {
-                e.from.to_lowercase() == source_lower
-                    && e.to.to_lowercase() == target_lower
+                e.from.to_lowercase() == source_lower && e.to.to_lowercase() == target_lower
             });
             if !already {
                 edges.push(SynapticEdge {

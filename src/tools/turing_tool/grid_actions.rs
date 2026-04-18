@@ -8,19 +8,31 @@
 use super::{ActionResult, TuringState};
 use crate::tools::schema::ToolCall;
 
-pub(super) async fn action_move(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
-    let dx = call.arguments.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let dy = call.arguments.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let dz = call.arguments.get("dz").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+pub(super) async fn action_move(call: &ToolCall, state: &TuringState) -> ActionResult {
+    let dx = call
+        .arguments
+        .get("dx")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let dy = call
+        .arguments
+        .get("dy")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let dz = call
+        .arguments
+        .get("dz")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
 
     let mut g = state.grid.lock().await;
     g.move_cursor(dx, dy, dz).await;
     let (x, y, z) = g.get_cursor();
     (
-        format!("Moved Read/Write head. Current coordinates: ({}, {}, {})", x, y, z),
+        format!(
+            "Moved Read/Write head. Current coordinates: ({}, {}, {})",
+            x, y, z
+        ),
         true,
         None,
     )
@@ -66,10 +78,7 @@ fn format_history_count(count: usize) -> String {
     }
 }
 
-pub(super) async fn action_write(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_write(call: &ToolCall, state: &TuringState) -> ActionResult {
     let format_str = call
         .arguments
         .get("format")
@@ -79,7 +88,8 @@ pub(super) async fn action_write(
         Some(c) => c,
         None => {
             return (
-                "Error: No content provided for write. Pass 'content' with the text to store.".to_string(),
+                "Error: No content provided for write. Pass 'content' with the text to store."
+                    .to_string(),
                 false,
                 Some("No content provided for write.".to_string()),
             )
@@ -103,10 +113,7 @@ pub(super) async fn action_write(
     }
 }
 
-pub(super) async fn action_scan(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_scan(call: &ToolCall, state: &TuringState) -> ActionResult {
     let radius = call
         .arguments
         .get("radius")
@@ -137,10 +144,7 @@ pub(super) async fn action_scan(
     }
 }
 
-pub(super) async fn action_read_range(
-    call: &ToolCall,
-    state: &TuringState,
-) -> ActionResult {
+pub(super) async fn action_read_range(call: &ToolCall, state: &TuringState) -> ActionResult {
     let (xmin, xmax) = parse_bounds(call, "x_bounds");
     let (ymin, ymax) = parse_bounds(call, "y_bounds");
     let (zmin, zmax) = parse_bounds(call, "z_bounds");
@@ -161,7 +165,10 @@ pub(super) async fn action_read_range(
                     let limit_content: String = cell.content.chars().take(300).collect();
                     out.push_str(&format!(
                         "* Cell ({}, {}, {}) [{}]: {}\n",
-                        x, y, z, cell.format,
+                        x,
+                        y,
+                        z,
+                        cell.format,
                         limit_content.replace('\n', " ")
                     ));
                 }
@@ -173,7 +180,12 @@ pub(super) async fn action_read_range(
         (
             format!(
                 "No cells found in range X[{}-{}] Y[{}-{}] Z[{}-{}].",
-                xmin, xmin + x_bound, ymin, ymin + y_bound, zmin, zmin + z_bound
+                xmin,
+                xmin + x_bound,
+                ymin,
+                ymin + y_bound,
+                zmin,
+                zmin + z_bound
             ),
             true,
             None,

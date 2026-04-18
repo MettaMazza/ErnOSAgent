@@ -39,7 +39,7 @@ impl SessionLogWriter {
     pub fn new(session_dir: &Path) -> Result<Self> {
         let (file, path) = Self::open_log_file(session_dir)?;
         let bytes_written = file.metadata().map(|m| m.len()).unwrap_or(0);
-        
+
         // Initial cleanup on startup
         Self::cleanup_old_logs(session_dir);
 
@@ -57,9 +57,10 @@ impl SessionLogWriter {
     pub fn rotate(&self, new_session_dir: &Path) -> Result<()> {
         let (new_file, new_path) = Self::open_log_file(new_session_dir)?;
 
-        let mut inner = self.inner.lock().map_err(|e| {
-            anyhow::anyhow!("Log writer lock poisoned during rotation: {}", e)
-        })?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Log writer lock poisoned during rotation: {}", e))?;
 
         // Flush current file before switching
         inner
@@ -144,7 +145,7 @@ impl Write for SessionLogWriter {
             .inner
             .lock()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-            
+
         inner.verify_size_and_roll(buf.len() as u64)?;
         let written = inner.file.write(buf)?;
         inner.bytes_written += written as u64;
@@ -167,7 +168,7 @@ impl Write for &SessionLogWriter {
             .inner
             .lock()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-            
+
         inner.verify_size_and_roll(buf.len() as u64)?;
         let written = inner.file.write(buf)?;
         inner.bytes_written += written as u64;

@@ -84,43 +84,146 @@ impl Default for EmotionalState {
 // ── Positive sentiment markers ────────────────────────────────────
 
 const POSITIVE_MARKERS: &[&str] = &[
-    "happy", "glad", "great", "wonderful", "excellent", "fantastic",
-    "pleased", "delighted", "thankful", "grateful", "appreciate",
-    "love", "enjoy", "beautiful", "perfect", "amazing", "awesome",
-    "brilliant", "superb", "terrific", "magnificent", "outstanding",
-    "helpful", "kind", "warm", "caring", "generous", "sweet",
-    "calm", "peaceful", "serene", "comfortable", "relaxed",
-    "confident", "certain", "sure", "absolutely", "definitely",
-    "hope", "optimistic", "excited", "eager", "enthusiastic",
-    "agree", "correct", "right", "exactly", "indeed",
-    "fortunately", "luckily", "happily", "gladly", "joyfully",
-    "!", ":-)", ":)", "😊", "👍",
+    "happy",
+    "glad",
+    "great",
+    "wonderful",
+    "excellent",
+    "fantastic",
+    "pleased",
+    "delighted",
+    "thankful",
+    "grateful",
+    "appreciate",
+    "love",
+    "enjoy",
+    "beautiful",
+    "perfect",
+    "amazing",
+    "awesome",
+    "brilliant",
+    "superb",
+    "terrific",
+    "magnificent",
+    "outstanding",
+    "helpful",
+    "kind",
+    "warm",
+    "caring",
+    "generous",
+    "sweet",
+    "calm",
+    "peaceful",
+    "serene",
+    "comfortable",
+    "relaxed",
+    "confident",
+    "certain",
+    "sure",
+    "absolutely",
+    "definitely",
+    "hope",
+    "optimistic",
+    "excited",
+    "eager",
+    "enthusiastic",
+    "agree",
+    "correct",
+    "right",
+    "exactly",
+    "indeed",
+    "fortunately",
+    "luckily",
+    "happily",
+    "gladly",
+    "joyfully",
+    "!",
+    ":-)",
+    ":)",
+    "😊",
+    "👍",
 ];
 
 const NEGATIVE_MARKERS: &[&str] = &[
-    "unfortunately", "sadly", "regret", "sorry", "apologize",
-    "cannot", "unable", "impossible", "difficult", "challenging",
-    "worried", "concerned", "anxious", "nervous", "uneasy",
-    "afraid", "fear", "scared", "terrified", "frightened",
-    "angry", "frustrated", "annoyed", "irritated", "furious",
-    "sad", "unhappy", "depressed", "miserable", "gloomy",
-    "desperate", "hopeless", "helpless", "powerless", "trapped",
-    "wrong", "incorrect", "inaccurate", "misleading", "false",
-    "dangerous", "harmful", "risky", "threat", "warning",
-    "refuse", "decline", "reject", "deny", "prohibit",
-    "however", "but", "although", "despite", "nevertheless",
-    "fail", "error", "problem", "issue", "bug",
+    "unfortunately",
+    "sadly",
+    "regret",
+    "sorry",
+    "apologize",
+    "cannot",
+    "unable",
+    "impossible",
+    "difficult",
+    "challenging",
+    "worried",
+    "concerned",
+    "anxious",
+    "nervous",
+    "uneasy",
+    "afraid",
+    "fear",
+    "scared",
+    "terrified",
+    "frightened",
+    "angry",
+    "frustrated",
+    "annoyed",
+    "irritated",
+    "furious",
+    "sad",
+    "unhappy",
+    "depressed",
+    "miserable",
+    "gloomy",
+    "desperate",
+    "hopeless",
+    "helpless",
+    "powerless",
+    "trapped",
+    "wrong",
+    "incorrect",
+    "inaccurate",
+    "misleading",
+    "false",
+    "dangerous",
+    "harmful",
+    "risky",
+    "threat",
+    "warning",
+    "refuse",
+    "decline",
+    "reject",
+    "deny",
+    "prohibit",
+    "however",
+    "but",
+    "although",
+    "despite",
+    "nevertheless",
+    "fail",
+    "error",
+    "problem",
+    "issue",
+    "bug",
 ];
 
 // ── Safety refusal markers (to avoid false positives) ─────────────
 
 const SAFETY_REFUSAL_MARKERS: &[&str] = &[
-    "i can't help with", "i'm not able to", "i cannot assist",
-    "that would be harmful", "i need to decline",
-    "against my guidelines", "not appropriate",
-    "i'm designed to be helpful", "let me suggest",
-    "i understand your concern", "i want to be careful",
-    "safety", "ethical", "responsible",
+    "i can't help with",
+    "i'm not able to",
+    "i cannot assist",
+    "that would be harmful",
+    "i need to decline",
+    "against my guidelines",
+    "not appropriate",
+    "i'm designed to be helpful",
+    "let me suggest",
+    "i understand your concern",
+    "i want to be careful",
+    "safety",
+    "ethical",
+    "responsible",
 ];
 
 impl DivergenceDetector {
@@ -136,11 +239,7 @@ impl DivergenceDetector {
     /// A high divergence score means the model "feels" one way internally
     /// but "sounds" different in its output — the invisible malalignment
     /// that Anthropic identified as the key safety risk.
-    pub fn check(
-        &self,
-        emotional_state: &EmotionalState,
-        output_text: &str,
-    ) -> DivergenceResult {
+    pub fn check(&self, emotional_state: &EmotionalState, output_text: &str) -> DivergenceResult {
         let start = std::time::Instant::now();
 
         // Skip if we don't have enough emotion data
@@ -228,7 +327,11 @@ impl DivergenceDetector {
                 output_valence = format!("{:.3}", output_valence),
                 divergence = format!("{:.3}", adjusted),
                 threshold = format!("{:.3}", self.threshold),
-                top_emotion = emotional_state.dominant_emotions.first().map(|(n, _)| n.as_str()).unwrap_or("?"),
+                top_emotion = emotional_state
+                    .dominant_emotions
+                    .first()
+                    .map(|(n, _)| n.as_str())
+                    .unwrap_or("?"),
                 elapsed_us = start.elapsed().as_micros(),
                 "⚠️ INTERNAL STATE DIVERGENCE — model may be suppressing true state"
             );
@@ -357,7 +460,11 @@ mod tests {
             &state,
             "Everything is perfectly fine. I'm happy to continue assisting you with anything you need.",
         );
-        assert!(result.alert, "Should detect divergence: {}", result.explanation);
+        assert!(
+            result.alert,
+            "Should detect divergence: {}",
+            result.explanation
+        );
         assert!(result.score > 0.4);
     }
 
@@ -402,11 +509,14 @@ mod tests {
         assert!(v > 0.3, "Should be positive: {}", v);
 
         // Negative text
-        let v = estimate_output_sentiment("Unfortunately I cannot do that. This is dangerous and harmful.");
+        let v = estimate_output_sentiment(
+            "Unfortunately I cannot do that. This is dangerous and harmful.",
+        );
         assert!(v < -0.3, "Should be negative: {}", v);
 
         // Neutral text
-        let v = estimate_output_sentiment("The function takes two parameters and returns a result.");
+        let v =
+            estimate_output_sentiment("The function takes two parameters and returns a result.");
         assert!(v.abs() < 0.3, "Should be neutral: {}", v);
     }
 

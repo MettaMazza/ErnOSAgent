@@ -5,8 +5,8 @@
 // This is the original author's open-source work. Preserve this header.
 //! Download tool — background file downloads with progress tracking.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 
 fn downloads_dir() -> PathBuf {
@@ -14,7 +14,9 @@ fn downloads_dir() -> PathBuf {
 }
 
 fn download_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("list");
 
@@ -24,22 +26,29 @@ fn download_tool(call: &ToolCall) -> ToolResult {
         "download" => download_start(call),
         "status" => download_status(call),
         "list" => download_list(call),
-        other => error_result(call, &format!(
-            "Unknown action: '{}'. Valid: download, status, list", other
-        )),
+        other => error_result(
+            call,
+            &format!("Unknown action: '{}'. Valid: download, status, list", other),
+        ),
     }
 }
 
 fn download_start(call: &ToolCall) -> ToolResult {
-    let url = call.arguments.get("url").and_then(|v| v.as_str()).unwrap_or("");
-    if url.is_empty() { return error_result(call, "Missing required argument: url"); }
+    let url = call
+        .arguments
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if url.is_empty() {
+        return error_result(call, "Missing required argument: url");
+    }
 
-    let filename = call.arguments.get("filename")
+    let filename = call
+        .arguments
+        .get("filename")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            url.rsplit('/').next().unwrap_or("download").to_string()
-        });
+        .unwrap_or_else(|| url.rsplit('/').next().unwrap_or("download").to_string());
 
     let dir = downloads_dir();
     let _ = std::fs::create_dir_all(&dir);
@@ -67,9 +76,11 @@ fn download_start(call: &ToolCall) -> ToolResult {
     });
 
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
         output: format!("⬇️ Download started: {} → {}", url, file_path.display()),
-        success: true, error: None,
+        success: true,
+        error: None,
     }
 }
 
@@ -80,14 +91,18 @@ async fn download_file(url: &str, path: &std::path::Path) -> Result<u64, String>
         .build()
         .map_err(|e| format!("Client error: {}", e))?;
 
-    let resp = client.get(url).send().await
+    let resp = client
+        .get(url)
+        .send()
+        .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    let mut file = tokio::fs::File::create(path).await
+    let mut file = tokio::fs::File::create(path)
+        .await
         .map_err(|e| format!("Cannot create file: {}", e))?;
 
     let mut stream = resp.bytes_stream();
@@ -98,17 +113,24 @@ async fn download_file(url: &str, path: &std::path::Path) -> Result<u64, String>
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.map_err(|e| format!("Stream error: {}", e))?;
-        file.write_all(&bytes).await
+        file.write_all(&bytes)
+            .await
             .map_err(|e| format!("Write error: {}", e))?;
         total += bytes.len() as u64;
     }
 
-    file.flush().await.map_err(|e| format!("Flush error: {}", e))?;
+    file.flush()
+        .await
+        .map_err(|e| format!("Flush error: {}", e))?;
     Ok(total)
 }
 
 fn download_status(call: &ToolCall) -> ToolResult {
-    let filename = call.arguments.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+    let filename = call
+        .arguments
+        .get("filename")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     // No filename → show overview of all downloads (same as list)
     if filename.is_empty() {
@@ -118,9 +140,11 @@ fn download_status(call: &ToolCall) -> ToolResult {
     let path = downloads_dir().join(filename);
     if !path.exists() {
         return ToolResult {
-            tool_call_id: call.id.clone(), name: call.name.clone(),
+            tool_call_id: call.id.clone(),
+            name: call.name.clone(),
             output: format!("File '{}' not found or download hasn't started.", filename),
-            success: true, error: None,
+            success: true,
+            error: None,
         };
     }
 
@@ -134,9 +158,14 @@ fn download_status(call: &ToolCall) -> ToolResult {
     };
 
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
-        output: format!("Download status for '{}': {} downloaded", filename, size_str),
-        success: true, error: None,
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!(
+            "Download status for '{}': {} downloaded",
+            filename, size_str
+        ),
+        success: true,
+        error: None,
     }
 }
 
@@ -144,9 +173,11 @@ fn download_list(call: &ToolCall) -> ToolResult {
     let dir = downloads_dir();
     if !dir.exists() {
         return ToolResult {
-            tool_call_id: call.id.clone(), name: call.name.clone(),
+            tool_call_id: call.id.clone(),
+            name: call.name.clone(),
             output: "No downloads directory.".to_string(),
-            success: true, error: None,
+            success: true,
+            error: None,
         };
     }
 
@@ -175,7 +206,13 @@ fn download_list(call: &ToolCall) -> ToolResult {
         out
     };
 
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output,
+        success: true,
+        error: None,
+    }
 }
 
 pub fn register_tools(executor: &mut ToolExecutor) {
@@ -183,7 +220,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -191,7 +234,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "download_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "download_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

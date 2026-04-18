@@ -53,16 +53,20 @@ impl SleepConfig {
 fn parse_env_usize(key: &str) -> anyhow::Result<usize> {
     std::env::var(key)
         .map_err(|_| anyhow::anyhow!("{key} env var not set — required for sleep cycle"))
-        .and_then(|v| v.parse::<usize>()
-            .map_err(|e| anyhow::anyhow!("{key} is not a valid integer: {e}")))
+        .and_then(|v| {
+            v.parse::<usize>()
+                .map_err(|e| anyhow::anyhow!("{key} is not a valid integer: {e}"))
+        })
 }
 
 /// Parse a required f64 from an env var.
 fn parse_env_f64(key: &str) -> anyhow::Result<f64> {
     std::env::var(key)
         .map_err(|_| anyhow::anyhow!("{key} env var not set — required for sleep cycle"))
-        .and_then(|v| v.parse::<f64>()
-            .map_err(|e| anyhow::anyhow!("{key} is not a valid float: {e}")))
+        .and_then(|v| {
+            v.parse::<f64>()
+                .map_err(|e| anyhow::anyhow!("{key} is not a valid float: {e}"))
+        })
 }
 
 /// Status of the sleep cycle subsystem.
@@ -80,7 +84,9 @@ impl std::fmt::Display for SleepStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ready { golden_count } => write!(f, "Ready ({golden_count} golden available)"),
-            Self::Sleeping { started } => write!(f, "Sleeping ({:.0}s)", started.elapsed().as_secs_f64()),
+            Self::Sleeping { started } => {
+                write!(f, "Sleeping ({:.0}s)", started.elapsed().as_secs_f64())
+            }
             Self::Disabled => write!(f, "Disabled"),
         }
     }
@@ -134,13 +140,14 @@ pub fn compute_quality_score(example: &GoldenExample, is_recent: bool) -> f64 {
 fn count_tool_references(text: &str) -> usize {
     // Count common tool call patterns
     let patterns = ["✅", "❌", "tool_call", "Tool:", "[TOOL"];
-    patterns.iter()
-        .map(|p| text.matches(p).count())
-        .sum()
+    patterns.iter().map(|p| text.matches(p).count()).sum()
 }
 
 /// Load golden examples and rank them by quality score.
-pub fn load_and_rank_golden(buffers: &TrainingBuffers, max_count: usize) -> Vec<(GoldenExample, f64)> {
+pub fn load_and_rank_golden(
+    buffers: &TrainingBuffers,
+    max_count: usize,
+) -> Vec<(GoldenExample, f64)> {
     let examples = buffers.golden.read_all().unwrap_or_default();
     let total = examples.len();
 
@@ -199,9 +206,8 @@ pub async fn enter_sleep(
     );
 
     // 2. Generate identity reflection (non-blocking, best-effort)
-    let reflection_generated = super::sleep_reflection::try_generate_reflection(
-        provider, buffers, &ranked,
-    ).await;
+    let reflection_generated =
+        super::sleep_reflection::try_generate_reflection(provider, buffers, &ranked).await;
 
     // 3. Unload inference model to free Metal resources
     super::sleep_metal::unload_inference_model().await;

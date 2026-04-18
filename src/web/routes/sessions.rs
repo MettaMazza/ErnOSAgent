@@ -5,7 +5,7 @@
 // This is the original author's open-source work. Preserve this header.
 //! Session CRUD and export routes.
 
-use super::{api_error, session_to_detail, SessionDetail, SessionListItem, RenameRequest};
+use super::{api_error, session_to_detail, RenameRequest, SessionDetail, SessionListItem};
 use crate::web::state::SharedState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -13,9 +13,7 @@ use axum::Json;
 
 use super::ApiError;
 
-pub async fn list_sessions(
-    State(state): State<SharedState>,
-) -> Json<Vec<SessionListItem>> {
+pub async fn list_sessions(State(state): State<SharedState>) -> Json<Vec<SessionListItem>> {
     let st = state.read().await;
     let items: Vec<SessionListItem> = st
         .session_mgr
@@ -148,7 +146,12 @@ pub async fn react_to_message(
 
     let (user_msg, assistant_msg) = match (last_user, last_assistant) {
         (Some(u), Some(a)) => (u.content.clone(), a.content.clone()),
-        _ => return Err(api_error(StatusCode::BAD_REQUEST, "No message pair to react to")),
+        _ => {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "No message pair to react to",
+            ))
+        }
     };
 
     match body.reaction.as_str() {
@@ -178,7 +181,12 @@ pub async fn react_to_message(
                 tracing::info!(session = %id, "👎 Reaction recorded → preference buffer");
             }
         }
-        _ => return Err(api_error(StatusCode::BAD_REQUEST, "Invalid reaction type, expected 'up' or 'down'")),
+        _ => {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "Invalid reaction type, expected 'up' or 'down'",
+            ))
+        }
     }
 
     Ok(StatusCode::OK)

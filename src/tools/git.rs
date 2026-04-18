@@ -11,8 +11,8 @@
 //! Checkout to other branches is hard-blocked.
 
 use crate::tools::containment;
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::time::Duration;
 
 /// The branch the agent is locked to.
@@ -29,7 +29,9 @@ const WRITE_ACTIONS: &[&str] = &["commit", "stash", "stash_pop"];
 
 /// Execute the git tool.
 fn git_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -39,20 +41,26 @@ fn git_tool(call: &ToolCall) -> ToolResult {
 
     // Hard-block remote operations
     if BLOCKED_ACTIONS.contains(&action) {
-        return error_result(call, &format!(
-            "BLOCKED: '{}' is a remote git operation and is strictly prohibited. \
+        return error_result(
+            call,
+            &format!(
+                "BLOCKED: '{}' is a remote git operation and is strictly prohibited. \
             The agent can only manipulate the local repository timeline on its own branch.",
-            action
-        ));
+                action
+            ),
+        );
     }
 
     // Hard-block checkout (agent is locked to its branch)
     if action == "checkout" || action == "branch" {
-        return error_result(call, &format!(
-            "BLOCKED: '{}' would change the branch. The agent is locked to '{}'. \
+        return error_result(
+            call,
+            &format!(
+                "BLOCKED: '{}' would change the branch. The agent is locked to '{}'. \
             Use read-only commands (status, diff, log, blame, branches) to inspect other branches.",
-            action, AGENT_BRANCH
-        ));
+                action, AGENT_BRANCH
+            ),
+        );
     }
 
     // For write actions, verify we're on the agent branch
@@ -60,21 +68,28 @@ fn git_tool(call: &ToolCall) -> ToolResult {
         match get_current_branch() {
             Ok(branch) => {
                 if branch != AGENT_BRANCH {
-                    return error_result(call, &format!(
-                        "BLOCKED: Agent can only commit on '{}', but currently on '{}'. \
+                    return error_result(
+                        call,
+                        &format!(
+                            "BLOCKED: Agent can only commit on '{}', but currently on '{}'. \
                         The agent branch must be created first: git checkout -b {}",
-                        AGENT_BRANCH, branch, AGENT_BRANCH
-                    ));
+                            AGENT_BRANCH, branch, AGENT_BRANCH
+                        ),
+                    );
                 }
             }
-            Err(e) => return error_result(call, &format!("Failed to determine current branch: {}", e)),
+            Err(e) => {
+                return error_result(call, &format!("Failed to determine current branch: {}", e))
+            }
         }
     }
 
     let result = match action {
         "status" => run_git(&["status", "--porcelain", "--branch"]),
         "diff" => {
-            let staged = call.arguments.get("staged")
+            let staged = call
+                .arguments
+                .get("staged")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             if staged {
@@ -84,14 +99,18 @@ fn git_tool(call: &ToolCall) -> ToolResult {
             }
         }
         "log" => {
-            let limit = call.arguments.get("limit")
+            let limit = call
+                .arguments
+                .get("limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(10);
             let limit_str = format!("-{}", limit);
             run_git(&["log", "--oneline", "--decorate", &limit_str])
         }
         "blame" => {
-            let path = call.arguments.get("path")
+            let path = call
+                .arguments
+                .get("path")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if path.is_empty() {
@@ -99,9 +118,14 @@ fn git_tool(call: &ToolCall) -> ToolResult {
             }
             // Containment check on the path
             if let Some(protected) = containment::check_path(path) {
-                return error_result(call, &format!("BLOCKED: Cannot blame containment file '{}'", protected));
+                return error_result(
+                    call,
+                    &format!("BLOCKED: Cannot blame containment file '{}'", protected),
+                );
             }
-            let line = call.arguments.get("line")
+            let line = call
+                .arguments
+                .get("line")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(1);
             let range = format!("{},+10", line);
@@ -109,7 +133,9 @@ fn git_tool(call: &ToolCall) -> ToolResult {
         }
         "branches" => run_git(&["branch", "-a", "--no-color"]),
         "commit" => {
-            let message = call.arguments.get("message")
+            let message = call
+                .arguments
+                .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if message.is_empty() {
@@ -122,7 +148,9 @@ fn git_tool(call: &ToolCall) -> ToolResult {
             run_git(&["commit", "-m", message])
         }
         "stash" => {
-            let message = call.arguments.get("message")
+            let message = call
+                .arguments
+                .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("ernosagent-auto-stash");
             run_git(&["stash", "push", "-m", message])
@@ -172,9 +200,7 @@ fn run_git(args: &[&str]) -> Result<String, String> {
         rt.block_on(async {
             tokio::time::timeout(
                 Duration::from_secs(GIT_TIMEOUT_SECS),
-                tokio::process::Command::new("git")
-                    .args(args)
-                    .output(),
+                tokio::process::Command::new("git").args(args).output(),
             )
             .await
         })
@@ -198,7 +224,10 @@ fn run_git(args: &[&str]) -> Result<String, String> {
             }
         }
         Ok(Err(e)) => Err(format!("Failed to execute git: {}", e)),
-        Err(_) => Err(format!("git {} timed out after {}s", args[0], GIT_TIMEOUT_SECS)),
+        Err(_) => Err(format!(
+            "git {} timed out after {}s",
+            args[0], GIT_TIMEOUT_SECS
+        )),
     }
 }
 

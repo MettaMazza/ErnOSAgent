@@ -14,8 +14,8 @@ mod read;
 mod write;
 
 use crate::tools::containment;
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::path::PathBuf;
 
 /// Maximum file size for reads (512 KB) — prevents OOM on binary files.
@@ -34,8 +34,7 @@ pub(crate) fn project_root() -> Result<PathBuf, String> {
         if let Some(ref p) = *borrow {
             Ok(p.clone())
         } else {
-            std::env::current_dir()
-                .map_err(|e| format!("Failed to get project root: {}", e))
+            std::env::current_dir().map_err(|e| format!("Failed to get project root: {}", e))
         }
     })
 }
@@ -80,8 +79,7 @@ pub(crate) fn resolve_path(rel_path: &str) -> Result<PathBuf, String> {
     let root = project_root()?;
     let full_path = root.join(rel_path);
 
-    let canonical_root = root.canonicalize()
-        .unwrap_or_else(|_| root.clone());
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.clone());
     if let Ok(canonical_full) = full_path.canonicalize() {
         if !canonical_full.starts_with(&canonical_root) {
             return Err(format!(

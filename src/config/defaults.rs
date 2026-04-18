@@ -47,10 +47,10 @@ fn default_general_config(data_dir: PathBuf) -> GeneralConfig {
 
 fn default_ollama_config() -> OllamaConfig {
     OllamaConfig {
-        host: std::env::var("OLLAMA_HOST")
-            .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+        host: std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string()),
         port: std::env::var("OLLAMA_PORT")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(11434),
         keep_alive: -1,
     }
@@ -58,8 +58,7 @@ fn default_ollama_config() -> OllamaConfig {
 
 fn default_llamacpp_config() -> LlamaCppConfig {
     let model_path = std::env::var("LLAMACPP_MODEL_PATH").unwrap_or_default();
-    let mmproj_path = std::env::var("LLAMACPP_MMPROJ_PATH")
-        .unwrap_or_default();
+    let mmproj_path = std::env::var("LLAMACPP_MMPROJ_PATH").unwrap_or_default();
 
     // Auto-detect mmproj if not explicitly set but model_path exists
     let mmproj_path = if mmproj_path.is_empty() && !model_path.is_empty() {
@@ -72,17 +71,20 @@ fn default_llamacpp_config() -> LlamaCppConfig {
         server_binary: std::env::var("LLAMACPP_SERVER_BIN")
             .unwrap_or_else(|_| "llama-server".to_string()),
         port: std::env::var("LLAMACPP_PORT")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(8080),
         model_path,
         mmproj_path,
         n_gpu_layers: std::env::var("LLAMACPP_GPU_LAYERS")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(-1),
         extra_args: Vec::new(),
         embedding_model_path: std::env::var("LLAMACPP_EMBED_MODEL_PATH").unwrap_or_default(),
         embedding_port: std::env::var("LLAMACPP_EMBED_PORT")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(8081),
     }
 }
@@ -133,7 +135,8 @@ fn default_lmstudio_config() -> LMStudioConfig {
         host: std::env::var("LMSTUDIO_HOST")
             .unwrap_or_else(|_| "http://localhost:1234".to_string()),
         port: std::env::var("LMSTUDIO_PORT")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(1234),
     }
 }
@@ -165,18 +168,21 @@ fn default_platform_config() -> PlatformConfig {
             token: std::env::var("ERNOSAGENT_DISCORD_TOKEN").unwrap_or_default(),
             admin_user_id: std::env::var("ERNOSAGENT_DISCORD_ADMIN").unwrap_or_default(),
             guild_id: std::env::var("ERNOSAGENT_DISCORD_GUILD").unwrap_or_default(),
-            autonomy_channel_id: std::env::var("ERNOSAGENT_DISCORD_AUTONOMY_CHANNEL").unwrap_or_default(),
+            autonomy_channel_id: std::env::var("ERNOSAGENT_DISCORD_AUTONOMY_CHANNEL")
+                .unwrap_or_default(),
             listen_channels: std::env::var("ERNOSAGENT_DISCORD_LISTEN_CHANNELS")
                 .unwrap_or_default()
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
-            onboarding_channel_id: std::env::var("ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL").unwrap_or_default(),
+            onboarding_channel_id: std::env::var("ERNOSAGENT_DISCORD_ONBOARDING_CHANNEL")
+                .unwrap_or_default(),
             new_member_role_id: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE").unwrap_or_default(),
             member_role_id: std::env::var("ERNOSAGENT_DISCORD_MEMBER_ROLE").unwrap_or_default(),
             new_role_duration_days: std::env::var("ERNOSAGENT_DISCORD_NEW_ROLE_DAYS")
-                .ok().and_then(|v| v.parse().ok())
+                .ok()
+                .and_then(|v| v.parse().ok())
                 .unwrap_or(7),
             sentinel_enabled: std::env::var("ERNOSAGENT_DISCORD_SENTINEL")
                 .map(|v| v == "1" || v.to_lowercase() == "true")
@@ -197,7 +203,8 @@ fn default_platform_config() -> PlatformConfig {
             phone_number_id: std::env::var("ERNOSAGENT_WHATSAPP_PHONE_ID").unwrap_or_default(),
             verify_token: std::env::var("ERNOSAGENT_WHATSAPP_VERIFY_TOKEN").unwrap_or_default(),
             webhook_port: std::env::var("ERNOSAGENT_WHATSAPP_PORT")
-                .ok().and_then(|v| v.parse().ok())
+                .ok()
+                .and_then(|v| v.parse().ok())
                 .unwrap_or(3000),
             admin_user_id: std::env::var("ERNOSAGENT_WHATSAPP_ADMIN").unwrap_or_default(),
         },
@@ -207,7 +214,8 @@ fn default_platform_config() -> PlatformConfig {
 fn default_web_config() -> WebConfig {
     WebConfig {
         port: std::env::var("ERNOSAGENT_WEB_PORT")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(3000),
         open_browser: true,
     }
@@ -220,10 +228,12 @@ fn default_interpretability_config() -> InterpretabilityConfig {
             .unwrap_or(false),
         sae_weights_path: std::env::var("ERNOSAGENT_SAE_WEIGHTS").unwrap_or_default(),
         target_layer: std::env::var("ERNOSAGENT_INTERP_LAYER")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(0),
         top_k_features: std::env::var("ERNOSAGENT_INTERP_TOPK")
-            .ok().and_then(|v| v.parse().ok())
+            .ok()
+            .and_then(|v| v.parse().ok())
             .unwrap_or(20),
         use_gpu: true,
     }

@@ -99,29 +99,34 @@ pub async fn mesh_status(State(state): State<SharedState>) -> Json<MeshStatusRes
 
 /// Fallback when mesh feature is not compiled in.
 #[cfg(not(feature = "mesh"))]
-pub async fn mesh_status(State(_state): State<SharedState>) -> (StatusCode, Json<MeshStatusResponse>) {
-    (StatusCode::NOT_FOUND, Json(MeshStatusResponse {
-        enabled: false,
-        peer_id: String::new(),
-        display_name: String::new(),
-        connected_peers: 0,
-        known_peers: 0,
-        governance_phase: "not_compiled".into(),
-        trust_unattested: 0,
-        trust_attested: 0,
-        trust_full: 0,
-        quarantined: 0,
-        jobs_queued: 0,
-        jobs_in_progress: 0,
-        jobs_completed: 0,
-        jobs_failed: 0,
-        relay_count: 0,
-        content_scanned: 0,
-        content_blocked: 0,
-        content_peers: 0,
-        dht_entries: 0,
-        integrity_valid: false,
-    }))
+pub async fn mesh_status(
+    State(_state): State<SharedState>,
+) -> (StatusCode, Json<MeshStatusResponse>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(MeshStatusResponse {
+            enabled: false,
+            peer_id: String::new(),
+            display_name: String::new(),
+            connected_peers: 0,
+            known_peers: 0,
+            governance_phase: "not_compiled".into(),
+            trust_unattested: 0,
+            trust_attested: 0,
+            trust_full: 0,
+            quarantined: 0,
+            jobs_queued: 0,
+            jobs_in_progress: 0,
+            jobs_completed: 0,
+            jobs_failed: 0,
+            relay_count: 0,
+            content_scanned: 0,
+            content_blocked: 0,
+            content_peers: 0,
+            dht_entries: 0,
+            integrity_valid: false,
+        }),
+    )
 }
 
 /// Individual peer detail for the mesh peer list.
@@ -142,14 +147,19 @@ pub async fn mesh_peers(State(state): State<SharedState>) -> Json<Vec<MeshPeerDt
     if let Some(ref coord_lock) = state.mesh_coordinator {
         let coord = coord_lock.read().await;
         let peers = coord.peer_list().await;
-        Json(peers.into_iter().map(|p| MeshPeerDto {
-            peer_id: p.peer_id,
-            display_name: p.display_name,
-            trust_level: p.trust_level,
-            latency_ms: p.latency_ms,
-            last_seen: p.last_seen,
-            connected: p.connected,
-        }).collect())
+        Json(
+            peers
+                .into_iter()
+                .map(|p| MeshPeerDto {
+                    peer_id: p.peer_id,
+                    display_name: p.display_name,
+                    trust_level: p.trust_level,
+                    latency_ms: p.latency_ms,
+                    last_seen: p.last_seen,
+                    connected: p.connected,
+                })
+                .collect(),
+        )
     } else {
         Json(Vec::new())
     }

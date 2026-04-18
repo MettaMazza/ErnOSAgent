@@ -124,7 +124,10 @@ pub fn emit_cargo_instructions(config: &LlamaCppBuildConfig, build_dir: &Path) {
     }
 
     // Rebuild triggers
-    println!("cargo:rerun-if-changed={}/CMakeLists.txt", config.source_dir);
+    println!(
+        "cargo:rerun-if-changed={}/CMakeLists.txt",
+        config.source_dir
+    );
     println!("cargo:rerun-if-env-changed=ANDROID_NDK_HOME");
 }
 
@@ -154,7 +157,9 @@ mod tests {
 
         let args = config.cmake_args();
         assert!(args.iter().any(|(k, v)| k == "GGML_METAL" && v == "ON"));
-        assert!(args.iter().any(|(k, v)| k == "GGML_METAL_EMBED_LIBRARY" && v == "ON"));
+        assert!(args
+            .iter()
+            .any(|(k, v)| k == "GGML_METAL_EMBED_LIBRARY" && v == "ON"));
         assert!(args.iter().any(|(k, v)| k == "LLAMA_STATIC" && v == "ON"));
     }
 

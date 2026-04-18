@@ -10,8 +10,8 @@
 
 mod actions;
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -82,11 +82,13 @@ pub(crate) fn syntax_check(language: &str, code: &str) -> Result<(), String> {
 
     let ext = if language == "python" { "py" } else { "sh" };
     let tmp_file = tmp_dir.join(format!("check_{}.{}", uuid::Uuid::new_v4(), ext));
-    std::fs::write(&tmp_file, code)
-        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    std::fs::write(&tmp_file, code).map_err(|e| format!("Failed to write temp file: {}", e))?;
 
     let (cmd, args): (&str, Vec<&str>) = if language == "python" {
-        ("python3", vec!["-m", "py_compile", tmp_file.to_str().unwrap_or("")])
+        (
+            "python3",
+            vec!["-m", "py_compile", tmp_file.to_str().unwrap_or("")],
+        )
     } else {
         ("bash", vec!["-n", tmp_file.to_str().unwrap_or("")])
     };
@@ -102,14 +104,20 @@ pub(crate) fn syntax_check(language: &str, code: &str) -> Result<(), String> {
         Ok(())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Syntax Error in {} code:\n{}", language.to_uppercase(), stderr))
+        Err(format!(
+            "Syntax Error in {} code:\n{}",
+            language.to_uppercase(),
+            stderr
+        ))
     }
 }
 
 // ── Dispatcher ─────────────────────────────────────────────────────
 
 fn tool_forge(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("list");
 

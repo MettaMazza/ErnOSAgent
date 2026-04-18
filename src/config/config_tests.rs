@@ -86,8 +86,14 @@ fn test_config_roundtrip_serialize() {
     let config = AppConfig::default();
     let serialized = toml::to_string_pretty(&config).expect("serialize");
     let deserialized: AppConfig = toml::from_str(&serialized).expect("deserialize");
-    assert_eq!(deserialized.general.active_provider, config.general.active_provider);
-    assert_eq!(deserialized.general.active_model, config.general.active_model);
+    assert_eq!(
+        deserialized.general.active_provider,
+        config.general.active_provider
+    );
+    assert_eq!(
+        deserialized.general.active_model,
+        config.general.active_model
+    );
     assert_eq!(deserialized.neo4j.uri, config.neo4j.uri);
     assert_eq!(deserialized.observer.enabled, config.observer.enabled);
 }

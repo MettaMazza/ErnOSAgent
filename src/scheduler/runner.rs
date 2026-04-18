@@ -36,8 +36,7 @@ pub async fn run(
     let mut tick = interval(Duration::from_secs(1));
 
     // Track currently running job IDs to prevent duplicate spawns
-    let running_jobs: Arc<TokioMutex<HashSet<String>>> =
-        Arc::new(TokioMutex::new(HashSet::new()));
+    let running_jobs: Arc<TokioMutex<HashSet<String>>> = Arc::new(TokioMutex::new(HashSet::new()));
 
     // ── Boot initialization ──────────────────────────────────────────
     // All countdowns start from NOW — no job should fire immediately at boot.
@@ -72,7 +71,12 @@ pub async fn run(
             // Mark dispatched BEFORE spawning — sets last_run = now so the
             // next tick's is_due() returns false. This is the root fix.
             handle.mark_dispatched(&job.id).await;
-            dispatch_job(job, state.clone(), handle.clone(), Arc::clone(&running_jobs));
+            dispatch_job(
+                job,
+                state.clone(),
+                handle.clone(),
+                Arc::clone(&running_jobs),
+            );
         }
 
         // Idle jobs — check against the idle timer
@@ -100,7 +104,12 @@ pub async fn run(
                 );
                 // Mark dispatched BEFORE spawning — same root fix.
                 handle.mark_dispatched(&job.id).await;
-                dispatch_job(job, state.clone(), handle.clone(), Arc::clone(&running_jobs));
+                dispatch_job(
+                    job,
+                    state.clone(),
+                    handle.clone(),
+                    Arc::clone(&running_jobs),
+                );
             }
         }
 
@@ -122,24 +131,42 @@ pub async fn run(
                 if !expired.is_empty() {
                     let st = state.read().await;
                     if let Some(ref http) = st.discord_http {
-                        let guild_id: u64 = st.config.platform.discord.guild_id
-                            .parse().unwrap_or(0);
-                        let new_role_id: u64 = st.config.platform.discord.new_member_role_id
-                            .parse().unwrap_or(0);
-                        let member_role_id: u64 = st.config.platform.discord.member_role_id
-                            .parse().unwrap_or(0);
+                        let guild_id: u64 =
+                            st.config.platform.discord.guild_id.parse().unwrap_or(0);
+                        let new_role_id: u64 = st
+                            .config
+                            .platform
+                            .discord
+                            .new_member_role_id
+                            .parse()
+                            .unwrap_or(0);
+                        let member_role_id: u64 = st
+                            .config
+                            .platform
+                            .discord
+                            .member_role_id
+                            .parse()
+                            .unwrap_or(0);
 
                         if guild_id > 0 && new_role_id > 0 {
                             let mut promoted_ids = Vec::new();
                             for expiry in &expired {
                                 let user_id: u64 = expiry.user_id.parse().unwrap_or(0);
-                                if user_id == 0 { continue; }
+                                if user_id == 0 {
+                                    continue;
+                                }
 
                                 if member_role_id > 0 {
                                     // Promote: New → Member
                                     match crate::platform::discord::onboarding::promote_to_member(
-                                        http, guild_id, user_id, new_role_id, member_role_id,
-                                    ).await {
+                                        http,
+                                        guild_id,
+                                        user_id,
+                                        new_role_id,
+                                        member_role_id,
+                                    )
+                                    .await
+                                    {
                                         Ok(()) => {
                                             tracing::info!(
                                                 user_id = user_id,
@@ -159,8 +186,13 @@ pub async fn run(
                                 } else {
                                     // No Member role configured — just remove New
                                     match crate::platform::discord::onboarding::remove_new_role(
-                                        http, guild_id, user_id, new_role_id,
-                                    ).await {
+                                        http,
+                                        guild_id,
+                                        user_id,
+                                        new_role_id,
+                                    )
+                                    .await
+                                    {
                                         Ok(()) => {
                                             tracing::warn!(
                                                 user_id = user_id,
@@ -179,7 +211,9 @@ pub async fn run(
                                 }
                             }
                             if !promoted_ids.is_empty() {
-                                crate::platform::discord::onboarding::remove_expired_roles(&promoted_ids);
+                                crate::platform::discord::onboarding::remove_expired_roles(
+                                    &promoted_ids,
+                                );
                             }
                         }
                     }

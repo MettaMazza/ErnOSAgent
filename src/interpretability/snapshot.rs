@@ -121,7 +121,11 @@ pub fn build_snapshot(
         turn,
         timestamp_ms,
         total_active_features: features.len(),
-        reconstruction_quality: if features.is_empty() { 0.0 } else { 0.85 + (features.len() as f32 / 100.0).min(0.1) },
+        reconstruction_quality: if features.is_empty() {
+            0.0
+        } else {
+            0.85 + (features.len() as f32 / 100.0).min(0.1)
+        },
         top_features: labeled,
         safety_alerts: alerts,
         cognitive_profile: profile,
@@ -134,7 +138,10 @@ pub fn build_snapshot(
         active_features = snapshot.total_active_features,
         safety_alerts = snapshot.safety_alerts.len(),
         reasoning = format!("{:.0}%", snapshot.cognitive_profile.reasoning * 100.0),
-        safety = format!("{:.0}%", snapshot.cognitive_profile.safety_vigilance * 100.0),
+        safety = format!(
+            "{:.0}%",
+            snapshot.cognitive_profile.safety_vigilance * 100.0
+        ),
         valence = format!("{:.3}", snapshot.emotional_state.valence),
         arousal = format!("{:.3}", snapshot.emotional_state.arousal),
         emotion_count = snapshot.emotional_state.active_emotion_count,
@@ -245,7 +252,11 @@ fn compute_cognitive_profile(
                 FeatureCategory::Cognitive => {
                     // Map ALL core cognitive baseline features to reasoning to avoid 0.0 flatlines
                     match label.name.as_str() {
-                        "Reasoning Chain" | "Mathematical Reasoning" | "Planning" | "Tool Selection" | "Instruction Following" => {
+                        "Reasoning Chain"
+                        | "Mathematical Reasoning"
+                        | "Planning"
+                        | "Tool Selection"
+                        | "Instruction Following" => {
                             reasoning += feat.normalized;
                             planning += feat.normalized * 0.5; // Shared overlap
                         }
@@ -266,10 +277,17 @@ fn compute_cognitive_profile(
     }
 
     // Normalize to 0-1 range
-    let max_val = [reasoning, creativity, recall, planning, safety_vigilance, uncertainty]
-        .iter()
-        .cloned()
-        .fold(1.0f32, f32::max);
+    let max_val = [
+        reasoning,
+        creativity,
+        recall,
+        planning,
+        safety_vigilance,
+        uncertainty,
+    ]
+    .iter()
+    .cloned()
+    .fold(1.0f32, f32::max);
 
     CognitiveProfile {
         reasoning: (reasoning / max_val).min(1.0),

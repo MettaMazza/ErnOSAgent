@@ -24,7 +24,9 @@ pub struct CompositeReward {
 
 impl CompositeReward {
     pub fn new() -> Self {
-        Self { components: Vec::new() }
+        Self {
+            components: Vec::new(),
+        }
     }
 
     /// Add a reward function with a weight.
@@ -40,7 +42,8 @@ impl CompositeReward {
             return 0.0;
         }
 
-        let weighted_sum: f64 = self.components
+        let weighted_sum: f64 = self
+            .components
             .iter()
             .map(|(rf, w)| rf.score(prompt, response) * w)
             .sum();
@@ -65,13 +68,16 @@ pub struct ToolUsageReward;
 impl RewardFn for ToolUsageReward {
     fn score(&self, _prompt: &str, response: &str) -> f64 {
         let tool_patterns = ["✅", "❌", "tool_call", "Tool:", "[TOOL", "```"];
-        let matches: usize = tool_patterns.iter()
+        let matches: usize = tool_patterns
+            .iter()
             .map(|p| response.matches(p).count())
             .sum();
         (matches as f64 / 3.0).min(1.0)
     }
 
-    fn name(&self) -> &str { "tool_usage" }
+    fn name(&self) -> &str {
+        "tool_usage"
+    }
 }
 
 /// Rewards properly formatted responses (no raw JSON/XML leak).
@@ -86,16 +92,23 @@ impl RewardFn for FormatReward {
             "\"arguments\":{",
         ];
 
-        let violations: usize = bad_patterns.iter()
+        let violations: usize = bad_patterns
+            .iter()
             .filter(|p| response.contains(**p))
             .count();
 
-        if violations == 0 { 1.0 }
-        else if violations == 1 { 0.3 }
-        else { 0.0 }
+        if violations == 0 {
+            1.0
+        } else if violations == 1 {
+            0.3
+        } else {
+            0.0
+        }
     }
 
-    fn name(&self) -> &str { "format" }
+    fn name(&self) -> &str {
+        "format"
+    }
 }
 
 /// Rewards responses in the goldilocks length zone (200-2000 chars).
@@ -104,13 +117,20 @@ pub struct LengthReward;
 impl RewardFn for LengthReward {
     fn score(&self, _prompt: &str, response: &str) -> f64 {
         let len = response.len();
-        if (200..=2000).contains(&len) { 1.0 }
-        else if (100..200).contains(&len) || (2000..3000).contains(&len) { 0.5 }
-        else if len < 50 { 0.0 }
-        else { 0.3 }
+        if (200..=2000).contains(&len) {
+            1.0
+        } else if (100..200).contains(&len) || (2000..3000).contains(&len) {
+            0.5
+        } else if len < 50 {
+            0.0
+        } else {
+            0.3
+        }
     }
 
-    fn name(&self) -> &str { "length" }
+    fn name(&self) -> &str {
+        "length"
+    }
 }
 
 /// Rewards responses that directly address the prompt (keyword overlap).
@@ -118,8 +138,12 @@ pub struct CoherenceReward;
 
 impl RewardFn for CoherenceReward {
     fn score(&self, prompt: &str, response: &str) -> f64 {
-        let prompt_words: Vec<String> = prompt.split_whitespace()
-            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
+        let prompt_words: Vec<String> = prompt
+            .split_whitespace()
+            .map(|w| {
+                w.trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase()
+            })
             .filter(|w| w.len() > 3)
             .collect();
 
@@ -128,14 +152,17 @@ impl RewardFn for CoherenceReward {
         }
 
         let response_lower = response.to_lowercase();
-        let matches = prompt_words.iter()
+        let matches = prompt_words
+            .iter()
             .filter(|w| response_lower.contains(w.as_str()))
             .count();
 
         (matches as f64 / prompt_words.len() as f64).min(1.0)
     }
 
-    fn name(&self) -> &str { "coherence" }
+    fn name(&self) -> &str {
+        "coherence"
+    }
 }
 
 /// Build the default composite reward function.
@@ -193,7 +220,10 @@ mod tests {
     #[test]
     fn test_coherence_reward_matching() {
         let r = CoherenceReward;
-        let score = r.score("What is Rust programming?", "Rust is a systems programming language.");
+        let score = r.score(
+            "What is Rust programming?",
+            "Rust is a systems programming language.",
+        );
         assert!(score > 0.5);
     }
 

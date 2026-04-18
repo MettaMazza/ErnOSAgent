@@ -11,19 +11,19 @@
 //! - `steering`: steering vectors, neural activity, feature steering
 //! - `platform`: mobile relay, platform adapters, factory reset
 
+pub mod autonomy;
+pub mod checkpoints;
+pub mod memory;
+pub mod mesh;
+pub mod observer_status;
+pub mod platform;
+pub mod reasoning;
+pub mod scheduler;
 pub mod sessions;
 pub mod status;
 pub mod steering;
-pub mod platform;
-pub mod tools;
-pub mod memory;
-pub mod reasoning;
-pub mod checkpoints;
-pub mod scheduler;
-pub mod mesh;
-pub mod observer_status;
 pub mod toggles;
-pub mod autonomy;
+pub mod tools;
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
@@ -55,7 +55,10 @@ pub async fn css() -> Response {
 pub async fn js() -> Response {
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
         APP_JS,
     )
         .into_response()
@@ -73,7 +76,10 @@ pub async fn manifest() -> Response {
 pub async fn service_worker() -> Response {
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
         SW_JS,
     )
         .into_response()
@@ -164,7 +170,12 @@ pub struct ApiError {
 }
 
 pub(crate) fn api_error(status: StatusCode, msg: &str) -> (StatusCode, Json<ApiError>) {
-    (status, Json(ApiError { error: msg.to_string() }))
+    (
+        status,
+        Json(ApiError {
+            error: msg.to_string(),
+        }),
+    )
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

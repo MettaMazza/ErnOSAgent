@@ -119,16 +119,21 @@ impl WebProxy {
             self.gc_expired();
         }
 
-        self.cache.insert(url.to_string(), CacheEntry {
-            response,
-            cached_at: chrono::Utc::now(),
-            ttl_secs: self.cache_ttl_secs,
-        });
+        self.cache.insert(
+            url.to_string(),
+            CacheEntry {
+                response,
+                cached_at: chrono::Utc::now(),
+                ttl_secs: self.cache_ttl_secs,
+            },
+        );
     }
 
     /// Check if a content type is blocked.
     pub fn is_blocked_content_type(content_type: &str) -> bool {
-        BLOCKED_CONTENT_TYPES.iter().any(|ct| content_type.contains(ct))
+        BLOCKED_CONTENT_TYPES
+            .iter()
+            .any(|ct| content_type.contains(ct))
     }
 
     /// Get proxy statistics.
@@ -184,7 +189,9 @@ mod tests {
 
     #[test]
     fn test_blocked_content_type() {
-        assert!(WebProxy::is_blocked_content_type("application/x-executable"));
+        assert!(WebProxy::is_blocked_content_type(
+            "application/x-executable"
+        ));
         assert!(!WebProxy::is_blocked_content_type("text/html"));
         assert!(!WebProxy::is_blocked_content_type("application/json"));
     }

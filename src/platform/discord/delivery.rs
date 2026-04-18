@@ -30,16 +30,14 @@ pub async fn send_with_resilience(
     content: &str,
 ) -> anyhow::Result<()> {
     let channel = ChannelId::new(
-        channel_id.parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid channel ID: {channel_id}"))?
+        channel_id
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid channel ID: {channel_id}"))?,
     );
 
     let msg_ref = if !message_id.is_empty() {
         message_id.parse::<u64>().ok().map(|mid| {
-            serenity::model::channel::MessageReference::from((
-                channel,
-                MessageId::new(mid),
-            ))
+            serenity::model::channel::MessageReference::from((channel, MessageId::new(mid)))
         })
     } else {
         None
@@ -143,10 +141,12 @@ pub async fn send_with_resilience(
                 }
             }
             match channel.send_message(http, msg).await {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     tracing::error!(error = %e, chunk = i, "Step 4 FAILED — message could not be delivered");
-                    return Err(anyhow::anyhow!("All 4 delivery steps failed for chunk {i}: {e}"));
+                    return Err(anyhow::anyhow!(
+                        "All 4 delivery steps failed for chunk {i}: {e}"
+                    ));
                 }
             }
         }

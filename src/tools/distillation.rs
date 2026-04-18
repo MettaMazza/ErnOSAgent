@@ -60,11 +60,13 @@ fn parse_qa_pairs(response: &str) -> anyhow::Result<Vec<(String, String)>> {
 
     let mut pairs = Vec::with_capacity(parsed.len());
     for item in &parsed {
-        let question = item.get("question")
+        let question = item
+            .get("question")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let answer = item.get("answer")
+        let answer = item
+            .get("answer")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
@@ -126,9 +128,8 @@ fn append_to_golden(
     domain: &str,
     expert_model: &str,
 ) -> usize {
-    let system_prompt = format!(
-        "You are ErnOS, a local-first AI agent with deep expertise in {domain}."
-    );
+    let system_prompt =
+        format!("You are ErnOS, a local-first AI agent with deep expertise in {domain}.");
     let mut recorded = 0;
 
     for (question, answer) in pairs {
@@ -185,15 +186,15 @@ async fn execute_distillation(
 
     // Generate Q&A pairs via expert model
     let prompt = build_distillation_prompt(domain, count);
-    let messages = vec![
-        Message {
-            role: "user".to_string(),
-            content: prompt,
-            images: Vec::new(),
-        },
-    ];
+    let messages = vec![Message {
+        role: "user".to_string(),
+        content: prompt,
+        images: Vec::new(),
+    }];
 
-    let response = provider.chat_sync(&expert_model, &messages, Some(0.7)).await
+    let response = provider
+        .chat_sync(&expert_model, &messages, Some(0.7))
+        .await
         .map_err(|e| anyhow::anyhow!("Expert model inference failed: {e}"))?;
 
     // Parse and store
@@ -227,7 +228,9 @@ fn distillation_tool_handler(
     buffers: Arc<TrainingBuffers>,
 ) -> impl Fn(&ToolCall) -> ToolResult + Send + Sync {
     move |call: &ToolCall| {
-        let domain = call.arguments.get("domain")
+        let domain = call
+            .arguments
+            .get("domain")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
@@ -241,7 +244,9 @@ fn distillation_tool_handler(
             };
         }
 
-        let count = call.arguments.get("count")
+        let count = call
+            .arguments
+            .get("count")
             .and_then(|v| v.as_u64())
             .unwrap_or(5) as usize;
 

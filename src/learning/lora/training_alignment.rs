@@ -13,9 +13,9 @@
 //! or proxy implementations — each loss is computed natively.
 
 use super::loss::learning_rate;
-use super::loss_simpo::compute_simpo_loss;
-use super::loss_kto::{compute_kto_loss, estimate_kl_reference, KtoParams};
 use super::loss_dpo::compute_dpo_loss;
+use super::loss_kto::{compute_kto_loss, estimate_kl_reference, KtoParams};
+use super::loss_simpo::compute_simpo_loss;
 use super::optimizer::AdamState;
 use super::weights::{build_lora_varmap, build_lora_varmap_with_resume, load_base_weights};
 use super::{tokenize_preference, LoraConfig, Tokenizer, TrainingReport, TrainingSample};
@@ -42,7 +42,8 @@ pub fn train_simpo(
     tracing::info!(
         pairs = preference_data.len(),
         iterations = config.num_iterations,
-        beta = beta, gamma = gamma,
+        beta = beta,
+        gamma = gamma,
         "Starting SimPO training"
     );
 
@@ -61,21 +62,38 @@ pub fn train_simpo(
     for iter in 0..config.num_iterations {
         let (chosen, rejected) = &pairs[iter % pairs.len()];
         let c_logits = super::forward::forward_with_lora(
-            &chosen.input_ids, &base_vb, &var_map, config, &device,
+            &chosen.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
         let r_logits = super::forward::forward_with_lora(
-            &rejected.input_ids, &base_vb, &var_map, config, &device,
+            &rejected.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         let loss = compute_simpo_loss(
-            &c_logits, &r_logits,
-            &chosen.labels, &rejected.labels,
-            beta, gamma,
+            &c_logits,
+            &r_logits,
+            &chosen.labels,
+            &rejected.labels,
+            beta,
+            gamma,
         )?;
 
         let lv = loss.to_scalar::<f32>()?;
         let grads = loss.backward()?;
-        adam.step(&var_map, &grads, learning_rate(iter + 1, config), config.weight_decay, &device)?;
+        adam.step(
+            &var_map,
+            &grads,
+            learning_rate(iter + 1, config),
+            config.weight_decay,
+            &device,
+        )?;
         total_loss += lv;
         n += 1;
         log_step("SimPO", iter, lv, config, &start);
@@ -84,7 +102,10 @@ pub fn train_simpo(
     let avg = total_loss / config.num_iterations as f32;
     super::adapters::save_adapters(&var_map, config, avg, config.num_iterations)?;
     let r = mk_report(config, avg, n, &start);
-    tracing::info!(avg_loss = format!("{:.4}", r.loss), "SimPO training complete");
+    tracing::info!(
+        avg_loss = format!("{:.4}", r.loss),
+        "SimPO training complete"
+    );
     Ok(r)
 }
 
@@ -138,13 +159,23 @@ pub fn train_kto(
         let is_desirable = flags[idx];
 
         let logits = super::forward::forward_with_lora(
-            &sample.input_ids, &base_vb, &var_map, config, &device,
+            &sample.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         let loss = compute_kto_loss(&logits, &sample.labels, is_desirable, kl_ref, kto_params)?;
         let lv = loss.to_scalar::<f32>()?;
         let grads = loss.backward()?;
-        adam.step(&var_map, &grads, learning_rate(iter + 1, config), config.weight_decay, &device)?;
+        adam.step(
+            &var_map,
+            &grads,
+            learning_rate(iter + 1, config),
+            config.weight_decay,
+            &device,
+        )?;
         total_loss += lv;
         n += 1;
 
@@ -199,30 +230,55 @@ pub fn train_dpo(
 
         // Current policy logits
         let c_logits = super::forward::forward_with_lora(
-            &chosen.input_ids, &base_vb, &var_map, config, &device,
+            &chosen.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
         let r_logits = super::forward::forward_with_lora(
-            &rejected.input_ids, &base_vb, &var_map, config, &device,
+            &rejected.input_ids,
+            &base_vb,
+            &var_map,
+            config,
+            &device,
         )?;
 
         // Reference policy logits (base model, LoRA delta = 0)
         let c_ref_logits = super::forward::forward_with_lora(
-            &chosen.input_ids, &base_vb, &ref_var_map, config, &device,
+            &chosen.input_ids,
+            &base_vb,
+            &ref_var_map,
+            config,
+            &device,
         )?;
         let r_ref_logits = super::forward::forward_with_lora(
-            &rejected.input_ids, &base_vb, &ref_var_map, config, &device,
+            &rejected.input_ids,
+            &base_vb,
+            &ref_var_map,
+            config,
+            &device,
         )?;
 
         let loss = compute_dpo_loss(
-            &c_logits, &r_logits,
-            &c_ref_logits, &r_ref_logits,
-            &chosen.labels, &rejected.labels,
+            &c_logits,
+            &r_logits,
+            &c_ref_logits,
+            &r_ref_logits,
+            &chosen.labels,
+            &rejected.labels,
             beta,
         )?;
 
         let lv = loss.to_scalar::<f32>()?;
         let grads = loss.backward()?;
-        adam.step(&var_map, &grads, learning_rate(iter + 1, config), config.weight_decay, &device)?;
+        adam.step(
+            &var_map,
+            &grads,
+            learning_rate(iter + 1, config),
+            config.weight_decay,
+            &device,
+        )?;
         total_loss += lv;
         n += 1;
         log_step("DPO", iter, lv, config, &start);
@@ -252,11 +308,14 @@ fn tokenize_pref_samples(
     tokenizer: &Tokenizer,
     config: &LoraConfig,
 ) -> Result<Vec<(TrainingSample, TrainingSample)>> {
-    let pairs: Vec<_> = data.iter()
+    let pairs: Vec<_> = data
+        .iter()
         .map(|p| tokenize_preference(p, tokenizer, config.max_seq_length))
         .collect::<Result<Vec<_>>>()
         .context("Failed to tokenize preference pairs")?;
-    if pairs.is_empty() { bail!("No pairs after tokenization"); }
+    if pairs.is_empty() {
+        bail!("No pairs after tokenization");
+    }
     Ok(pairs)
 }
 
@@ -314,7 +373,11 @@ fn tokenize_kto_samples(
     Ok((samples, flags))
 }
 
-fn build_causal_labels(prompt_ids: &[u32], response_ids: &[u32], total_len: usize) -> (Vec<u32>, Vec<i32>) {
+fn build_causal_labels(
+    prompt_ids: &[u32],
+    response_ids: &[u32],
+    total_len: usize,
+) -> (Vec<u32>, Vec<i32>) {
     let mut input_ids = Vec::with_capacity(total_len);
     let mut labels = Vec::with_capacity(total_len);
     for &id in prompt_ids.iter().take(total_len) {
@@ -341,9 +404,8 @@ fn estimate_kl_reference_from_model(
     let max_samples = samples.len().min(20); // Cap at 20 for efficiency
 
     for sample in samples.iter().take(max_samples) {
-        let logits = super::forward::forward_with_lora(
-            &sample.input_ids, base_vb, var_map, config, device,
-        )?;
+        let logits =
+            super::forward::forward_with_lora(&sample.input_ids, base_vb, var_map, config, device)?;
         let lp = compute_sample_logprob(&logits, &sample.labels)?;
         logprobs.push(lp);
     }
@@ -359,7 +421,9 @@ fn compute_sample_logprob(logits: &candle_core::Tensor, labels: &[i32]) -> Resul
 
     for t in 0..seq_len.saturating_sub(1) {
         let label = labels[t + 1];
-        if label < 0 { continue; }
+        if label < 0 {
+            continue;
+        }
         let logit = logits.get(0)?.get(t)?;
         let lp = candle_nn::ops::log_softmax(&logit.unsqueeze(0)?, candle_core::D::Minus1)?;
         total += lp.get(0)?.get(label as usize)?.to_scalar::<f32>()?;
@@ -381,7 +445,12 @@ fn log_step(mode: &str, iter: usize, loss: f32, config: &LoraConfig, start: &std
     }
 }
 
-fn mk_report(config: &LoraConfig, avg_loss: f32, n: usize, start: &std::time::Instant) -> TrainingReport {
+fn mk_report(
+    config: &LoraConfig,
+    avg_loss: f32,
+    n: usize,
+    start: &std::time::Instant,
+) -> TrainingReport {
     TrainingReport {
         iteration: config.num_iterations,
         total_iterations: config.num_iterations,

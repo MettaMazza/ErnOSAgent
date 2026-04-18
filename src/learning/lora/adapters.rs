@@ -18,8 +18,12 @@ pub fn save_adapters(
     avg_loss: f32,
     iterations: usize,
 ) -> Result<()> {
-    std::fs::create_dir_all(&config.output_dir)
-        .with_context(|| format!("Failed to create adapter dir: {}", config.output_dir.display()))?;
+    std::fs::create_dir_all(&config.output_dir).with_context(|| {
+        format!(
+            "Failed to create adapter dir: {}",
+            config.output_dir.display()
+        )
+    })?;
 
     let tensor_data = collect_tensor_data(var_map)?;
     write_safetensors(&tensor_data, config)?;
@@ -39,7 +43,10 @@ fn collect_tensor_data(
     var_map: &VarMap,
 ) -> Result<Vec<(String, Vec<u8>, Vec<usize>, safetensors::Dtype)>> {
     let mut tensor_data = Vec::new();
-    let data = var_map.data().lock().map_err(|e| anyhow::anyhow!("VarMap lock: {e}"))?;
+    let data = var_map
+        .data()
+        .lock()
+        .map_err(|e| anyhow::anyhow!("VarMap lock: {e}"))?;
 
     for (name, var) in data.iter() {
         let shape = var.as_tensor().dims().to_vec();
@@ -54,7 +61,11 @@ fn collect_tensor_data(
 fn extract_flat_bytes(var: &candle_core::Var) -> Result<Vec<u8>> {
     let t = var.as_tensor().to_dtype(DType::F32)?;
     match t.to_vec2::<f32>() {
-        Ok(rows) => Ok(rows.into_iter().flatten().flat_map(|f| f.to_le_bytes()).collect()),
+        Ok(rows) => Ok(rows
+            .into_iter()
+            .flatten()
+            .flat_map(|f| f.to_le_bytes())
+            .collect()),
         Err(_) => {
             let flat_vec = t.flatten_all()?.to_vec1::<f32>()?;
             Ok(flat_vec.into_iter().flat_map(|f| f.to_le_bytes()).collect())

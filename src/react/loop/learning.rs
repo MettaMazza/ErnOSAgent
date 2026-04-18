@@ -27,7 +27,11 @@ pub(super) fn capture_golden(
     model_id: &str,
 ) {
     if let Err(e) = buffers.golden.record(
-        system_prompt, user_message, assistant_response, session_id, model_id,
+        system_prompt,
+        user_message,
+        assistant_response,
+        session_id,
+        model_id,
     ) {
         tracing::warn!(error = %e, "Failed to capture golden example — non-fatal");
     }
@@ -45,8 +49,13 @@ pub(super) fn capture_preference(
     model_id: &str,
 ) {
     if let Err(e) = buffers.preference.record(
-        system_prompt, user_message, rejected, chosen,
-        failure_category, session_id, model_id,
+        system_prompt,
+        user_message,
+        rejected,
+        chosen,
+        failure_category,
+        session_id,
+        model_id,
     ) {
         tracing::warn!(error = %e, "Failed to capture preference pair — non-fatal");
     }
@@ -63,8 +72,12 @@ pub(super) fn capture_rejection(
     model_id: &str,
 ) {
     if let Err(e) = buffers.rejection.record(
-        system_prompt, user_message, rejected_response,
-        failure_category, session_id, model_id,
+        system_prompt,
+        user_message,
+        rejected_response,
+        failure_category,
+        session_id,
+        model_id,
     ) {
         tracing::warn!(error = %e, "Failed to capture rejection — non-fatal");
     }

@@ -33,7 +33,9 @@ async fn test_grid_write_and_read() {
     let path = dir.join("turing_grid.json");
     let mut grid = TuringGrid::new(path.clone());
     grid.move_cursor(1, 1, 1).await;
-    grid.write_current("python", "print('hello 3D')").await.unwrap();
+    grid.write_current("python", "print('hello 3D')")
+        .await
+        .unwrap();
 
     let cell = grid.read_current().unwrap();
     assert_eq!(cell.format, "python");
@@ -102,9 +104,13 @@ async fn test_grid_index_generation() {
 
     grid.write_current("text", "origin cell").await.unwrap();
     grid.move_cursor(1, 0, 0).await;
-    grid.write_current("python", "print('hello')").await.unwrap();
+    grid.write_current("python", "print('hello')")
+        .await
+        .unwrap();
     grid.move_cursor(0, 1, 0).await;
-    grid.write_current("json", r#"{"key": "value"}"#).await.unwrap();
+    grid.write_current("json", r#"{"key": "value"}"#)
+        .await
+        .unwrap();
 
     let index = grid.get_index();
     assert!(index.contains("3 cells"));

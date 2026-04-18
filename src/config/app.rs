@@ -16,22 +16,32 @@ impl AppConfig {
         let config_path = config.general.data_dir.join("config.toml");
 
         if config_path.exists() {
-            let content = std::fs::read_to_string(&config_path)
-                .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
-            let loaded: Self = toml::from_str(&content)
-                .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+            let content = std::fs::read_to_string(&config_path).with_context(|| {
+                format!("Failed to read config file: {}", config_path.display())
+            })?;
+            let loaded: Self = toml::from_str(&content).with_context(|| {
+                format!("Failed to parse config file: {}", config_path.display())
+            })?;
             Ok(loaded)
         } else {
-            std::fs::create_dir_all(&config.general.data_dir)
-                .with_context(|| format!("Failed to create data directory: {}", config.general.data_dir.display()))?;
+            std::fs::create_dir_all(&config.general.data_dir).with_context(|| {
+                format!(
+                    "Failed to create data directory: {}",
+                    config.general.data_dir.display()
+                )
+            })?;
             Ok(config)
         }
     }
 
     /// Save current config to disk.
     pub fn save(&self) -> Result<()> {
-        std::fs::create_dir_all(&self.general.data_dir)
-            .with_context(|| format!("Failed to create data directory: {}", self.general.data_dir.display()))?;
+        std::fs::create_dir_all(&self.general.data_dir).with_context(|| {
+            format!(
+                "Failed to create data directory: {}",
+                self.general.data_dir.display()
+            )
+        })?;
 
         let config_path = self.general.data_dir.join("config.toml");
         let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
@@ -69,7 +79,11 @@ impl AppConfig {
         if host.contains(':') && !host.ends_with(&format!(":{}", self.ollama.port)) {
             host.to_string()
         } else {
-            format!("{}:{}", host.trim_end_matches(&format!(":{}", self.ollama.port)), self.ollama.port)
+            format!(
+                "{}:{}",
+                host.trim_end_matches(&format!(":{}", self.ollama.port)),
+                self.ollama.port
+            )
         }
     }
 

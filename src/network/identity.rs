@@ -77,8 +77,8 @@ impl PeerIdentity {
         if path.exists() {
             let content = std::fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read identity from {}", path.display()))?;
-            let mut identity: Self = serde_json::from_str(&content)
-                .with_context(|| "Failed to parse identity")?;
+            let mut identity: Self =
+                serde_json::from_str(&content).with_context(|| "Failed to parse identity")?;
             // Update peer_id in case keys changed
             identity.peer_id = peer_id;
             identity.last_updated = chrono::Utc::now().to_rfc3339();
@@ -95,8 +95,7 @@ impl PeerIdentity {
         let path = mesh_dir.join("identity.json");
         std::fs::create_dir_all(mesh_dir)
             .with_context(|| format!("Failed to create mesh dir {}", mesh_dir.display()))?;
-        let json = serde_json::to_string_pretty(self)
-            .context("Failed to serialise identity")?;
+        let json = serde_json::to_string_pretty(self).context("Failed to serialise identity")?;
         std::fs::write(&path, json)
             .with_context(|| format!("Failed to write identity to {}", path.display()))?;
         Ok(())
@@ -124,8 +123,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_identity_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_identity_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }

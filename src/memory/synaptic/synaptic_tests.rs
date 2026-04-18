@@ -96,19 +96,14 @@ async fn test_stats() {
 
 #[tokio::test]
 async fn test_persistence_with_tempdir() {
-    let tmp = std::env::temp_dir().join(format!(
-        "ernosagent_synaptic_test_{}",
-        std::process::id()
-    ));
+    let tmp = std::env::temp_dir().join(format!("ernosagent_synaptic_test_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
 
     {
         let graph = SynapticGraph::new(Some(tmp.clone()));
         graph.store("Maria", "is the creator").await;
         graph.store("Maria", "believes in transparent AI").await;
-        graph
-            .store_relationship("Maria", "created", "ErnOS")
-            .await;
+        graph.store_relationship("Maria", "created", "ErnOS").await;
     }
 
     {
@@ -163,10 +158,7 @@ async fn test_hebbian_strengthening() {
     graph.strengthen_edge("A", "B").await;
 
     let edges = graph.edges.read().await;
-    let edge = edges
-        .iter()
-        .find(|e| e.from == "A" && e.to == "B")
-        .unwrap();
+    let edge = edges.iter().find(|e| e.from == "A" && e.to == "B").unwrap();
     assert!(edge.permanent);
     assert!(edge.weight > 0.6);
 }

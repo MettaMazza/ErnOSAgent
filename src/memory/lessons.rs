@@ -54,8 +54,9 @@ impl LessonStore {
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create lessons dir: {}", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create lessons dir: {}", parent.display())
+                })?;
             }
             let content = serde_json::to_string_pretty(&self.lessons)
                 .context("Failed to serialize lessons")?;
@@ -97,22 +98,34 @@ impl LessonStore {
     }
 
     pub fn high_confidence(&self, threshold: f32) -> Vec<&Lesson> {
-        self.lessons.iter().filter(|l| l.confidence >= threshold).collect()
+        self.lessons
+            .iter()
+            .filter(|l| l.confidence >= threshold)
+            .collect()
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Vec<&Lesson> {
         let query_lower = query.to_lowercase();
-        let mut matches: Vec<&Lesson> = self.lessons
+        let mut matches: Vec<&Lesson> = self
+            .lessons
             .iter()
             .filter(|l| l.rule.to_lowercase().contains(&query_lower))
             .collect();
-        matches.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        matches.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         matches.truncate(limit);
         matches
     }
 
-    pub fn all(&self) -> &[Lesson] { &self.lessons }
-    pub fn count(&self) -> usize { self.lessons.len() }
+    pub fn all(&self) -> &[Lesson] {
+        &self.lessons
+    }
+    pub fn count(&self) -> usize {
+        self.lessons.len()
+    }
 }
 
 #[cfg(test)]
@@ -123,7 +136,9 @@ mod tests {
     #[test]
     fn test_add_lesson_in_memory() {
         let mut store = LessonStore::new();
-        store.add("Always verify before responding", "observer", 0.9).unwrap();
+        store
+            .add("Always verify before responding", "observer", 0.9)
+            .unwrap();
         assert_eq!(store.count(), 1);
     }
 

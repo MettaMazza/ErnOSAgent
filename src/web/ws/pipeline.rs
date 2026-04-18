@@ -92,22 +92,38 @@ pub async fn run_react_pipeline(
 
     {
         let mut st = state.write().await;
-        let user_ctx = st.user_contexts.get_mut(&session_key)
+        let user_ctx = st
+            .user_contexts
+            .get_mut(&session_key)
             .expect("user context was just created");
-        user_ctx.session_mgr.active_mut().add_message(crate::provider::Message {
-            role: "user".to_string(),
-            content: user_message.to_string(),
-            images: images.clone(),
-        });
+        user_ctx
+            .session_mgr
+            .active_mut()
+            .add_message(crate::provider::Message {
+                role: "user".to_string(),
+                content: user_message.to_string(),
+                images: images.clone(),
+            });
         let _ = user_ctx.session_mgr.save_active();
     }
 
     // ── 3. Build context from per-user state ─────────────────────────
 
-    let (provider, model, mut messages, mut tools, system_prompt, identity_prompt,
-         observer_enabled, observer_model, context_length) = {
+    let (
+        provider,
+        model,
+        mut messages,
+        mut tools,
+        system_prompt,
+        identity_prompt,
+        observer_enabled,
+        observer_model,
+        context_length,
+    ) = {
         let st = state.read().await;
-        let user_ctx = st.user_contexts.get(&session_key)
+        let user_ctx = st
+            .user_contexts
+            .get(&session_key)
             .expect("user context was just created");
 
         let core = st.core_prompt.clone();
@@ -140,7 +156,10 @@ pub async fn run_react_pipeline(
 
         // Memory recall from per-user memory (fully isolated)
         let budget = (st.model_spec.context_length as usize * 15 / 100).max(2000);
-        let memory_ctx = user_ctx.memory_mgr.recall_context(user_message, budget).await;
+        let memory_ctx = user_ctx
+            .memory_mgr
+            .recall_context(user_message, budget)
+            .await;
         msgs.extend(memory_ctx);
 
         // Session history from per-user session
@@ -177,19 +196,27 @@ pub async fn run_react_pipeline(
     // ── 4. Inject user identity into context ─────────────────────────
     // Inserted after system prompt so the model always knows who it's talking to.
 
-    messages.insert(1, crate::provider::Message {
-        role: "system".to_string(),
-        content: format!(
-            "[PLATFORM CONTEXT] You are in a {} group chat. \
+    messages.insert(
+        1,
+        crate::provider::Message {
+            role: "system".to_string(),
+            content: format!(
+                "[PLATFORM CONTEXT] You are in a {} group chat. \
             The current message is from user '{}' (user ID: {}). \
             Channel ID: {}. Message ID: {}. Server (Guild) ID: {}. \
             Address them by their display name. \
             Do NOT confuse them with other users from previous sessions. \
             You can use these IDs with Discord tools (e.g. discord_add_reaction).",
-            ctx.platform, ctx.user_name, ctx.user_id, ctx.channel_id, ctx.message_id, ctx.guild_id.clone().unwrap_or_else(|| "None".to_string())
-        ),
-        images: Vec::new(),
-    });
+                ctx.platform,
+                ctx.user_name,
+                ctx.user_id,
+                ctx.channel_id,
+                ctx.message_id,
+                ctx.guild_id.clone().unwrap_or_else(|| "None".to_string())
+            ),
+            images: Vec::new(),
+        },
+    );
 
     // ── 5. Platform-conditional tool injection ─────────────────────────
     // Discord-specific tools only appear when the message comes from Discord.
@@ -254,9 +281,20 @@ pub async fn run_react_pipeline(
         std::sync::Arc::clone(&st.executor)
     };
     let react_handle = super::chat::spawn_react_loop(
-        provider, model, messages, tools, system_prompt, identity_prompt,
-        event_tx, training_buffers, session_id, observer_enabled, observer_model,
-        context_length, executor, user_data_dir,
+        provider,
+        model,
+        messages,
+        tools,
+        system_prompt,
+        identity_prompt,
+        event_tx,
+        training_buffers,
+        session_id,
+        observer_enabled,
+        observer_model,
+        context_length,
+        executor,
+        user_data_dir,
         #[cfg(feature = "discord")]
         discord_http_for_tools,
     );
@@ -268,13 +306,16 @@ pub async fn run_react_pipeline(
 
     // For Discord: create a thinking thread on the first turn and update it with tokens.
     #[cfg(feature = "discord")]
-    let mut thinking_indicator: Option<crate::platform::discord::telemetry::ThinkingIndicator> = None;
+    let mut thinking_indicator: Option<crate::platform::discord::telemetry::ThinkingIndicator> =
+        None;
     #[cfg(feature = "discord")]
     let discord_http_for_thinking = if ctx.platform == "discord" {
         let st = state.read().await;
         let http = st.discord_http.clone();
         if http.is_none() {
-            tracing::warn!("ThinkingThread: discord_http is None in SharedState — thread will NOT be created");
+            tracing::warn!(
+                "ThinkingThread: discord_http is None in SharedState — thread will NOT be created"
+            );
         }
         http
     } else {
@@ -291,7 +332,9 @@ pub async fn run_react_pipeline(
                 if turn == 1 && ctx.platform == "discord" {
                     match &discord_http_for_thinking {
                         None => {
-                            tracing::warn!("ThinkingThread: skipped — no discord_http handle available");
+                            tracing::warn!(
+                                "ThinkingThread: skipped — no discord_http handle available"
+                            );
                         }
                         Some(http) => {
                             match (ctx.channel_id.parse::<u64>(), ctx.message_id.parse::<u64>()) {
@@ -334,7 +377,11 @@ pub async fn run_react_pipeline(
                     }
                 }
             }
-            ReactEvent::ToolExecuting { name, id: _, arguments: _ } => {
+            ReactEvent::ToolExecuting {
+                name,
+                id: _,
+                arguments: _,
+            } => {
                 tracing::info!(tool = %name, platform = %ctx.platform, "Platform: tool executing");
             }
             ReactEvent::ToolCompleted { name, result } => {
@@ -356,7 +403,11 @@ pub async fn run_react_pipeline(
             ReactEvent::AuditRunning => {
                 tracing::info!(platform = %ctx.platform, "Platform: Observer audit running");
             }
-            ReactEvent::AuditCompleted { verdict, reason, confidence: _ } => {
+            ReactEvent::AuditCompleted {
+                verdict,
+                reason,
+                confidence: _,
+            } => {
                 tracing::info!(
                     verdict = %verdict, reason = %reason, platform = %ctx.platform,
                     "Platform: Observer audit completed"
@@ -377,7 +428,8 @@ pub async fn run_react_pipeline(
                 if media_paths.is_empty() {
                     final_response = text;
                 } else {
-                    let media_lines: Vec<String> = media_paths.drain(..)
+                    let media_lines: Vec<String> = media_paths
+                        .drain(..)
                         .map(|p| format!("MEDIA: {}", p))
                         .collect();
                     final_response = format!("{}\n{}", text, media_lines.join("\n"));
@@ -483,14 +535,12 @@ async fn ensure_user_context(state: &SharedState, session_key: &str) -> Result<(
         &neo4j_user,
         &neo4j_pass,
         &neo4j_db,
-    ).await?;
+    )
+    .await?;
 
     // Create per-user SessionManager with isolated session directory
-    let session_mgr = crate::session::SessionManager::new(
-        &user_sessions_dir,
-        &model,
-        &provider_name,
-    )?;
+    let session_mgr =
+        crate::session::SessionManager::new(&user_sessions_dir, &model, &provider_name)?;
 
     let user_ctx = crate::web::state::UserContext {
         session_mgr,
@@ -516,16 +566,22 @@ async fn persist_user_response(
     let mut st = state.write().await;
     if let Some(user_ctx) = st.user_contexts.get_mut(session_key) {
         // Add assistant response to per-user session
-        user_ctx.session_mgr.active_mut().add_message(crate::provider::Message {
-            role: "assistant".to_string(),
-            content: response_text.to_string(),
-            images: Vec::new(),
-        });
+        user_ctx
+            .session_mgr
+            .active_mut()
+            .add_message(crate::provider::Message {
+                role: "assistant".to_string(),
+                content: response_text.to_string(),
+                images: Vec::new(),
+            });
         let _ = user_ctx.session_mgr.save_active();
 
         // Ingest into per-user memory
         let session_id = user_ctx.session_mgr.active_id().to_string();
-        let _ = user_ctx.memory_mgr.ingest_turn(user_message, response_text, &session_id).await;
+        let _ = user_ctx
+            .memory_mgr
+            .ingest_turn(user_message, response_text, &session_id)
+            .await;
 
         tracing::debug!(
             user = %session_key,

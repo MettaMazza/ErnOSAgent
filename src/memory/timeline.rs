@@ -24,10 +24,14 @@ pub struct TimelineStore {
 
 impl TimelineStore {
     pub fn new(timeline_dir: &Path) -> Result<Self> {
-        std::fs::create_dir_all(timeline_dir)
-            .with_context(|| format!("Failed to create timeline dir: {}", timeline_dir.display()))?;
+        std::fs::create_dir_all(timeline_dir).with_context(|| {
+            format!("Failed to create timeline dir: {}", timeline_dir.display())
+        })?;
 
-        let mut store = Self { dir: timeline_dir.to_path_buf(), entries: Vec::new() };
+        let mut store = Self {
+            dir: timeline_dir.to_path_buf(),
+            entries: Vec::new(),
+        };
         store.load_entries()?;
         tracing::info!(count = store.entries.len(), dir = %timeline_dir.display(), "Timeline loaded");
         Ok(store)
@@ -95,24 +99,24 @@ impl TimelineStore {
     }
 
     fn load_entries(&mut self) -> Result<()> {
-        if !self.dir.exists() { return Ok(()); }
+        if !self.dir.exists() {
+            return Ok(());
+        }
 
         for entry in std::fs::read_dir(&self.dir)? {
             let path = entry?.path();
             if path.extension().map_or(false, |ext| ext == "json") {
                 match std::fs::read_to_string(&path) {
-                    Ok(content) => {
-                        match serde_json::from_str::<TimelineEntry>(&content) {
-                            Ok(entry) => self.entries.push(entry),
-                            Err(e) => {
-                                tracing::warn!(
-                                    path = %path.display(),
-                                    error = %e,
-                                    "Skipped corrupt timeline entry"
-                                );
-                            }
+                    Ok(content) => match serde_json::from_str::<TimelineEntry>(&content) {
+                        Ok(entry) => self.entries.push(entry),
+                        Err(e) => {
+                            tracing::warn!(
+                                path = %path.display(),
+                                error = %e,
+                                "Skipped corrupt timeline entry"
+                            );
                         }
-                    }
+                    },
                     Err(e) => {
                         tracing::warn!(
                             path = %path.display(),

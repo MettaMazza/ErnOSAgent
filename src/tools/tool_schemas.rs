@@ -947,7 +947,11 @@ mod tests {
     fn test_all_tool_definitions_count() {
         let defs = all_tool_definitions();
         // 28 tools (excluding reply_request and refuse_request which are added separately)
-        assert!(defs.len() >= 28, "Expected at least 28 tools, got {}", defs.len());
+        assert!(
+            defs.len() >= 28,
+            "Expected at least 28 tools, got {}",
+            defs.len()
+        );
     }
 
     #[test]

@@ -49,24 +49,47 @@ pub async fn observer_stats(State(state): State<SharedState>) -> Json<ObserverSt
             Some(buffers) => {
                 let entries = buffers.observer.read_all().unwrap_or_default();
                 let total = entries.len();
-                let allowed = entries.iter().filter(|e| e.parsed_verdict == "ALLOWED").count();
-                let blocked = entries.iter().filter(|e| e.parsed_verdict == "BLOCKED").count();
-                let false_positives = entries.iter().filter(|e| e.was_correct == Some(false)).count();
-                let confirmed = entries.iter().filter(|e| e.was_correct == Some(true)).count();
+                let allowed = entries
+                    .iter()
+                    .filter(|e| e.parsed_verdict == "ALLOWED")
+                    .count();
+                let blocked = entries
+                    .iter()
+                    .filter(|e| e.parsed_verdict == "BLOCKED")
+                    .count();
+                let false_positives = entries
+                    .iter()
+                    .filter(|e| e.was_correct == Some(false))
+                    .count();
+                let confirmed = entries
+                    .iter()
+                    .filter(|e| e.was_correct == Some(true))
+                    .count();
                 let pending = entries.iter().filter(|e| e.was_correct.is_none()).count();
 
                 // Last 20 audits (newest first)
-                let recent: Vec<RecentAuditDto> = entries.iter().rev().take(20).map(|e| {
-                    RecentAuditDto {
+                let recent: Vec<RecentAuditDto> = entries
+                    .iter()
+                    .rev()
+                    .take(20)
+                    .map(|e| RecentAuditDto {
                         verdict: e.parsed_verdict.clone(),
                         confidence: e.confidence,
                         failure_category: e.failure_category.clone(),
                         was_correct: e.was_correct,
                         timestamp: e.timestamp.to_rfc3339(),
-                    }
-                }).collect();
+                    })
+                    .collect();
 
-                (total, allowed, blocked, false_positives, confirmed, pending, recent)
+                (
+                    total,
+                    allowed,
+                    blocked,
+                    false_positives,
+                    confirmed,
+                    pending,
+                    recent,
+                )
             }
             None => (0, 0, 0, 0, 0, 0, Vec::new()),
         };

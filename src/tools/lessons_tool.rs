@@ -5,8 +5,8 @@
 // This is the original author's open-source work. Preserve this header.
 //! Lessons tool — store, search, reinforce learned rules.
 
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -26,7 +26,8 @@ fn lessons_path() -> PathBuf {
 fn load_lessons() -> Vec<Lesson> {
     let path = lessons_path();
     if path.exists() {
-        std::fs::read_to_string(&path).ok()
+        std::fs::read_to_string(&path)
+            .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default()
     } else {
@@ -45,7 +46,9 @@ fn save_lessons(lessons: &[Lesson]) {
 }
 
 fn lessons_tool(call: &ToolCall) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("list");
 
@@ -53,15 +56,34 @@ fn lessons_tool(call: &ToolCall) -> ToolResult {
 
     match action {
         "store" => {
-            let rule = call.arguments.get("rule").and_then(|v| v.as_str()).unwrap_or("");
-            if rule.is_empty() { return error_result(call, "Missing required argument: rule"); }
+            let rule = call
+                .arguments
+                .get("rule")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if rule.is_empty() {
+                return error_result(call, "Missing required argument: rule");
+            }
 
-            let keywords = call.arguments.get("keywords").and_then(|v| v.as_str()).unwrap_or("agent");
-            let confidence = call.arguments.get("confidence")
+            let keywords = call
+                .arguments
+                .get("keywords")
+                .and_then(|v| v.as_str())
+                .unwrap_or("agent");
+            let confidence = call
+                .arguments
+                .get("confidence")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.8) as f32;
 
-            let id = format!("lesson_{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x"));
+            let id = format!(
+                "lesson_{}",
+                uuid::Uuid::new_v4()
+                    .to_string()
+                    .split('-')
+                    .next()
+                    .unwrap_or("x")
+            );
             let mut lessons = load_lessons();
             lessons.push(Lesson {
                 id: id.clone(),
@@ -73,19 +95,35 @@ fn lessons_tool(call: &ToolCall) -> ToolResult {
             save_lessons(&lessons);
 
             ToolResult {
-                tool_call_id: call.id.clone(), name: call.name.clone(),
-                output: format!("✅ Lesson stored (id: {}, confidence: {:.0}%)", id, confidence * 100.0),
-                success: true, error: None,
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output: format!(
+                    "✅ Lesson stored (id: {}, confidence: {:.0}%)",
+                    id,
+                    confidence * 100.0
+                ),
+                success: true,
+                error: None,
             }
         }
         "search" => {
-            let query = call.arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-            if query.is_empty() { return error_result(call, "Missing required argument: query"); }
+            let query = call
+                .arguments
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if query.is_empty() {
+                return error_result(call, "Missing required argument: query");
+            }
 
             let lessons = load_lessons();
             let query_lower = query.to_lowercase();
-            let matches: Vec<&Lesson> = lessons.iter()
-                .filter(|l| l.rule.to_lowercase().contains(&query_lower) || l.source.to_lowercase().contains(&query_lower))
+            let matches: Vec<&Lesson> = lessons
+                .iter()
+                .filter(|l| {
+                    l.rule.to_lowercase().contains(&query_lower)
+                        || l.source.to_lowercase().contains(&query_lower)
+                })
                 .collect();
 
             let output = if matches.is_empty() {
@@ -93,23 +131,39 @@ fn lessons_tool(call: &ToolCall) -> ToolResult {
             } else {
                 let mut out = format!("Found {} lesson(s) matching '{}':\n", matches.len(), query);
                 for l in matches {
-                    out.push_str(&format!("  [{}] {} (confidence: {:.0}%, applied: {}x)\n",
-                        l.id, l.rule, l.confidence * 100.0, l.times_applied));
+                    out.push_str(&format!(
+                        "  [{}] {} (confidence: {:.0}%, applied: {}x)\n",
+                        l.id,
+                        l.rule,
+                        l.confidence * 100.0,
+                        l.times_applied
+                    ));
                 }
                 out
             };
-            ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+            ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output,
+                success: true,
+                error: None,
+            }
         }
         "list" => {
-            let min_conf = call.arguments.get("min_confidence")
+            let min_conf = call
+                .arguments
+                .get("min_confidence")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0) as f32;
-            let limit = call.arguments.get("limit")
+            let limit = call
+                .arguments
+                .get("limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(20) as usize;
 
             let lessons = load_lessons();
-            let filtered: Vec<&Lesson> = lessons.iter()
+            let filtered: Vec<&Lesson> = lessons
+                .iter()
                 .filter(|l| l.confidence >= min_conf)
                 .take(limit)
                 .collect();
@@ -117,23 +171,52 @@ fn lessons_tool(call: &ToolCall) -> ToolResult {
             let output = if filtered.is_empty() {
                 "No lessons stored.".to_string()
             } else {
-                let mut out = format!("LESSONS ({} total, showing {} above {:.0}%)\n", lessons.len(), filtered.len(), min_conf * 100.0);
+                let mut out = format!(
+                    "LESSONS ({} total, showing {} above {:.0}%)\n",
+                    lessons.len(),
+                    filtered.len(),
+                    min_conf * 100.0
+                );
                 for l in filtered {
-                    out.push_str(&format!("  [{}] {} ({:.0}%, {}x)\n", l.id, l.rule, l.confidence * 100.0, l.times_applied));
+                    out.push_str(&format!(
+                        "  [{}] {} ({:.0}%, {}x)\n",
+                        l.id,
+                        l.rule,
+                        l.confidence * 100.0,
+                        l.times_applied
+                    ));
                 }
                 out
             };
-            ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output, success: true, error: None }
+            ToolResult {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                output,
+                success: true,
+                error: None,
+            }
         }
         "reinforce" => modify_confidence(call, 0.1),
         "weaken" => modify_confidence(call, -0.1),
-        other => error_result(call, &format!("Unknown action: '{}'. Valid: store, search, list, reinforce, weaken", other)),
+        other => error_result(
+            call,
+            &format!(
+                "Unknown action: '{}'. Valid: store, search, list, reinforce, weaken",
+                other
+            ),
+        ),
     }
 }
 
 fn modify_confidence(call: &ToolCall, delta: f32) -> ToolResult {
-    let id = call.arguments.get("id").and_then(|v| v.as_str()).unwrap_or("");
-    if id.is_empty() { return error_result(call, "Missing required argument: id"); }
+    let id = call
+        .arguments
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if id.is_empty() {
+        return error_result(call, "Missing required argument: id");
+    }
 
     let mut lessons = load_lessons();
     let lesson = match lessons.iter_mut().find(|l| l.id == id) {
@@ -142,15 +225,23 @@ fn modify_confidence(call: &ToolCall, delta: f32) -> ToolResult {
     };
 
     lesson.confidence = (lesson.confidence + delta).clamp(0.0, 1.0);
-    if delta > 0.0 { lesson.times_applied += 1; }
+    if delta > 0.0 {
+        lesson.times_applied += 1;
+    }
     let new_conf = lesson.confidence;
     save_lessons(&lessons);
 
-    let verb = if delta > 0.0 { "reinforced" } else { "weakened" };
+    let verb = if delta > 0.0 {
+        "reinforced"
+    } else {
+        "weakened"
+    };
     ToolResult {
-        tool_call_id: call.id.clone(), name: call.name.clone(),
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
         output: format!("✅ Lesson '{}' {} → {:.0}%", id, verb, new_conf * 100.0),
-        success: true, error: None,
+        success: true,
+        error: None,
     }
 }
 
@@ -159,7 +250,13 @@ pub fn register_tools(executor: &mut ToolExecutor) {
 }
 
 fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
-    ToolResult { tool_call_id: call.id.clone(), name: call.name.clone(), output: format!("Error: {}", msg), success: false, error: Some(msg.to_string()) }
+    ToolResult {
+        tool_call_id: call.id.clone(),
+        name: call.name.clone(),
+        output: format!("Error: {}", msg),
+        success: false,
+        error: Some(msg.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -167,7 +264,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "lessons_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "lessons_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]

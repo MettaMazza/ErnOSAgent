@@ -53,10 +53,7 @@ pub fn build_context(
     }
 
     // Reserve space for at least the last message (current user input)
-    let _last_msg_tokens = history
-        .last()
-        .map(|m| estimate_tokens(m))
-        .unwrap_or(0);
+    let _last_msg_tokens = history.last().map(|m| estimate_tokens(m)).unwrap_or(0);
 
     // Add history, trimming from oldest if needed
     let mut history_start = 0;
@@ -80,10 +77,7 @@ pub fn context_usage(messages: &[Message], context_length: u64) -> f32 {
         return 0.0;
     }
 
-    let total_tokens: usize = messages
-        .iter()
-        .map(|m| estimate_tokens(m))
-        .sum();
+    let total_tokens: usize = messages.iter().map(|m| estimate_tokens(m)).sum();
 
     (total_tokens as f32) / (context_length as f32)
 }
@@ -107,10 +101,7 @@ mod tests {
 
     #[test]
     fn test_build_context_basic() {
-        let history = vec![
-            msg("user", "Hello"),
-            msg("assistant", "Hi there!"),
-        ];
+        let history = vec![msg("user", "Hello"), msg("assistant", "Hi there!")];
 
         let result = build_context("You are helpful.", &[], &history, 100000);
         assert_eq!(result.len(), 3); // system + 2 history

@@ -33,27 +33,36 @@ fn load_sessions(data_dir: &Path) -> Vec<AutonomySession> {
 
     let mut sessions = Vec::new();
     for (i, line) in content.lines().enumerate() {
-        if line.trim().is_empty() { continue; }
+        if line.trim().is_empty() {
+            continue;
+        }
         if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
             sessions.push(AutonomySession {
-                cycle: entry.get("cycle")
+                cycle: entry
+                    .get("cycle")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(i as u64 + 1),
-                timestamp: entry.get("timestamp")
+                timestamp: entry
+                    .get("timestamp")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
-                job_id: entry.get("job_id")
+                job_id: entry
+                    .get("job_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
-                tools_used: entry.get("tools_used")
+                tools_used: entry
+                    .get("tools_used")
                     .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter()
-                        .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                        .collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default(),
-                summary: entry.get("summary")
+                summary: entry
+                    .get("summary")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
@@ -65,7 +74,9 @@ fn load_sessions(data_dir: &Path) -> Vec<AutonomySession> {
 
 /// Execute an autonomy history action.
 fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -77,7 +88,9 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
                 return ok_result(call, "No autonomy sessions recorded yet.");
             }
 
-            let limit = call.arguments.get("limit")
+            let limit = call
+                .arguments
+                .get("limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(20) as usize;
 
@@ -86,7 +99,8 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
 
             let mut output = format!(
                 "Autonomy history ({} total, showing last {}):\n\n",
-                sessions.len(), recent.len()
+                sessions.len(),
+                recent.len()
             );
             for s in recent {
                 let tools = if s.tools_used.is_empty() {
@@ -96,7 +110,9 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
                 };
                 output.push_str(&format!(
                     "#{} | {} | tools: {}\n  {}\n\n",
-                    s.cycle, s.timestamp, tools,
+                    s.cycle,
+                    s.timestamp,
+                    tools,
                     truncate(&s.summary, 200),
                 ));
             }
@@ -104,7 +120,9 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
         }
 
         "detail" => {
-            let cycle = call.arguments.get("cycle")
+            let cycle = call
+                .arguments
+                .get("cycle")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
             if cycle == 0 {
@@ -112,18 +130,25 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
             }
 
             match sessions.iter().find(|s| s.cycle == cycle) {
-                Some(s) => ok_result(call, &format!(
+                Some(s) => {
+                    ok_result(
+                        call,
+                        &format!(
                     "Autonomy session #{}\nTimestamp: {}\nJob: {}\nTools: {}\n\nSummary:\n{}",
                     s.cycle, s.timestamp, s.job_id,
                     s.tools_used.join(", "),
                     s.summary,
-                )),
+                ),
+                    )
+                }
                 None => error_result(call, &format!("No session found for cycle {}", cycle)),
             }
         }
 
         "search" => {
-            let query = call.arguments.get("query")
+            let query = call
+                .arguments
+                .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if query.is_empty() {
@@ -131,10 +156,13 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
             }
 
             let query_lower = query.to_lowercase();
-            let matches: Vec<&AutonomySession> = sessions.iter()
+            let matches: Vec<&AutonomySession> = sessions
+                .iter()
                 .filter(|s| {
                     s.summary.to_lowercase().contains(&query_lower)
-                        || s.tools_used.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                        || s.tools_used
+                            .iter()
+                            .any(|t| t.to_lowercase().contains(&query_lower))
                 })
                 .collect();
 
@@ -142,18 +170,23 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
                 return ok_result(call, &format!("No sessions matched '{}'.", query));
             }
 
-            let limit = call.arguments.get("limit")
+            let limit = call
+                .arguments
+                .get("limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(10) as usize;
 
             let mut output = format!(
                 "Search '{}': {} matches (showing up to {})\n\n",
-                query, matches.len(), limit
+                query,
+                matches.len(),
+                limit
             );
             for s in matches.iter().rev().take(limit) {
                 output.push_str(&format!(
                     "#{} | {} | tools: {}\n  {}\n\n",
-                    s.cycle, s.timestamp,
+                    s.cycle,
+                    s.timestamp,
                     s.tools_used.join(", "),
                     truncate(&s.summary, 200),
                 ));
@@ -177,7 +210,10 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
             let mut ranking: Vec<(String, usize)> = tool_freq.into_iter().collect();
             ranking.sort_by(|a, b| b.1.cmp(&a.1));
 
-            let first_ts = sessions.first().map(|s| s.timestamp.as_str()).unwrap_or("?");
+            let first_ts = sessions
+                .first()
+                .map(|s| s.timestamp.as_str())
+                .unwrap_or("?");
             let last_ts = sessions.last().map(|s| s.timestamp.as_str()).unwrap_or("?");
 
             let mut output = format!(
@@ -190,10 +226,13 @@ fn autonomy_history_tool(call: &ToolCall, data_dir: &Path) -> ToolResult {
             ok_result(call, &output)
         }
 
-        _ => error_result(call, &format!(
-            "Unknown action: '{}'. Valid: list, detail, search, stats",
-            action
-        )),
+        _ => error_result(
+            call,
+            &format!(
+                "Unknown action: '{}'. Valid: list, detail, search, stats",
+                action
+            ),
+        ),
     }
 }
 
@@ -227,9 +266,10 @@ fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
 
 /// Register the autonomy history tool with the executor.
 pub fn register_tools(executor: &mut ToolExecutor, data_dir: PathBuf) {
-    executor.register("autonomy_history", Box::new(move |call: &ToolCall| {
-        autonomy_history_tool(call, &data_dir)
-    }));
+    executor.register(
+        "autonomy_history",
+        Box::new(move |call: &ToolCall| autonomy_history_tool(call, &data_dir)),
+    );
 }
 
 #[cfg(test)]
@@ -238,7 +278,11 @@ mod tests {
     use std::io::Write;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "autonomy_history".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "autonomy_history".to_string(),
+            arguments: args,
+        }
     }
 
     fn setup_test_dir() -> tempfile::TempDir {

@@ -16,5 +16,5 @@
 //! - Y: abstraction depth / stack level
 //! - Z: parallel thread lanes
 
-pub mod turing_grid;
 pub mod alu;
+pub mod turing_grid;

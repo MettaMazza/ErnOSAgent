@@ -47,11 +47,16 @@ impl ConsolidationEngine {
         };
 
         if path.exists() {
-            let content = std::fs::read_to_string(path)
-                .with_context(|| format!("Failed to read consolidation file: {}", path.display()))?;
-            engine.records = serde_json::from_str(&content)
-                .with_context(|| format!("Failed to parse consolidation file: {}", path.display()))?;
-            tracing::info!(count = engine.records.len(), "Loaded consolidation records from disk");
+            let content = std::fs::read_to_string(path).with_context(|| {
+                format!("Failed to read consolidation file: {}", path.display())
+            })?;
+            engine.records = serde_json::from_str(&content).with_context(|| {
+                format!("Failed to parse consolidation file: {}", path.display())
+            })?;
+            tracing::info!(
+                count = engine.records.len(),
+                "Loaded consolidation records from disk"
+            );
         }
 
         Ok(engine)
@@ -60,13 +65,15 @@ impl ConsolidationEngine {
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create consolidation dir: {}", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create consolidation dir: {}", parent.display())
+                })?;
             }
             let content = serde_json::to_string_pretty(&self.records)
                 .context("Failed to serialize consolidation records")?;
-            std::fs::write(path, content)
-                .with_context(|| format!("Failed to write consolidation file: {}", path.display()))?;
+            std::fs::write(path, content).with_context(|| {
+                format!("Failed to write consolidation file: {}", path.display())
+            })?;
         }
         Ok(())
     }
@@ -105,10 +112,11 @@ impl ConsolidationEngine {
         vec![
             Message {
                 role: "system".to_string(),
-                content: "You are a precise summarizer. Compress the following conversation into a \
+                content:
+                    "You are a precise summarizer. Compress the following conversation into a \
                           dense summary that preserves all key facts, decisions, user preferences, \
                           and action items. Do NOT add commentary. Output ONLY the summary."
-                    .to_string(),
+                        .to_string(),
                 images: Vec::new(),
             },
             Message {
@@ -144,7 +152,8 @@ impl ConsolidationEngine {
             count = messages_count,
             original_tokens = record.original_token_estimate,
             summary_tokens = record.summary_token_estimate,
-            compression = format!("{:.1}x",
+            compression = format!(
+                "{:.1}x",
                 record.original_token_estimate as f64 / record.summary_token_estimate.max(1) as f64
             ),
             "Consolidation complete"
@@ -169,7 +178,9 @@ impl ConsolidationEngine {
     }
 
     /// Get all consolidation records (for status/debugging).
-    pub fn records(&self) -> &[ConsolidationRecord] { &self.records }
+    pub fn records(&self) -> &[ConsolidationRecord] {
+        &self.records
+    }
 
     pub fn consolidation_count(&self) -> usize {
         self.records.len()
@@ -187,7 +198,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn msg(role: &str, content: &str) -> Message {
-        Message { role: role.to_string(), content: content.to_string(), images: Vec::new() }
+        Message {
+            role: role.to_string(),
+            content: content.to_string(),
+            images: Vec::new(),
+        }
     }
 
     #[test]
@@ -233,7 +248,9 @@ mod tests {
         let mut engine = ConsolidationEngine::new();
         assert_eq!(engine.consolidation_count(), 0);
 
-        engine.record_consolidation(5, "Summary of 5 messages", 2000).unwrap();
+        engine
+            .record_consolidation(5, "Summary of 5 messages", 2000)
+            .unwrap();
         assert_eq!(engine.consolidation_count(), 1);
         assert_eq!(engine.total_messages_consolidated(), 5);
     }

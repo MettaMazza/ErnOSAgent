@@ -61,20 +61,25 @@ impl FeatureSteeringState {
             .iter()
             .map(|(&index, label)| {
                 let category = match &label.category {
-                    crate::interpretability::features::FeatureCategory::Cognitive =>
-                        "cognitive".to_string(),
-                    crate::interpretability::features::FeatureCategory::Safety(st) =>
-                        format!("safety:{:?}", st).to_lowercase(),
-                    crate::interpretability::features::FeatureCategory::Linguistic =>
-                        "linguistic".to_string(),
-                    crate::interpretability::features::FeatureCategory::Semantic =>
-                        "semantic".to_string(),
-                    crate::interpretability::features::FeatureCategory::Meta =>
-                        "meta".to_string(),
-                    crate::interpretability::features::FeatureCategory::Emotion(v) =>
-                        format!("emotion:{:?}", v).to_lowercase(),
-                    crate::interpretability::features::FeatureCategory::Unknown =>
-                        "unknown".to_string(),
+                    crate::interpretability::features::FeatureCategory::Cognitive => {
+                        "cognitive".to_string()
+                    }
+                    crate::interpretability::features::FeatureCategory::Safety(st) => {
+                        format!("safety:{:?}", st).to_lowercase()
+                    }
+                    crate::interpretability::features::FeatureCategory::Linguistic => {
+                        "linguistic".to_string()
+                    }
+                    crate::interpretability::features::FeatureCategory::Semantic => {
+                        "semantic".to_string()
+                    }
+                    crate::interpretability::features::FeatureCategory::Meta => "meta".to_string(),
+                    crate::interpretability::features::FeatureCategory::Emotion(v) => {
+                        format!("emotion:{:?}", v).to_lowercase()
+                    }
+                    crate::interpretability::features::FeatureCategory::Unknown => {
+                        "unknown".to_string()
+                    }
                 };
 
                 SteerableFeature {
@@ -92,7 +97,10 @@ impl FeatureSteeringState {
         tracing::info!(
             total = features.len(),
             safety = safety_count,
-            cognitive = features.iter().filter(|f| f.category == "cognitive").count(),
+            cognitive = features
+                .iter()
+                .filter(|f| f.category == "cognitive")
+                .count(),
             "Listed steerable features"
         );
 
@@ -104,10 +112,7 @@ impl FeatureSteeringState {
     /// This is the foundation for control vector generation — each decoded
     /// column represents the "direction" of a monosemantic feature in residual
     /// stream space.
-    pub fn extract_direction(
-        sae: &SparseAutoencoder,
-        feature_index: usize,
-    ) -> Vec<f32> {
+    pub fn extract_direction(sae: &SparseAutoencoder, feature_index: usize) -> Vec<f32> {
         let direction = sae.decode_feature(feature_index);
         let l2_norm: f32 = direction.iter().map(|x| x * x).sum::<f32>().sqrt();
         tracing::info!(
@@ -123,21 +128,14 @@ impl FeatureSteeringState {
     ///
     /// The raw direction file can be converted to GGUF using the llama.cpp
     /// `convert-control-vector.py` script, or via the `gguf-rs` crate.
-    pub fn save_direction_raw(
-        direction: &[f32],
-        output_dir: &Path,
-        name: &str,
-    ) -> Result<PathBuf> {
+    pub fn save_direction_raw(direction: &[f32], output_dir: &Path, name: &str) -> Result<PathBuf> {
         std::fs::create_dir_all(output_dir)
             .with_context(|| format!("Failed to create vectors dir: {}", output_dir.display()))?;
 
         let filename = format!("sae_feature_{}.bin", name);
         let path = output_dir.join(&filename);
 
-        let bytes: Vec<u8> = direction
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+        let bytes: Vec<u8> = direction.iter().flat_map(|f| f.to_le_bytes()).collect();
 
         std::fs::write(&path, &bytes)
             .with_context(|| format!("Failed to write direction: {}", path.display()))?;
@@ -154,7 +152,13 @@ impl FeatureSteeringState {
 
     /// Apply a feature steering change.
     pub fn set_feature(&mut self, index: usize, name: String, category: String, scale: f64) {
-        let action = if scale == 0.0 { "remove" } else if scale > 0.0 { "amplify" } else { "suppress" };
+        let action = if scale == 0.0 {
+            "remove"
+        } else if scale > 0.0 {
+            "amplify"
+        } else {
+            "suppress"
+        };
         tracing::info!(
             feature_index = index,
             feature_name = name.as_str(),
@@ -198,10 +202,7 @@ impl FeatureSteeringState {
     pub fn clear(&mut self) {
         let cleared = self.active_features.len();
         self.active_features.clear();
-        tracing::info!(
-            cleared_count = cleared,
-            "All feature steering cleared"
-        );
+        tracing::info!(cleared_count = cleared, "All feature steering cleared");
     }
 
     /// Get a summary of active feature steering.

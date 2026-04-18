@@ -65,15 +65,12 @@ impl ModelRegistry {
             .find(|p| p.id() == provider_id)
             .with_context(|| format!("Provider '{}' not found in registry", provider_id))?;
 
-        let spec = provider
-            .get_model_spec(model_name)
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to auto-derive model spec for '{}' from provider '{}'",
-                    model_name, provider_id
-                )
-            })?;
+        let spec = provider.get_model_spec(model_name).await.with_context(|| {
+            format!(
+                "Failed to auto-derive model spec for '{}' from provider '{}'",
+                model_name, provider_id
+            )
+        })?;
 
         tracing::info!(
             model = %model_name,
@@ -106,10 +103,9 @@ mod tests {
     #[test]
     fn test_cache_clear() {
         let mut registry = ModelRegistry::new(Vec::new());
-        registry.cache.insert(
-            "test:model".to_string(),
-            ModelSpec::default(),
-        );
+        registry
+            .cache
+            .insert("test:model".to_string(), ModelSpec::default());
         assert!(!registry.cache.is_empty());
         registry.clear_cache();
         assert!(registry.cache.is_empty());

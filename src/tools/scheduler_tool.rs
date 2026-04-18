@@ -17,7 +17,9 @@ use std::sync::Arc;
 
 /// Execute a scheduler tool action.
 fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
-    let action = call.arguments.get("action")
+    let action = call
+        .arguments
+        .get("action")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -28,16 +30,24 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
 
     match action {
         "create" => {
-            let name = call.arguments.get("name")
+            let name = call
+                .arguments
+                .get("name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let instruction = call.arguments.get("instruction")
+            let instruction = call
+                .arguments
+                .get("instruction")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let schedule_type = call.arguments.get("schedule_type")
+            let schedule_type = call
+                .arguments
+                .get("schedule_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let schedule_value = call.arguments.get("schedule_value")
+            let schedule_value = call
+                .arguments
+                .get("schedule_value")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
@@ -53,11 +63,7 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
                 Err(e) => return error_result(call, &e),
             };
 
-            let job = ScheduledJob::new(
-                name.to_string(),
-                instruction.to_string(),
-                schedule,
-            );
+            let job = ScheduledJob::new(name.to_string(), instruction.to_string(), schedule);
 
             match tokio::task::block_in_place(|| rt.block_on(scheduler.add_job(job))) {
                 Ok(created) => ToolResult {
@@ -65,7 +71,8 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
                     name: call.name.clone(),
                     output: format!(
                         "✅ Job created:\n  ID: {}\n  Name: {}\n  Schedule: {}\n  Enabled: true",
-                        created.id, created.name,
+                        created.id,
+                        created.name,
                         format_schedule(&created.schedule),
                     ),
                     success: true,
@@ -85,13 +92,17 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
             let mut output = format!("Scheduled jobs ({}):\n", jobs.len());
             for job in &jobs {
                 let status = if job.enabled { "✅" } else { "⏸️" };
-                let last = job.last_run
+                let last = job
+                    .last_run
                     .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
                     .unwrap_or_else(|| "never".to_string());
                 output.push_str(&format!(
                     "  {} [{}] {} | {} | last: {}\n    → {}\n",
-                    status, &job.id[..8.min(job.id.len())],
-                    job.name, format_schedule(&job.schedule), last,
+                    status,
+                    &job.id[..8.min(job.id.len())],
+                    job.name,
+                    format_schedule(&job.schedule),
+                    last,
                     truncate(&job.instruction, 80),
                 ));
             }
@@ -99,7 +110,9 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
         }
 
         "delete" => {
-            let job_id = call.arguments.get("job_id")
+            let job_id = call
+                .arguments
+                .get("job_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if job_id.is_empty() {
@@ -113,7 +126,9 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
         }
 
         "toggle" => {
-            let job_id = call.arguments.get("job_id")
+            let job_id = call
+                .arguments
+                .get("job_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if job_id.is_empty() {
@@ -130,7 +145,9 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
         }
 
         "run_now" => {
-            let job_id = call.arguments.get("job_id")
+            let job_id = call
+                .arguments
+                .get("job_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             if job_id.is_empty() {
@@ -139,17 +156,23 @@ fn scheduler_tool(call: &ToolCall, scheduler: &SchedulerHandle) -> ToolResult {
 
             // run_now requires SharedState which we don't have here.
             // Instead, instruct the user to use the Web UI for immediate execution.
-            ok_result(call, &format!(
-                "⚠️ Force-run requires the full runtime context. \
+            ok_result(
+                call,
+                &format!(
+                    "⚠️ Force-run requires the full runtime context. \
                  Job '{}' has been marked for immediate execution on the next scheduler tick.",
-                job_id
-            ))
+                    job_id
+                ),
+            )
         }
 
-        _ => error_result(call, &format!(
-            "Unknown action: '{}'. Valid: create, list, delete, toggle, run_now",
-            action
-        )),
+        _ => error_result(
+            call,
+            &format!(
+                "Unknown action: '{}'. Valid: create, list, delete, toggle, run_now",
+                action
+            ),
+        ),
     }
 }
 
@@ -161,12 +184,17 @@ fn parse_schedule(schedule_type: &str, value: &str) -> Result<JobSchedule, Strin
             Ok(JobSchedule::Cron(value.to_string()))
         }
         "once" => {
-            let dt = value.parse::<DateTime<Utc>>()
-                .map_err(|e| format!("Invalid datetime: {}. Use ISO 8601 (e.g. 2026-04-13T09:00:00Z)", e))?;
+            let dt = value.parse::<DateTime<Utc>>().map_err(|e| {
+                format!(
+                    "Invalid datetime: {}. Use ISO 8601 (e.g. 2026-04-13T09:00:00Z)",
+                    e
+                )
+            })?;
             Ok(JobSchedule::Once(dt))
         }
         "interval" => {
-            let secs = value.parse::<u64>()
+            let secs = value
+                .parse::<u64>()
                 .map_err(|e| format!("Invalid interval seconds: {}", e))?;
             if secs == 0 {
                 return Err("Interval must be > 0 seconds".to_string());
@@ -174,7 +202,8 @@ fn parse_schedule(schedule_type: &str, value: &str) -> Result<JobSchedule, Strin
             Ok(JobSchedule::Interval(secs))
         }
         "idle" => {
-            let secs = value.parse::<u64>()
+            let secs = value
+                .parse::<u64>()
                 .map_err(|e| format!("Invalid idle seconds: {}", e))?;
             if secs < 60 {
                 return Err("Idle threshold must be >= 60 seconds".to_string());
@@ -207,8 +236,11 @@ fn format_schedule(schedule: &JobSchedule) -> String {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max { s.to_string() }
-    else { format!("{}…", &s[..max]) }
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max])
+    }
 }
 
 fn ok_result(call: &ToolCall, output: &str) -> ToolResult {
@@ -234,9 +266,10 @@ fn error_result(call: &ToolCall, msg: &str) -> ToolResult {
 /// Register the scheduler tool with the executor.
 pub fn register_tools(executor: &mut ToolExecutor, scheduler: SchedulerHandle) {
     let scheduler = Arc::clone(&scheduler);
-    executor.register("scheduler_tool", Box::new(move |call: &ToolCall| {
-        scheduler_tool(call, &scheduler)
-    }));
+    executor.register(
+        "scheduler_tool",
+        Box::new(move |call: &ToolCall| scheduler_tool(call, &scheduler)),
+    );
 }
 
 #[cfg(test)]
@@ -244,7 +277,11 @@ mod tests {
     use super::*;
 
     fn make_call(args: serde_json::Value) -> ToolCall {
-        ToolCall { id: "t".to_string(), name: "scheduler_tool".to_string(), arguments: args }
+        ToolCall {
+            id: "t".to_string(),
+            name: "scheduler_tool".to_string(),
+            arguments: args,
+        }
     }
 
     #[test]
@@ -283,7 +320,10 @@ mod tests {
 
     #[test]
     fn test_format_schedule() {
-        assert_eq!(format_schedule(&JobSchedule::Cron("0 9 * * *".into())), "cron(0 9 * * *)");
+        assert_eq!(
+            format_schedule(&JobSchedule::Cron("0 9 * * *".into())),
+            "cron(0 9 * * *)"
+        );
         assert_eq!(format_schedule(&JobSchedule::Interval(3600)), "every 1h");
         assert_eq!(format_schedule(&JobSchedule::Interval(300)), "every 5m");
         assert_eq!(format_schedule(&JobSchedule::Idle(300)), "idle(300s)");

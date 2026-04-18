@@ -10,15 +10,23 @@ use crate::tools::schema::{ToolCall, ToolResult};
 
 /// Write content to a file, creating parent directories if needed.
 pub(super) fn write_file(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path")
+    let path_str = call
+        .arguments
+        .get("path")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let content = call.arguments.get("content")
+    let content = call
+        .arguments
+        .get("content")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    if path_str.is_empty() { return error_result(call, "Missing required argument: path"); }
-    if content.is_empty() { return error_result(call, "Missing required argument: content"); }
+    if path_str.is_empty() {
+        return error_result(call, "Missing required argument: path");
+    }
+    if content.is_empty() {
+        return error_result(call, "Missing required argument: content");
+    }
 
     let full_path = match resolve_path(path_str) {
         Ok(p) => p,
@@ -52,16 +60,33 @@ pub(super) fn write_file(call: &ToolCall) -> ToolResult {
 
 /// Search-and-replace within a file.
 pub(super) fn patch_file(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
+    let path_str = call
+        .arguments
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     // Accept both "find" (schema name) and "search" (legacy name) — LLMs use either
-    let search = call.arguments.get("find")
+    let search = call
+        .arguments
+        .get("find")
         .or_else(|| call.arguments.get("search"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let replace = call.arguments.get("replace").and_then(|v| v.as_str()).unwrap_or("");
+    let replace = call
+        .arguments
+        .get("replace")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
-    if path_str.is_empty() { return error_result(call, "Missing required argument: path"); }
-    if search.is_empty() { return error_result(call, "Missing required argument: find (the exact text to search for and replace)"); }
+    if path_str.is_empty() {
+        return error_result(call, "Missing required argument: path");
+    }
+    if search.is_empty() {
+        return error_result(
+            call,
+            "Missing required argument: find (the exact text to search for and replace)",
+        );
+    }
 
     let full_path = match resolve_path(path_str) {
         Ok(p) => p,
@@ -79,9 +104,13 @@ pub(super) fn patch_file(call: &ToolCall) -> ToolResult {
 
     let occurrences = content.matches(search).count();
     if occurrences == 0 {
-        return error_result(call, &format!(
-            "Search string not found in {}. Verify the exact text to replace.", path_str
-        ));
+        return error_result(
+            call,
+            &format!(
+                "Search string not found in {}. Verify the exact text to replace.",
+                path_str
+            ),
+        );
     }
 
     let patched = content.replace(search, replace);
@@ -94,7 +123,10 @@ pub(super) fn patch_file(call: &ToolCall) -> ToolResult {
     ToolResult {
         tool_call_id: call.id.clone(),
         name: call.name.clone(),
-        output: format!("Patched {} — {} occurrence(s) replaced in {}", path_str, occurrences, path_str),
+        output: format!(
+            "Patched {} — {} occurrence(s) replaced in {}",
+            path_str, occurrences, path_str
+        ),
         success: true,
         error: None,
     }
@@ -102,14 +134,36 @@ pub(super) fn patch_file(call: &ToolCall) -> ToolResult {
 
 /// Insert content before or after an anchor string in a file.
 pub(super) fn insert_content(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
-    let anchor = call.arguments.get("anchor").and_then(|v| v.as_str()).unwrap_or("");
-    let content = call.arguments.get("content").and_then(|v| v.as_str()).unwrap_or("");
-    let position = call.arguments.get("position").and_then(|v| v.as_str()).unwrap_or("after");
+    let path_str = call
+        .arguments
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let anchor = call
+        .arguments
+        .get("anchor")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let content = call
+        .arguments
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let position = call
+        .arguments
+        .get("position")
+        .and_then(|v| v.as_str())
+        .unwrap_or("after");
 
-    if path_str.is_empty() { return error_result(call, "Missing required argument: path"); }
-    if anchor.is_empty() { return error_result(call, "Missing required argument: anchor"); }
-    if content.is_empty() { return error_result(call, "Missing required argument: content"); }
+    if path_str.is_empty() {
+        return error_result(call, "Missing required argument: path");
+    }
+    if anchor.is_empty() {
+        return error_result(call, "Missing required argument: anchor");
+    }
+    if content.is_empty() {
+        return error_result(call, "Missing required argument: content");
+    }
     if position != "before" && position != "after" {
         return error_result(call, "position must be 'before' or 'after'");
     }
@@ -159,13 +213,24 @@ pub(super) fn insert_content(call: &ToolCall) -> ToolResult {
 
 /// Apply multiple search-and-replace patches to a file.
 pub(super) fn multi_patch_file(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
+    let path_str = call
+        .arguments
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let patches = call.arguments.get("patches").and_then(|v| v.as_array());
 
-    if path_str.is_empty() { return error_result(call, "Missing required argument: path"); }
+    if path_str.is_empty() {
+        return error_result(call, "Missing required argument: path");
+    }
     let patches = match patches {
         Some(p) => p,
-        None => return error_result(call, "Missing required argument: patches (JSON array of {search, replace})"),
+        None => {
+            return error_result(
+                call,
+                "Missing required argument: patches (JSON array of {search, replace})",
+            )
+        }
     };
 
     let full_path = match resolve_path(path_str) {
@@ -194,7 +259,10 @@ pub(super) fn multi_patch_file(call: &ToolCall) -> ToolResult {
 
     let output = format_patch_result(path_str, applied, &errors);
     if applied == 0 && !errors.is_empty() {
-        return error_result(call, &format!("No patches applied. Errors: {}", errors.join("; ")));
+        return error_result(
+            call,
+            &format!("No patches applied. Errors: {}", errors.join("; ")),
+        );
     }
 
     tracing::info!(path = %path_str, applied = applied, errors = errors.len(), "codebase_multi_patch executed");
@@ -213,7 +281,8 @@ fn apply_patches(text: &mut String, patches: &[serde_json::Value]) -> (usize, Ve
     let mut errors = Vec::new();
     for (i, patch) in patches.iter().enumerate() {
         // Accept both "find" (schema name) and "search" (legacy name)
-        let search = patch.get("find")
+        let search = patch
+            .get("find")
             .or_else(|| patch.get("search"))
             .and_then(|v| v.as_str())
             .unwrap_or("");
@@ -236,18 +305,27 @@ fn format_patch_result(path: &str, applied: usize, errors: &[String]) -> String 
     if errors.is_empty() {
         format!("Applied {} patch(es) to {}", applied, path)
     } else {
-        format!("Applied {} patch(es) to {} with {} error(s): {}",
-            applied, path, errors.len(), errors.join("; "))
+        format!(
+            "Applied {} patch(es) to {} with {} error(s): {}",
+            applied,
+            path,
+            errors.len(),
+            errors.join("; ")
+        )
     }
 }
 
 /// Delete a file or directory.
 pub(super) fn delete_path(call: &ToolCall) -> ToolResult {
-    let path_str = call.arguments.get("path")
+    let path_str = call
+        .arguments
+        .get("path")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    if path_str.is_empty() { return error_result(call, "Missing required argument: path"); }
+    if path_str.is_empty() {
+        return error_result(call, "Missing required argument: path");
+    }
 
     let full_path = match resolve_path(path_str) {
         Ok(p) => p,

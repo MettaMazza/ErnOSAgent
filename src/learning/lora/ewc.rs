@@ -77,11 +77,7 @@ pub fn capture_star_params(var_map: &VarMap) -> Result<HashMap<String, Tensor>> 
 ///
 /// This penalty is added to the task loss during training to discourage
 /// large changes to weights that were important in previous cycles.
-pub fn ewc_penalty(
-    var_map: &VarMap,
-    state: &EwcState,
-    lambda: f64,
-) -> Result<Tensor> {
+pub fn ewc_penalty(var_map: &VarMap, state: &EwcState, lambda: f64) -> Result<Tensor> {
     let mut penalties: Vec<Tensor> = Vec::new();
     let data = var_map.data().lock().unwrap();
 
@@ -98,7 +94,9 @@ pub fn ewc_penalty(
     }
 
     if penalties.is_empty() {
-        let device = data.values().next()
+        let device = data
+            .values()
+            .next()
             .map(|v| v.as_tensor().device().clone())
             .unwrap_or(Device::Cpu);
         return Tensor::zeros((), DType::F32, &device).context("no EWC params");
@@ -149,7 +147,10 @@ pub fn load_ewc_state(dir: &Path, device: &Device) -> Result<EwcState> {
         "EWC state loaded"
     );
 
-    Ok(EwcState { fisher, star_params })
+    Ok(EwcState {
+        fisher,
+        star_params,
+    })
 }
 
 /// Load safetensors into a HashMap.
@@ -166,7 +167,15 @@ mod tests {
     #[test]
     fn test_capture_star_params() {
         let vm = VarMap::new();
-        let _t = vm.get((2, 3), "test.weight", candle_nn::Init::Const(1.0), DType::F32, &Device::Cpu).unwrap();
+        let _t = vm
+            .get(
+                (2, 3),
+                "test.weight",
+                candle_nn::Init::Const(1.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
         let star = capture_star_params(&vm).unwrap();
         assert!(star.contains_key("test.weight"));
         let dims = star["test.weight"].dims();
@@ -176,39 +185,78 @@ mod tests {
     #[test]
     fn test_ewc_penalty_zero_when_unchanged() {
         let vm = VarMap::new();
-        let _t = vm.get((2, 3), "w", candle_nn::Init::Const(1.0), DType::F32, &Device::Cpu).unwrap();
+        let _t = vm
+            .get(
+                (2, 3),
+                "w",
+                candle_nn::Init::Const(1.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
 
         let fisher = {
             let mut f = HashMap::new();
-            f.insert("w".to_string(), Tensor::ones((2, 3), DType::F32, &Device::Cpu).unwrap());
+            f.insert(
+                "w".to_string(),
+                Tensor::ones((2, 3), DType::F32, &Device::Cpu).unwrap(),
+            );
             f
         };
         let star = capture_star_params(&vm).unwrap();
 
-        let state = EwcState { fisher, star_params: star };
+        let state = EwcState {
+            fisher,
+            star_params: star,
+        };
         let penalty = ewc_penalty(&vm, &state, 1.0).unwrap();
         let val = penalty.to_scalar::<f32>().unwrap();
-        assert!((val - 0.0).abs() < 1e-6, "Penalty should be zero when params unchanged: {val}");
+        assert!(
+            (val - 0.0).abs() < 1e-6,
+            "Penalty should be zero when params unchanged: {val}"
+        );
     }
 
     #[test]
     fn test_ewc_penalty_increases_with_drift() {
         // Create "star" param state from a VM initialised to 0.0
         let vm_star = VarMap::new();
-        let _t = vm_star.get((2, 2), "w", candle_nn::Init::Const(0.0), DType::F32, &Device::Cpu).unwrap();
+        let _t = vm_star
+            .get(
+                (2, 2),
+                "w",
+                candle_nn::Init::Const(0.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
         let star = capture_star_params(&vm_star).unwrap();
 
         let fisher = {
             let mut f = HashMap::new();
-            f.insert("w".to_string(), Tensor::ones((2, 2), DType::F32, &Device::Cpu).unwrap());
+            f.insert(
+                "w".to_string(),
+                Tensor::ones((2, 2), DType::F32, &Device::Cpu).unwrap(),
+            );
             f
         };
 
         // Create "drifted" VM at 1.0 to simulate parameter drift
         let vm_drifted = VarMap::new();
-        let _t2 = vm_drifted.get((2, 2), "w", candle_nn::Init::Const(1.0), DType::F32, &Device::Cpu).unwrap();
+        let _t2 = vm_drifted
+            .get(
+                (2, 2),
+                "w",
+                candle_nn::Init::Const(1.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
 
-        let state = EwcState { fisher, star_params: star };
+        let state = EwcState {
+            fisher,
+            star_params: star,
+        };
         let penalty = ewc_penalty(&vm_drifted, &state, 1.0).unwrap();
         let val = penalty.to_scalar::<f32>().unwrap();
         // 4 params that drifted by 1.0, Fisher=1.0, λ/2 * Σ F*(θ-θ*)² = 0.5 * 4 = 2.0
@@ -218,22 +266,53 @@ mod tests {
     #[test]
     fn test_ewc_lambda_scaling() {
         let vm_star = VarMap::new();
-        let _t = vm_star.get((2, 2), "w", candle_nn::Init::Const(0.0), DType::F32, &Device::Cpu).unwrap();
+        let _t = vm_star
+            .get(
+                (2, 2),
+                "w",
+                candle_nn::Init::Const(0.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
         let star = capture_star_params(&vm_star).unwrap();
 
         let fisher = {
             let mut f = HashMap::new();
-            f.insert("w".to_string(), Tensor::ones((2, 2), DType::F32, &Device::Cpu).unwrap());
+            f.insert(
+                "w".to_string(),
+                Tensor::ones((2, 2), DType::F32, &Device::Cpu).unwrap(),
+            );
             f
         };
 
         let vm_drifted = VarMap::new();
-        let _t2 = vm_drifted.get((2, 2), "w", candle_nn::Init::Const(1.0), DType::F32, &Device::Cpu).unwrap();
+        let _t2 = vm_drifted
+            .get(
+                (2, 2),
+                "w",
+                candle_nn::Init::Const(1.0),
+                DType::F32,
+                &Device::Cpu,
+            )
+            .unwrap();
 
-        let state = EwcState { fisher, star_params: star };
-        let p1 = ewc_penalty(&vm_drifted, &state, 1.0).unwrap().to_scalar::<f32>().unwrap();
-        let p10 = ewc_penalty(&vm_drifted, &state, 10.0).unwrap().to_scalar::<f32>().unwrap();
+        let state = EwcState {
+            fisher,
+            star_params: star,
+        };
+        let p1 = ewc_penalty(&vm_drifted, &state, 1.0)
+            .unwrap()
+            .to_scalar::<f32>()
+            .unwrap();
+        let p10 = ewc_penalty(&vm_drifted, &state, 10.0)
+            .unwrap()
+            .to_scalar::<f32>()
+            .unwrap();
 
-        assert!((p10 / p1 - 10.0).abs() < 0.1, "λ=10 should give 10× penalty: {p10}/{p1}");
+        assert!(
+            (p10 / p1 - 10.0).abs() < 0.1,
+            "λ=10 should give 10× penalty: {p10}/{p1}"
+        );
     }
 }

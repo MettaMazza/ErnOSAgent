@@ -72,8 +72,9 @@ impl EmbeddingStore {
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create embeddings dir: {}", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create embeddings dir: {}", parent.display())
+                })?;
             }
             let content = serde_json::to_string(&self.embeddings)
                 .context("Failed to serialize embeddings")?;
@@ -135,17 +136,25 @@ impl EmbeddingStore {
         Ok(())
     }
 
-    pub fn dimensions(&self) -> usize { self.dimensions }
-    pub fn count(&self) -> usize { self.embeddings.len() }
+    pub fn dimensions(&self) -> usize {
+        self.dimensions
+    }
+    pub fn count(&self) -> usize {
+        self.embeddings.len()
+    }
 }
 
 /// Compute cosine similarity between two vectors.
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() || a.is_empty() { return 0.0; }
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
     let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm_a == 0.0 || norm_b == 0.0 { return 0.0; }
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
     dot / (norm_a * norm_b)
 }
 
@@ -185,9 +194,15 @@ mod tests {
     #[test]
     fn test_insert_and_search() {
         let mut store = EmbeddingStore::new();
-        store.insert("Rust is fast", "test", vec![1.0, 0.0, 0.0]).unwrap();
-        store.insert("Python is slow", "test", vec![0.0, 1.0, 0.0]).unwrap();
-        store.insert("Rust is memory safe", "test", vec![0.9, 0.1, 0.0]).unwrap();
+        store
+            .insert("Rust is fast", "test", vec![1.0, 0.0, 0.0])
+            .unwrap();
+        store
+            .insert("Python is slow", "test", vec![0.0, 1.0, 0.0])
+            .unwrap();
+        store
+            .insert("Rust is memory safe", "test", vec![0.9, 0.1, 0.0])
+            .unwrap();
 
         let query = vec![1.0, 0.0, 0.0];
         let results = store.search(&query, 2);

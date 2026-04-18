@@ -28,7 +28,9 @@ pub fn is_enabled() -> bool {
 
 /// Get the configured Flux server URL, if any.
 fn flux_server_url() -> Option<String> {
-    std::env::var("FLUX_SERVER_URL").ok().filter(|s| !s.is_empty())
+    std::env::var("FLUX_SERVER_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// Default output directory for generated images.
@@ -75,17 +77,34 @@ fn image_tool(call: &ToolCall) -> ToolResult {
                 output: "Image generation is not available. The Flux server did not \
                          auto-launch at startup — check that 'uv' is installed (brew install uv) \
                          and scripts/flux_server.py exists. You can also set FLUX_SERVER_URL \
-                         manually if running the server externally.".to_string(),
+                         manually if running the server externally."
+                    .to_string(),
                 success: false,
                 error: Some("Flux server not available".to_string()),
             };
         }
     };
 
-    let width = call.arguments.get("width").and_then(|v| v.as_u64()).unwrap_or(1024) as u32;
-    let height = call.arguments.get("height").and_then(|v| v.as_u64()).unwrap_or(1024) as u32;
-    let steps = call.arguments.get("steps").and_then(|v| v.as_u64()).unwrap_or(50) as u32;
-    let guidance = call.arguments.get("guidance").and_then(|v| v.as_f64()).unwrap_or(3.5);
+    let width = call
+        .arguments
+        .get("width")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1024) as u32;
+    let height = call
+        .arguments
+        .get("height")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1024) as u32;
+    let steps = call
+        .arguments
+        .get("steps")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50) as u32;
+    let guidance = call
+        .arguments
+        .get("guidance")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(3.5);
 
     // Generate filename from timestamp + sanitized prompt
     let timestamp = std::time::SystemTime::now()
@@ -95,7 +114,13 @@ fn image_tool(call: &ToolCall) -> ToolResult {
     let safe_name: String = prompt
         .chars()
         .take(40)
-        .map(|c| if c.is_alphanumeric() || c == ' ' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .replace(' ', "_")
@@ -198,7 +223,11 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         }
     };
 
-    let saved_path = match result.get("path").or_else(|| result.get("file_path")).and_then(|v| v.as_str()) {
+    let saved_path = match result
+        .get("path")
+        .or_else(|| result.get("file_path"))
+        .and_then(|v| v.as_str())
+    {
         Some(p) if !p.is_empty() => p,
         _ => {
             tracing::error!("Flux server response missing 'path' field: {:?}", result);
@@ -231,7 +260,8 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         };
     }
 
-    let elapsed = result.get("elapsed_s")
+    let elapsed = result
+        .get("elapsed_s")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
@@ -286,7 +316,6 @@ fn image_tool(call: &ToolCall) -> ToolResult {
         error: None,
     }
 }
-
 
 /// Register the image generation tool.
 pub fn register_tools(executor: &mut ToolExecutor) {
@@ -351,7 +380,9 @@ mod tests {
         let _lock = TEST_LOCK.lock().unwrap();
         reset_turn_flag();
         // Ensure FLUX_SERVER_URL is not set (unsafe required in Rust 2024+)
-        unsafe { std::env::remove_var("FLUX_SERVER_URL"); }
+        unsafe {
+            std::env::remove_var("FLUX_SERVER_URL");
+        }
         let call = ToolCall {
             id: "tc1".to_string(),
             name: "image_tool".to_string(),

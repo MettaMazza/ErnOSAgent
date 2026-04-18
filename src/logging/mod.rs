@@ -14,13 +14,11 @@
 pub mod session_layer;
 
 use anyhow::{Context, Result};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::io::Write;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{
-    fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 use session_layer::SessionLogWriter;
 
@@ -41,19 +39,15 @@ pub struct LoggingState {
 /// Returns the `LoggingState` which MUST be held alive for the application's lifetime.
 pub fn init_logging(logs_dir: &PathBuf, initial_session_id: &str) -> Result<LoggingState> {
     let session_dir = logs_dir.join(initial_session_id);
-    std::fs::create_dir_all(&session_dir).with_context(|| {
-        format!(
-            "Failed to create log directory: {}",
-            session_dir.display()
-        )
-    })?;
+    std::fs::create_dir_all(&session_dir)
+        .with_context(|| format!("Failed to create log directory: {}", session_dir.display()))?;
 
     let session_writer = Arc::new(SessionLogWriter::new(&session_dir)?);
     let writer_for_appender = SessionLogWriterHandle(session_writer.clone());
     let (non_blocking, file_guard) = tracing_appender::non_blocking(writer_for_appender);
 
-    let env_filter = EnvFilter::try_from_env("ERNOSAGENT_LOG")
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter =
+        EnvFilter::try_from_env("ERNOSAGENT_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
 
     let console_layer = fmt::layer()
         .with_target(true)

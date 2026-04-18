@@ -5,5 +5,5 @@
 // This is the original author's open-source work. Preserve this header.
 //! Inference layer — stream parsing and context building.
 
-pub mod stream;
 pub mod context;
+pub mod stream;

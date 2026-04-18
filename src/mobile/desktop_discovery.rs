@@ -56,12 +56,14 @@ pub fn parse_pairing_payload(payload: &str) -> Result<(String, u16, Option<Strin
     };
 
     // Parse model from query
-    let model = query
-        .split('&')
-        .find_map(|param| {
-            let (k, v) = param.split_once('=')?;
-            if k == "model" { Some(v.to_string()) } else { None }
-        });
+    let model = query.split('&').find_map(|param| {
+        let (k, v) = param.split_once('=')?;
+        if k == "model" {
+            Some(v.to_string())
+        } else {
+            None
+        }
+    });
 
     Ok((host, port, model))
 }
@@ -113,7 +115,10 @@ pub fn validate_address(address: &str) -> bool {
         return true;
     }
     // Accept hostname-like strings
-    if address.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-') {
+    if address
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+    {
         return !address.is_empty();
     }
     false
@@ -174,8 +179,7 @@ mod tests {
 
     #[test]
     fn test_parse_pairing_payload_ws_url() {
-        let (host, port, _) =
-            parse_pairing_payload("ws://192.168.1.100:3000/ws/relay").unwrap();
+        let (host, port, _) = parse_pairing_payload("ws://192.168.1.100:3000/ws/relay").unwrap();
         assert_eq!(host, "192.168.1.100");
         assert_eq!(port, 3000);
     }

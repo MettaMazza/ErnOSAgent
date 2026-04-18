@@ -65,7 +65,15 @@ pub async fn parse_sse_stream(
                 }
 
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                    process_sse_choices(&parsed, tx, &mut tool_bufs, &mut thinking_buffer, &mut in_think, &mut eval_buffer).await;
+                    process_sse_choices(
+                        &parsed,
+                        tx,
+                        &mut tool_bufs,
+                        &mut thinking_buffer,
+                        &mut in_think,
+                        &mut eval_buffer,
+                    )
+                    .await;
                     // Check for spiral every 500 thinking chars
                     if thinking_buffer.len() > 500 && detect_thought_spiral(&thinking_buffer) {
                         tracing::warn!(
@@ -145,7 +153,7 @@ async fn process_sse_choices(
         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
             if !content.is_empty() {
                 eval_buffer.push_str(content);
-                
+
                 if !*in_think {
                     if eval_buffer.contains("<think>") {
                         *in_think = true;
@@ -201,10 +209,7 @@ async fn process_sse_choices(
         // Tool call deltas — accumulate by index
         if let Some(tool_calls) = delta.get("tool_calls").and_then(|t| t.as_array()) {
             for tc in tool_calls {
-                let index = tc
-                    .get("index")
-                    .and_then(|i| i.as_u64())
-                    .unwrap_or(0) as usize;
+                let index = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
 
                 let buf = tool_bufs.entry(index).or_default();
 
@@ -249,7 +254,11 @@ fn detect_thought_spiral(text: &str) -> bool {
 
     // Check from the end of the buffer — spirals are at the tail
     // Take the last 600 chars and look for a repeating pattern
-    let start = if chars.len() > 600 { chars.len() - 600 } else { 0 };
+    let start = if chars.len() > 600 {
+        chars.len() - 600
+    } else {
+        0
+    };
     let window = &chars[start..];
 
     // Try pattern lengths from 80 to 200
@@ -297,11 +306,23 @@ mod tests {
             }]
         });
 
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(
+            &data,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
 
         let event = rx.try_recv().unwrap();
         match event {
-            StreamEvent::ToolCall { id, name, arguments } => {
+            StreamEvent::ToolCall {
+                id,
+                name,
+                arguments,
+            } => {
                 assert_eq!(id, "call_abc");
                 assert_eq!(name, "reply_request");
                 assert_eq!(arguments, "{\"message\":\"hello\"}");
@@ -328,13 +349,39 @@ mod tests {
             "choices": [{"delta": {}, "finish_reason": "tool_calls"}]
         });
 
-        process_sse_choices(&chunk1, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
-        process_sse_choices(&chunk2, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
-        process_sse_choices(&chunk3, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(
+            &chunk1,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
+        process_sse_choices(
+            &chunk2,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
+        process_sse_choices(
+            &chunk3,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
 
         let event = rx.try_recv().unwrap();
         match event {
-            StreamEvent::ToolCall { name, arguments, .. } => {
+            StreamEvent::ToolCall {
+                name, arguments, ..
+            } => {
                 assert_eq!(name, "reply_request");
                 assert_eq!(arguments, "{\"message\":\"hi\"}");
             }
@@ -350,7 +397,15 @@ mod tests {
         let data = serde_json::json!({
             "choices": [{"delta": {"content": "Hello world"}}]
         });
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(
+            &data,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
 
         assert!(matches!(rx.try_recv().unwrap(), StreamEvent::Token(t) if t == "Hello world"));
     }
@@ -365,7 +420,15 @@ mod tests {
                 "function": {"name": "reply_request", "arguments": "{}"}}]},
                 "finish_reason": "tool_calls"}]
         });
-        process_sse_choices(&data, &tx, &mut tool_bufs, &mut String::new(), &mut false).await;
+        process_sse_choices(
+            &data,
+            &tx,
+            &mut tool_bufs,
+            &mut String::new(),
+            &mut false,
+            &mut String::new(),
+        )
+        .await;
 
         let event = rx.try_recv().unwrap();
         match event {
@@ -380,7 +443,11 @@ mod tests {
     #[test]
     fn test_detect_thought_spiral_repetitive() {
         // 80-char pattern repeated 3 times = spiral
-        let pattern: String = "Wait, I'll check if I can call reply_request. Yes. Actually, I'll just call it.".chars().take(80).collect();
+        let pattern: String =
+            "Wait, I'll check if I can call reply_request. Yes. Actually, I'll just call it."
+                .chars()
+                .take(80)
+                .collect();
         let text = pattern.repeat(4);
         assert!(detect_thought_spiral(&text));
     }
@@ -388,7 +455,10 @@ mod tests {
     #[test]
     fn test_detect_thought_spiral_no_repetition() {
         // Generate genuinely non-repeating text using sequential numbers
-        let varied: String = (0..300).map(|i| format!("{:03}", i)).collect::<Vec<_>>().join(" ");
+        let varied: String = (0..300)
+            .map(|i| format!("{:03}", i))
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(!detect_thought_spiral(&varied));
     }
 

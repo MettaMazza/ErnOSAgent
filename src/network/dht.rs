@@ -57,14 +57,17 @@ impl DHT {
             self.gc_expired();
         }
 
-        self.entries.insert(key.clone(), DHTEntry {
-            key: key.clone(),
-            value: value.to_vec(),
-            entry_type: entry_type.to_string(),
-            origin,
-            stored_at: now.to_rfc3339(),
-            expires_at: expires.to_rfc3339(),
-        });
+        self.entries.insert(
+            key.clone(),
+            DHTEntry {
+                key: key.clone(),
+                value: value.to_vec(),
+                entry_type: entry_type.to_string(),
+                origin,
+                stored_at: now.to_rfc3339(),
+                expires_at: expires.to_rfc3339(),
+            },
+        );
 
         key
     }
@@ -150,7 +153,10 @@ mod tests {
         let key = dht.store(b"temp", "test", 0, PeerId("a".into()));
         // TTL=0 means it expires immediately
         std::thread::sleep(std::time::Duration::from_millis(10));
-        assert!(dht.lookup(&key).is_none(), "Expired entry should not be returned");
+        assert!(
+            dht.lookup(&key).is_none(),
+            "Expired entry should not be returned"
+        );
     }
 
     #[test]

@@ -72,7 +72,10 @@ pub async fn get_platforms(State(state): State<SharedState>) -> Json<serde_json:
     let sanitized: HashMap<String, serde_json::Value> = configs
         .into_iter()
         .map(|(k, v)| {
-            (k, serde_json::json!({"enabled": v.enabled, "configured": v.configured}))
+            (
+                k,
+                serde_json::json!({"enabled": v.enabled, "configured": v.configured}),
+            )
         })
         .collect();
 
@@ -108,7 +111,10 @@ pub async fn save_platform(
         obj.insert("configured".to_string(), serde_json::Value::Bool(has_creds));
     }
 
-    let is_enabled = body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+    let is_enabled = body
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     configs.insert(platform.clone(), entry);
 
@@ -134,7 +140,10 @@ pub async fn save_platform(
             "discord" => {
                 let token = body.get("token").and_then(|v| v.as_str()).unwrap_or("");
                 let admin = body.get("admin_id").and_then(|v| v.as_str()).unwrap_or("");
-                let listen_ch = body.get("listen_channel").and_then(|v| v.as_str()).unwrap_or("");
+                let listen_ch = body
+                    .get("listen_channel")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 let listen_channels = if listen_ch.is_empty() {
                     Vec::new()
                 } else {
@@ -144,28 +153,38 @@ pub async fn save_platform(
                     enabled: true,
                     token: token.to_string(),
                     admin_user_id: admin.to_string(),
-                    guild_id: body.get("guild_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    autonomy_channel_id: body.get("autonomy_channel")
+                    guild_id: body
+                        .get("guild_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    autonomy_channel_id: body
+                        .get("autonomy_channel")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
                     listen_channels,
-                    onboarding_channel_id: body.get("onboarding_channel_id")
+                    onboarding_channel_id: body
+                        .get("onboarding_channel_id")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
-                    new_member_role_id: body.get("new_member_role_id")
+                    new_member_role_id: body
+                        .get("new_member_role_id")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
-                    member_role_id: body.get("member_role_id")
+                    member_role_id: body
+                        .get("member_role_id")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string(),
-                    new_role_duration_days: body.get("new_role_duration_days")
+                    new_role_duration_days: body
+                        .get("new_role_duration_days")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(7),
-                    sentinel_enabled: body.get("sentinel_enabled")
+                    sentinel_enabled: body
+                        .get("sentinel_enabled")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false),
                 };
@@ -175,20 +194,29 @@ pub async fn save_platform(
                 }
                 // Store HTTP handle in SharedState so thinking threads + typing indicators work
                 #[cfg(feature = "discord")]
-                { st.discord_http = new_adapter.http_client(); }
-                st.platform_registry.replace_adapter(Box::new(new_adapter)).await;
+                {
+                    st.discord_http = new_adapter.http_client();
+                }
+                st.platform_registry
+                    .replace_adapter(Box::new(new_adapter))
+                    .await;
             }
             "telegram" => {
                 let token = body.get("token").and_then(|v| v.as_str()).unwrap_or("");
-                let admin = body.get("admin_user_id").and_then(|v| v.as_str()).unwrap_or("");
+                let admin = body
+                    .get("admin_user_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 let cfg = crate::config::TelegramConfig {
                     enabled: true,
                     token: token.to_string(),
                     admin_user_id: admin.to_string(),
                 };
-                st.platform_registry.replace_adapter(Box::new(
-                    crate::platform::telegram::TelegramAdapter::new(&cfg),
-                )).await;
+                st.platform_registry
+                    .replace_adapter(Box::new(crate::platform::telegram::TelegramAdapter::new(
+                        &cfg,
+                    )))
+                    .await;
             }
             _ => {}
         }
@@ -226,7 +254,14 @@ pub async fn save_platform(
                                         let st = state.read().await;
                                         for adapter in st.platform_registry.adapters_iter() {
                                             if adapter.name().to_lowercase() == msg.platform {
-                                                if let Err(e) = adapter.reply_to_message(&msg.channel_id, &msg.message_id, &reply).await {
+                                                if let Err(e) = adapter
+                                                    .reply_to_message(
+                                                        &msg.channel_id,
+                                                        &msg.message_id,
+                                                        &reply,
+                                                    )
+                                                    .await
+                                                {
                                                     tracing::error!(
                                                         platform = %msg.platform, error = %e,
                                                         "Failed to send platform reply"
@@ -270,10 +305,12 @@ pub async fn save_platform(
 
 fn has_credentials(body: &serde_json::Value) -> bool {
     body.as_object()
-        .map(|o| o.iter().any(|(k, v)| {
-            (k.contains("token") || k.contains("secret") || k.contains("webhook"))
-                && !v.as_str().unwrap_or("").is_empty()
-        }))
+        .map(|o| {
+            o.iter().any(|(k, v)| {
+                (k.contains("token") || k.contains("secret") || k.contains("webhook"))
+                    && !v.as_str().unwrap_or("").is_empty()
+            })
+        })
         .unwrap_or(false)
 }
 

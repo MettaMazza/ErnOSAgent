@@ -215,10 +215,7 @@ pub enum MeshMessage {
         origin: PeerId,
     },
     /// Request a specific LoRA adapter version.
-    LoRARequest {
-        version: String,
-        requester: PeerId,
-    },
+    LoRARequest { version: String, requester: PeerId },
     /// Transfer LoRA adapter bytes.
     LoRATransfer {
         version: String,
@@ -294,9 +291,7 @@ pub enum MeshMessage {
 
     // ── Pool Status ────────────────────────────────────────────────
     /// Request pool stats from a peer.
-    PoolStatusRequest {
-        requester: PeerId,
-    },
+    PoolStatusRequest { requester: PeerId },
     /// Pool stats response.
     PoolStatusResponse {
         web_relays_available: u32,
@@ -359,10 +354,7 @@ pub enum MeshMessage {
         origin: PeerId,
     },
     /// Look up a value by key.
-    DHTLookup {
-        key: String,
-        requester: PeerId,
-    },
+    DHTLookup { key: String, requester: PeerId },
     /// DHT lookup result — found.
     DHTResponse {
         key: String,
@@ -370,10 +362,7 @@ pub enum MeshMessage {
         provider: PeerId,
     },
     /// DHT lookup result — not found, with referrals.
-    DHTNotFound {
-        key: String,
-        referrals: Vec<PeerId>,
-    },
+    DHTNotFound { key: String, referrals: Vec<PeerId> },
 
     // ── File System ────────────────────────────────────────────────
     /// Announce a file manifest (chunked file sharing).
@@ -472,7 +461,9 @@ mod tests {
         let bytes = rmp_serde::to_vec(&msg).unwrap();
         let back: MeshMessage = rmp_serde::from_slice(&bytes).unwrap();
         match back {
-            MeshMessage::Ping { peer_id, version, .. } => {
+            MeshMessage::Ping {
+                peer_id, version, ..
+            } => {
                 assert_eq!(peer_id.0, "test_peer");
                 assert_eq!(version, "1.0.0");
             }
@@ -517,7 +508,12 @@ mod tests {
         let bytes = rmp_serde::to_vec(&msg).unwrap();
         let back: MeshMessage = rmp_serde::from_slice(&bytes).unwrap();
         match back {
-            MeshMessage::ComputeRequest { job_id, model, max_tokens, .. } => {
+            MeshMessage::ComputeRequest {
+                job_id,
+                model,
+                max_tokens,
+                ..
+            } => {
                 assert_eq!(job_id, "job_001");
                 assert_eq!(model, "qwen3.5:32b");
                 assert_eq!(max_tokens, 2048);
@@ -539,7 +535,12 @@ mod tests {
         let bytes = rmp_serde::to_vec(&msg).unwrap();
         let back: MeshMessage = rmp_serde::from_slice(&bytes).unwrap();
         match back {
-            MeshMessage::SandboxRequest { job_id, cpu_limit_secs, memory_limit_mb, .. } => {
+            MeshMessage::SandboxRequest {
+                job_id,
+                cpu_limit_secs,
+                memory_limit_mb,
+                ..
+            } => {
                 assert_eq!(job_id, "wasm_001");
                 assert_eq!(cpu_limit_secs, 30);
                 assert_eq!(memory_limit_mb, 256);
@@ -613,7 +614,11 @@ mod tests {
         let bytes = rmp_serde::to_vec(&msg).unwrap();
         let back: MeshMessage = rmp_serde::from_slice(&bytes).unwrap();
         match back {
-            MeshMessage::HumanMessage { mentions_agent, from, .. } => {
+            MeshMessage::HumanMessage {
+                mentions_agent,
+                from,
+                ..
+            } => {
                 assert!(mentions_agent);
                 assert_eq!(from, "Alice");
             }
@@ -632,7 +637,11 @@ mod tests {
         let bytes = rmp_serde::to_vec(&msg).unwrap();
         let back: MeshMessage = rmp_serde::from_slice(&bytes).unwrap();
         match back {
-            MeshMessage::FileManifest { chunk_hashes, total_size, .. } => {
+            MeshMessage::FileManifest {
+                chunk_hashes,
+                total_size,
+                ..
+            } => {
                 assert_eq!(chunk_hashes.len(), 2);
                 assert_eq!(total_size, 524288);
             }

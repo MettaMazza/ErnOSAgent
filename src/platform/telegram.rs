@@ -41,7 +41,9 @@ mod live {
 
     #[async_trait]
     impl PlatformAdapter for TelegramAdapter {
-        fn name(&self) -> &str { "Telegram" }
+        fn name(&self) -> &str {
+            "Telegram"
+        }
 
         fn is_configured(&self) -> bool {
             !self.config.token.is_empty()
@@ -60,54 +62,53 @@ mod live {
             self.shutdown = Some(shutdown_tx);
 
             tokio::spawn(async move {
-                let handler = Update::filter_message().endpoint(
-                    move |msg: Message, _bot: Bot| {
-                        let tx = tx.clone();
-                        let admin_id = admin_user_id.clone();
-                        async move {
-                            // Filter to admin users if configured (comma-separated)
-                            let user = match msg.from {
-                                Some(ref u) => u,
-                                None => return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()),
-                            };
+                let handler = Update::filter_message().endpoint(move |msg: Message, _bot: Bot| {
+                    let tx = tx.clone();
+                    let admin_id = admin_user_id.clone();
+                    async move {
+                        // Filter to admin users if configured (comma-separated)
+                        let user = match msg.from {
+                            Some(ref u) => u,
+                            None => return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()),
+                        };
 
-                            let admin_ids: Vec<String> = admin_id
-                                .split(',')
-                                .map(|s| s.trim().to_string())
-                                .filter(|s| !s.is_empty())
-                                .collect();
-                            let user_id_str = user.id.to_string();
+                        let admin_ids: Vec<String> = admin_id
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect();
+                        let user_id_str = user.id.to_string();
 
-                            if !admin_ids.is_empty() && !admin_ids.iter().any(|id| id == &user_id_str) {
-                                return Ok(());
-                            }
-
-                            let content = msg.text().unwrap_or("").to_string();
-                            if content.is_empty() { return Ok(()); }
-
-                            let is_admin = admin_ids.iter().any(|id| id == &user_id_str);
-                            let platform_msg = PlatformMessage {
-                                platform: "telegram".to_string(),
-                                channel_id: msg.chat.id.to_string(),
-                                user_id: user.id.to_string(),
-                                user_name: user.first_name.clone(),
-                                content,
-                                attachments: Vec::new(),
-                                message_id: msg.id.to_string(),
-                                guild_id: None,
-                                is_admin,
-                            };
-
-                            if let Err(e) = tx.send(platform_msg).await {
-                                tracing::warn!(error = %e, "Failed to forward Telegram message");
-                            }
-                            Ok(())
+                        if !admin_ids.is_empty() && !admin_ids.iter().any(|id| id == &user_id_str) {
+                            return Ok(());
                         }
-                    },
-                );
 
-                let mut dispatcher = Dispatcher::builder(bot.clone(), handler)
-                    .build();
+                        let content = msg.text().unwrap_or("").to_string();
+                        if content.is_empty() {
+                            return Ok(());
+                        }
+
+                        let is_admin = admin_ids.iter().any(|id| id == &user_id_str);
+                        let platform_msg = PlatformMessage {
+                            platform: "telegram".to_string(),
+                            channel_id: msg.chat.id.to_string(),
+                            user_id: user.id.to_string(),
+                            user_name: user.first_name.clone(),
+                            content,
+                            attachments: Vec::new(),
+                            message_id: msg.id.to_string(),
+                            guild_id: None,
+                            is_admin,
+                        };
+
+                        if let Err(e) = tx.send(platform_msg).await {
+                            tracing::warn!(error = %e, "Failed to forward Telegram message");
+                        }
+                        Ok(())
+                    }
+                });
+
+                let mut dispatcher = Dispatcher::builder(bot.clone(), handler).build();
 
                 tokio::select! {
                     _ = dispatcher.dispatch() => {
@@ -140,14 +141,16 @@ mod live {
 
             let bot = Bot::new(&self.config.token);
             let chat_id = ChatId(
-                channel_id.parse::<i64>()
-                    .map_err(|_| anyhow::anyhow!("Invalid Telegram chat ID: {channel_id}"))?
+                channel_id
+                    .parse::<i64>()
+                    .map_err(|_| anyhow::anyhow!("Invalid Telegram chat ID: {channel_id}"))?,
             );
 
             // Chunk at Telegram's 4096 char limit
             let chunks = crate::platform::discord::chunk_message(content, 4096);
             for chunk in &chunks {
-                bot.send_message(chat_id, chunk).await
+                bot.send_message(chat_id, chunk)
+                    .await
                     .map_err(|e| anyhow::anyhow!("Telegram send failed: {e}"))?;
             }
 
@@ -185,23 +188,35 @@ pub struct TelegramAdapter {
 impl TelegramAdapter {
     pub fn new(_config: &crate::config::TelegramConfig) -> Self {
         let (_tx, rx) = mpsc::channel(1);
-        Self { connected: false, rx: Some(rx) }
+        Self {
+            connected: false,
+            rx: Some(rx),
+        }
     }
 }
 
 #[cfg(not(feature = "telegram"))]
 #[async_trait]
 impl PlatformAdapter for TelegramAdapter {
-    fn name(&self) -> &str { "Telegram" }
-    fn is_configured(&self) -> bool { false }
+    fn name(&self) -> &str {
+        "Telegram"
+    }
+    fn is_configured(&self) -> bool {
+        false
+    }
     async fn connect(&mut self) -> Result<()> {
         anyhow::bail!("Telegram support requires the 'telegram' feature flag. Rebuild with: cargo build --features telegram")
     }
-    async fn disconnect(&mut self) -> Result<()> { self.connected = false; Ok(()) }
+    async fn disconnect(&mut self) -> Result<()> {
+        self.connected = false;
+        Ok(())
+    }
     async fn send_message(&self, _channel_id: &str, _content: &str) -> Result<()> {
         anyhow::bail!("Telegram not available — rebuild with --features telegram")
     }
-    fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>> { self.rx.take() }
+    fn take_message_receiver(&mut self) -> Option<mpsc::Receiver<PlatformMessage>> {
+        self.rx.take()
+    }
     fn status(&self) -> PlatformStatus {
         PlatformStatus {
             name: "Telegram".to_string(),

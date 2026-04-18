@@ -57,20 +57,16 @@ impl AdamState {
                 .m
                 .entry(name.clone())
                 .or_insert_with(|| Tensor::zeros_like(&grad).expect("m init"));
-            *m_entry = ((m_entry.clone() * self.beta1)?
-                + (grad.clone() * (1.0 - self.beta1))?)?;
+            *m_entry = ((m_entry.clone() * self.beta1)? + (grad.clone() * (1.0 - self.beta1))?)?;
 
             let v_entry = self
                 .v
                 .entry(name.clone())
                 .or_insert_with(|| Tensor::zeros_like(&grad).expect("v init"));
-            *v_entry = ((v_entry.clone() * self.beta2)?
-                + (grad.sqr()? * (1.0 - self.beta2))?)?;
+            *v_entry = ((v_entry.clone() * self.beta2)? + (grad.sqr()? * (1.0 - self.beta2))?)?;
 
-            let m_hat = (m_entry.clone()
-                / (1.0 - self.beta1.powi(self.step as i32)))?;
-            let v_hat = (v_entry.clone()
-                / (1.0 - self.beta2.powi(self.step as i32)))?;
+            let m_hat = (m_entry.clone() / (1.0 - self.beta1.powi(self.step as i32)))?;
+            let v_hat = (v_entry.clone() / (1.0 - self.beta2.powi(self.step as i32)))?;
 
             let update = (m_hat / (v_hat.sqrt()? + self.epsilon)?)?;
             let new_param = (param - (update * lr)?)?;

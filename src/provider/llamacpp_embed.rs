@@ -135,11 +135,13 @@ impl LlamaCppProvider {
         let url = format!("{}/v1/embeddings", embed_base);
         let body = serde_json::json!({ "input": text });
 
-        let resp = self.client.post(&url).json(&body).send().await
-            .with_context(|| format!(
-                "Failed to send embedding request to {}",
-                embed_base
-            ))?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .with_context(|| format!("Failed to send embedding request to {}", embed_base))?;
 
         if !resp.status().is_success() {
             let status = resp.status();
@@ -152,7 +154,9 @@ impl LlamaCppProvider {
 
     /// Parse the OpenAI-compatible embedding response JSON.
     async fn parse_embedding_response(&self, resp: reqwest::Response) -> Result<Vec<f32>> {
-        let parsed: serde_json::Value = resp.json().await
+        let parsed: serde_json::Value = resp
+            .json()
+            .await
             .context("Failed to parse embedding response")?;
 
         let embedding = parsed

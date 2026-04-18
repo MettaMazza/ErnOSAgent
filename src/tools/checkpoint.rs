@@ -45,7 +45,9 @@ impl CheckpointManager {
     #[cfg(test)]
     pub fn new_with_dir(dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&dir);
-        Self { checkpoint_dir: dir }
+        Self {
+            checkpoint_dir: dir,
+        }
     }
 
     fn registry_path(&self) -> PathBuf {
@@ -108,16 +110,22 @@ impl CheckpointManager {
     /// Rollback a file to a previous snapshot.
     pub fn rollback(&self, checkpoint_id: &str) -> Result<String, String> {
         let registry = self.load_registry();
-        let entry = registry.entries.iter().find(|e| e.id == checkpoint_id)
+        let entry = registry
+            .entries
+            .iter()
+            .find(|e| e.id == checkpoint_id)
             .ok_or_else(|| format!("Checkpoint '{}' not found", checkpoint_id))?;
 
         let snapshot_path = Path::new(&entry.snapshot_path);
         if !snapshot_path.exists() {
-            return Err(format!("Snapshot file missing for checkpoint '{}'", checkpoint_id));
+            return Err(format!(
+                "Snapshot file missing for checkpoint '{}'",
+                checkpoint_id
+            ));
         }
 
-        let content = std::fs::read(snapshot_path)
-            .map_err(|e| format!("Failed to read snapshot: {}", e))?;
+        let content =
+            std::fs::read(snapshot_path).map_err(|e| format!("Failed to read snapshot: {}", e))?;
         let original_path = Path::new(&entry.original_path);
 
         if let Some(parent) = original_path.parent() {
@@ -135,7 +143,9 @@ impl CheckpointManager {
 
         Ok(format!(
             "Rolled back '{}' to checkpoint '{}' ({} bytes restored)",
-            entry.original_path, checkpoint_id, content.len()
+            entry.original_path,
+            checkpoint_id,
+            content.len()
         ))
     }
 

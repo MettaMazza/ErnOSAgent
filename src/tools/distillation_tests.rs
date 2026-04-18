@@ -38,7 +38,8 @@ fn test_parse_qa_pairs_valid() {
 
 #[test]
 fn test_parse_qa_pairs_with_code_fence() {
-    let response = "Here are the Q&A pairs:\n```json\n[\n{\"question\": \"Q1?\", \"answer\": \"A1.\"}\n]\n```";
+    let response =
+        "Here are the Q&A pairs:\n```json\n[\n{\"question\": \"Q1?\", \"answer\": \"A1.\"}\n]\n```";
     let pairs = parse_qa_pairs(response).unwrap();
     assert_eq!(pairs.len(), 1);
 }

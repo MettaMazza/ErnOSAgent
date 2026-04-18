@@ -9,11 +9,11 @@
 //! All intelligence, memory, learning, and inference routing lives in Rust.
 //! The native shells are pure rendering.
 
-use super::{DesktopPeer, InferenceMode};
+use super::desktop_discovery;
 use super::model_manager::{ModelManager, ModelSpec, ModelStatus};
 use super::provider_local::MobileLocalProvider;
 use super::provider_relay::DesktopRelayProvider;
-use super::desktop_discovery;
+use super::{DesktopPeer, InferenceMode};
 use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
@@ -106,7 +106,9 @@ impl ErnOSEngine {
 
     /// Load a downloaded model into memory for inference.
     pub fn load_model(&self, model_name: &str) -> Result<()> {
-        let mut mgr = self.model_manager.lock()
+        let mut mgr = self
+            .model_manager
+            .lock()
             .map_err(|e| anyhow::anyhow!("Lock: {e}"))?;
 
         let models = ModelManager::available_models();
@@ -117,7 +119,11 @@ impl ErnOSEngine {
 
         let model_path = mgr.model_path(spec);
         let mmproj_path = mgr.mmproj_path(spec);
-        let mmproj = if mmproj_path.exists() { Some(mmproj_path.as_path()) } else { None };
+        let mmproj = if mmproj_path.exists() {
+            Some(mmproj_path.as_path())
+        } else {
+            None
+        };
 
         // Detect optimal thread count (mobile CPUs typically 4-8 cores)
         let n_threads = std::thread::available_parallelism()
@@ -154,7 +160,9 @@ impl ErnOSEngine {
 
     /// Delete a model to free storage.
     pub fn delete_model(&self, model_name: &str) -> Result<()> {
-        let mgr = self.model_manager.lock()
+        let mgr = self
+            .model_manager
+            .lock()
             .map_err(|e| anyhow::anyhow!("Lock: {e}"))?;
         let models = ModelManager::available_models();
         let spec = models
@@ -227,7 +235,9 @@ impl ErnOSEngine {
     /// Get engine status summary (for the UI status bar).
     pub fn status_summary(&self) -> String {
         let mode = self.get_inference_mode();
-        let model = self.loaded_model().unwrap_or_else(|| "No model".to_string());
+        let model = self
+            .loaded_model()
+            .unwrap_or_else(|| "No model".to_string());
         let desktop = if self.is_desktop_connected() {
             "🟢 Desktop"
         } else {

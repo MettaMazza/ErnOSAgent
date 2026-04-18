@@ -9,8 +9,8 @@
 //! Output is captured and returned to the ReAct loop.
 
 use crate::tools::containment;
-use crate::tools::schema::{ToolCall, ToolResult};
 use crate::tools::executor::ToolExecutor;
+use crate::tools::schema::{ToolCall, ToolResult};
 use std::time::Duration;
 
 /// Default command timeout.
@@ -21,7 +21,9 @@ const MAX_TIMEOUT_SECS: u64 = 600;
 
 /// Execute a shell command and return the output.
 fn run_command(call: &ToolCall) -> ToolResult {
-    let command = call.arguments.get("command")
+    let command = call
+        .arguments
+        .get("command")
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
@@ -34,7 +36,9 @@ fn run_command(call: &ToolCall) -> ToolResult {
         return error_result(call, &format!("BLOCKED: {}", reason));
     }
 
-    let timeout_secs = call.arguments.get("timeout_secs")
+    let timeout_secs = call
+        .arguments
+        .get("timeout_secs")
         .and_then(|v| v.as_u64())
         .unwrap_or(DEFAULT_TIMEOUT_SECS)
         .min(MAX_TIMEOUT_SECS);

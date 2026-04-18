@@ -37,11 +37,18 @@ macro_rules! skip_if_no_server {
 #[tokio::test]
 async fn test_list_sessions() {
     skip_if_no_server!();
-    let resp = client().get("http://localhost:3000/api/sessions").send().await.unwrap();
+    let resp = client()
+        .get("http://localhost:3000/api/sessions")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: Vec<serde_json::Value> = resp.json().await.unwrap();
     assert!(!body.is_empty(), "Should have at least one session");
-    eprintln!("[e2e] ✅ GET /api/sessions PASSED ({} sessions)", body.len());
+    eprintln!(
+        "[e2e] ✅ GET /api/sessions PASSED ({} sessions)",
+        body.len()
+    );
 }
 
 #[tokio::test]
@@ -50,7 +57,9 @@ async fn test_create_session() {
     let resp = client()
         .post("http://localhost:3000/api/sessions")
         .json(&serde_json::json!({}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("id").is_some(), "Should return id");
@@ -61,7 +70,11 @@ async fn test_create_session() {
 async fn test_get_session_by_id() {
     skip_if_no_server!();
     // First get list to find an id
-    let list_resp = client().get("http://localhost:3000/api/sessions").send().await.unwrap();
+    let list_resp = client()
+        .get("http://localhost:3000/api/sessions")
+        .send()
+        .await
+        .unwrap();
     let sessions: Vec<serde_json::Value> = list_resp.json().await.unwrap();
     if sessions.is_empty() {
         eprintln!("[e2e] ⚠️  SKIPPED: No sessions to fetch");
@@ -70,7 +83,9 @@ async fn test_get_session_by_id() {
     let id = sessions[0]["id"].as_str().unwrap();
     let resp = client()
         .get(&format!("http://localhost:3000/api/sessions/{}", id))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     eprintln!("[e2e] ✅ GET /api/sessions/{{id}} PASSED");
 }
@@ -78,7 +93,11 @@ async fn test_get_session_by_id() {
 #[tokio::test]
 async fn test_export_session() {
     skip_if_no_server!();
-    let list_resp = client().get("http://localhost:3000/api/sessions").send().await.unwrap();
+    let list_resp = client()
+        .get("http://localhost:3000/api/sessions")
+        .send()
+        .await
+        .unwrap();
     let sessions: Vec<serde_json::Value> = list_resp.json().await.unwrap();
     if sessions.is_empty() {
         return;
@@ -86,7 +105,9 @@ async fn test_export_session() {
     let id = sessions[0]["id"].as_str().unwrap();
     let resp = client()
         .get(&format!("http://localhost:3000/api/sessions/{}/export", id))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     eprintln!("[e2e] ✅ GET /api/sessions/{{id}}/export PASSED");
 }

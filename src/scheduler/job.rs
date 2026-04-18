@@ -138,9 +138,7 @@ impl ScheduledJob {
                 // Don't re-fire within the threshold window after last run
                 match self.last_run {
                     Some(last) => {
-                        let since_last = (Utc::now() - last)
-                            .to_std()
-                            .unwrap_or(Duration::ZERO);
+                        let since_last = (Utc::now() - last).to_std().unwrap_or(Duration::ZERO);
                         since_last >= threshold
                     }
                     None => true,

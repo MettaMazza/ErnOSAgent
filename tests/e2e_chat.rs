@@ -46,11 +46,7 @@ async fn server_up() -> bool {
 }
 
 async fn model_online() -> bool {
-    match client()
-        .get(format!("{BASE}/api/status"))
-        .send()
-        .await
-    {
+    match client().get(format!("{BASE}/api/status")).send().await {
         Ok(resp) if resp.status().is_success() => {
             let body: Value = resp.json().await.unwrap_or_default();
             body.get("context_length")
@@ -206,9 +202,7 @@ async fn test_websocket_chat_full_turn() {
     require_server!();
     require_model!();
 
-    let (mut ws, _) = connect_async(WS)
-        .await
-        .expect("WebSocket connect failed");
+    let (mut ws, _) = connect_async(WS).await.expect("WebSocket connect failed");
     let _ = ws.next().await; // discard initial status
 
     ws.send(Message::Text(
@@ -249,7 +243,10 @@ async fn test_websocket_chat_full_turn() {
                     break;
                 }
                 Some("error") => {
-                    panic!("[e2e_chat] Server error payload: {}", serde_json::to_string(&v).unwrap())
+                    panic!(
+                        "[e2e_chat] Server error payload: {}",
+                        serde_json::to_string(&v).unwrap()
+                    )
                 }
                 _ => {}
             }
@@ -261,8 +258,14 @@ async fn test_websocket_chat_full_turn() {
         result.is_ok(),
         "Chat turn timed out after 120s — ReAct loop may be stuck"
     );
-    assert!(got_done, "Never received 'done' — reply_request was never called");
-    assert!(!tokens.is_empty(), "No tokens received — inference didn't run");
+    assert!(
+        got_done,
+        "Never received 'done' — reply_request was never called"
+    );
+    assert!(
+        !tokens.is_empty(),
+        "No tokens received — inference didn't run"
+    );
 
     let response = final_response.expect("'done' had no response text");
     assert!(!response.is_empty(), "Response was empty");
@@ -330,10 +333,7 @@ async fn test_react_loop_completes_in_few_turns() {
         result.is_ok(),
         "Timed out — loop stuck (broken tool call parsing?)"
     );
-    assert!(
-        !response_text.is_empty(),
-        "Empty response"
-    );
+    assert!(!response_text.is_empty(), "Empty response");
     assert!(
         response_text.contains('4'),
         "Expected '4' in 2+2 answer, got: {:?}",
@@ -495,10 +495,7 @@ async fn test_observer_audit_gate_passes() {
         "Chat turn never completed — Observer audit may be stuck in a reject loop"
     );
     let r = response.unwrap();
-    assert!(
-        !r.is_empty(),
-        "Response is empty after Observer gate"
-    );
+    assert!(!r.is_empty(), "Response is empty after Observer gate");
     // "Paris" should appear in a correct answer
     assert!(
         r.contains("Paris"),
@@ -572,7 +569,9 @@ async fn test_neural_snapshot() {
         .expect("Bad JSON from /api/neural");
 
     assert!(
-        body.get("features").is_some() || body.get("top_features").is_some() || body.get("turn").is_some(),
+        body.get("features").is_some()
+            || body.get("top_features").is_some()
+            || body.get("turn").is_some(),
         "/api/neural should include snapshot data, got: {:?}",
         body
     );

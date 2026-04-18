@@ -9,10 +9,10 @@
 //! and routes simple queries to the on-device model for speed/privacy,
 //! while routing complex queries to the desktop for 26B reasoning quality.
 
-use crate::model::spec::{ModelSpec, ModelSummary, Modality};
-use crate::provider::{Message, ProviderStatus, StreamEvent, ToolDefinition, Provider};
 use super::provider_local::MobileLocalProvider;
 use super::provider_relay::DesktopRelayProvider;
+use crate::model::spec::{Modality, ModelSpec, ModelSummary};
+use crate::provider::{Message, Provider, ProviderStatus, StreamEvent, ToolDefinition};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -65,11 +65,24 @@ impl HybridProvider {
 
         // Complex indicators
         let complex_keywords = [
-            "analyze", "compare", "explain in detail", "review",
-            "refactor", "debug", "implement", "architecture",
-            "step by step", "comprehensive", "thorough",
-            "write a", "create a", "build a", "design a",
-            "multi-step", "workflow", "pipeline",
+            "analyze",
+            "compare",
+            "explain in detail",
+            "review",
+            "refactor",
+            "debug",
+            "implement",
+            "architecture",
+            "step by step",
+            "comprehensive",
+            "thorough",
+            "write a",
+            "create a",
+            "build a",
+            "design a",
+            "multi-step",
+            "workflow",
+            "pipeline",
         ];
 
         let has_complex_keyword = complex_keywords
@@ -88,10 +101,18 @@ impl HybridProvider {
 
         // Score complexity
         let mut complexity_score = 0u32;
-        if has_complex_keyword { complexity_score += 3; }
-        if is_multi_part { complexity_score += 2; }
-        if is_long { complexity_score += 2; }
-        if has_many_tools { complexity_score += 2; }
+        if has_complex_keyword {
+            complexity_score += 3;
+        }
+        if is_multi_part {
+            complexity_score += 2;
+        }
+        if is_long {
+            complexity_score += 2;
+        }
+        if has_many_tools {
+            complexity_score += 2;
+        }
 
         if complexity_score >= 3 {
             Complexity::Complex
@@ -101,11 +122,7 @@ impl HybridProvider {
     }
 
     /// Determine which provider to use for this request.
-    fn route(
-        &self,
-        messages: &[Message],
-        tools: Option<&[ToolDefinition]>,
-    ) -> RouteDecision {
+    fn route(&self, messages: &[Message], tools: Option<&[ToolDefinition]>) -> RouteDecision {
         let has_images = messages.iter().any(|m| !m.images.is_empty());
         // Audio would be passed as binary data, checked elsewhere
         let has_audio = false;
@@ -192,8 +209,16 @@ impl Provider for HybridProvider {
 
     async fn supports_modality(&self, model: &str, modality: Modality) -> Result<bool> {
         // If either provider supports it, we support it
-        let local = self.local.supports_modality(model, modality).await.unwrap_or(false);
-        let relay = self.relay.supports_modality(model, modality).await.unwrap_or(false);
+        let local = self
+            .local
+            .supports_modality(model, modality)
+            .await
+            .unwrap_or(false);
+        let relay = self
+            .relay
+            .supports_modality(model, modality)
+            .await
+            .unwrap_or(false);
         Ok(local || relay)
     }
 
@@ -300,17 +325,13 @@ mod tests {
 
         // Images → local (privacy)
         assert_eq!(
-            hybrid.classify_complexity(
-                &[user_msg("What is this?")], None, true, false
-            ),
+            hybrid.classify_complexity(&[user_msg("What is this?")], None, true, false),
             Complexity::Simple
         );
 
         // Audio → local (privacy)
         assert_eq!(
-            hybrid.classify_complexity(
-                &[user_msg("")], None, false, true
-            ),
+            hybrid.classify_complexity(&[user_msg("")], None, false, true),
             Complexity::Simple
         );
     }
@@ -322,7 +343,9 @@ mod tests {
 
         // Complex prompt + no desktop → should still route (to local fallback)
         let decision = hybrid.route(
-            &[user_msg("Analyze and refactor this entire codebase step by step")],
+            &[user_msg(
+                "Analyze and refactor this entire codebase step by step",
+            )],
             None,
         );
         // Desktop not connected → falls back to local

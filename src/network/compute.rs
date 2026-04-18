@@ -177,7 +177,9 @@ impl ComputePool {
 
     /// Get the next queued job (FIFO).
     pub async fn next_queued_job(&self) -> Option<ComputeJob> {
-        self.jobs.read().await
+        self.jobs
+            .read()
+            .await
             .values()
             .find(|j| j.status == JobStatus::Queued)
             .cloned()
@@ -186,10 +188,22 @@ impl ComputePool {
     /// Get job counts by status.
     pub async fn job_stats(&self) -> (usize, usize, usize, usize) {
         let jobs = self.jobs.read().await;
-        let queued = jobs.values().filter(|j| j.status == JobStatus::Queued).count();
-        let in_progress = jobs.values().filter(|j| j.status == JobStatus::InProgress).count();
-        let completed = jobs.values().filter(|j| j.status == JobStatus::Completed).count();
-        let failed = jobs.values().filter(|j| matches!(j.status, JobStatus::Failed(_))).count();
+        let queued = jobs
+            .values()
+            .filter(|j| j.status == JobStatus::Queued)
+            .count();
+        let in_progress = jobs
+            .values()
+            .filter(|j| j.status == JobStatus::InProgress)
+            .count();
+        let completed = jobs
+            .values()
+            .filter(|j| j.status == JobStatus::Completed)
+            .count();
+        let failed = jobs
+            .values()
+            .filter(|j| matches!(j.status, JobStatus::Failed(_)))
+            .count();
         (queued, in_progress, completed, failed)
     }
 
@@ -197,12 +211,17 @@ impl ComputePool {
 
     /// Register a relay slot.
     pub async fn register_relay(&self, slot: RelaySlot) {
-        self.relay_slots.write().await.insert(slot.peer_id.0.clone(), slot);
+        self.relay_slots
+            .write()
+            .await
+            .insert(slot.peer_id.0.clone(), slot);
     }
 
     /// Find an available relay slot.
     pub async fn find_relay(&self) -> Option<PeerId> {
-        self.relay_slots.read().await
+        self.relay_slots
+            .read()
+            .await
             .values()
             .find(|s| s.available)
             .map(|s| s.peer_id.clone())
@@ -210,7 +229,9 @@ impl ComputePool {
 
     /// Count of available relay slots.
     pub async fn relay_count(&self) -> usize {
-        self.relay_slots.read().await
+        self.relay_slots
+            .read()
+            .await
             .values()
             .filter(|s| s.available)
             .count()
@@ -236,10 +257,7 @@ impl ComputePool {
 
     /// Get all contributions sorted by net score (top contributors first).
     pub async fn leaderboard(&self) -> Vec<Contribution> {
-        let mut contribs: Vec<_> = self.contributions.read().await
-            .values()
-            .cloned()
-            .collect();
+        let mut contribs: Vec<_> = self.contributions.read().await.values().cloned().collect();
         contribs.sort_by(|a, b| b.net_score().cmp(&a.net_score()));
         contribs
     }
@@ -248,32 +266,32 @@ impl ComputePool {
 
     async fn record_request(&self, peer_id: &PeerId) {
         let mut contribs = self.contributions.write().await;
-        let contrib = contribs.entry(peer_id.0.clone()).or_insert_with(|| {
-            Contribution {
+        let contrib = contribs
+            .entry(peer_id.0.clone())
+            .or_insert_with(|| Contribution {
                 peer_id: peer_id.clone(),
                 jobs_served: 0,
                 jobs_requested: 0,
                 bytes_relayed: 0,
                 bytes_consumed: 0,
                 last_activity: chrono::Utc::now().to_rfc3339(),
-            }
-        });
+            });
         contrib.jobs_requested += 1;
         contrib.last_activity = chrono::Utc::now().to_rfc3339();
     }
 
     async fn record_service(&self, peer_id: &PeerId) {
         let mut contribs = self.contributions.write().await;
-        let contrib = contribs.entry(peer_id.0.clone()).or_insert_with(|| {
-            Contribution {
+        let contrib = contribs
+            .entry(peer_id.0.clone())
+            .or_insert_with(|| Contribution {
                 peer_id: peer_id.clone(),
                 jobs_served: 0,
                 jobs_requested: 0,
                 bytes_relayed: 0,
                 bytes_consumed: 0,
                 last_activity: chrono::Utc::now().to_rfc3339(),
-            }
-        });
+            });
         contrib.jobs_served += 1;
         contrib.last_activity = chrono::Utc::now().to_rfc3339();
     }
@@ -319,7 +337,8 @@ mod tests {
         let job = pool.get_job("j1").await.unwrap();
         assert_eq!(job.status, JobStatus::InProgress);
 
-        pool.complete_job("j1", "result text".to_string(), &provider).await;
+        pool.complete_job("j1", "result text".to_string(), &provider)
+            .await;
         let job = pool.get_job("j1").await.unwrap();
         assert_eq!(job.status, JobStatus::Completed);
         assert_eq!(job.result.unwrap(), "result text");
@@ -357,7 +376,9 @@ mod tests {
         let pool = ComputePool::new(-5);
         let peer = PeerId("contributor".to_string());
 
-        pool.submit_job(test_job("j1", "contributor")).await.unwrap();
+        pool.submit_job(test_job("j1", "contributor"))
+            .await
+            .unwrap();
         pool.complete_job("j1", "done".to_string(), &peer).await;
 
         let contrib = pool.get_contribution(&peer).await.unwrap();
@@ -385,7 +406,8 @@ mod tests {
             available: true,
             bandwidth_kbps: 5000,
             requests_served: 0,
-        }).await;
+        })
+        .await;
 
         assert_eq!(pool.relay_count().await, 1);
         let relay = pool.find_relay().await;
@@ -398,7 +420,8 @@ mod tests {
         let pool = ComputePool::new(-5);
         // Create contributions with different scores
         pool.submit_job(test_job("j1", "consumer")).await.unwrap();
-        pool.complete_job("j1", "done".to_string(), &PeerId("producer".to_string())).await;
+        pool.complete_job("j1", "done".to_string(), &PeerId("producer".to_string()))
+            .await;
 
         let board = pool.leaderboard().await;
         assert!(!board.is_empty());

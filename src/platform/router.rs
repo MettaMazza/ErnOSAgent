@@ -27,10 +27,7 @@ use crate::web::ws::pipeline::PlatformContext;
 /// 6. Session persistence (saved to per-user session)
 /// 7. Memory ingestion (timeline + embeddings)
 /// 8. Training data capture (golden + preference pairs)
-pub async fn process_message(
-    state: &SharedState,
-    msg: &PlatformMessage,
-) -> anyhow::Result<String> {
+pub async fn process_message(state: &SharedState, msg: &PlatformMessage) -> anyhow::Result<String> {
     tracing::info!(
         platform = %msg.platform,
         user = %msg.user_name,
@@ -46,7 +43,8 @@ pub async fn process_message(
     // background processing to rapidly free up processing threads.
     {
         let st = state.read().await;
-        st.autonomy_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+        st.autonomy_cancel
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     // ─── Mute gate (Discord only) ───
@@ -80,7 +78,8 @@ pub async fn process_message(
         if boundaries.is_empty() {
             msg.content.clone()
         } else {
-            let boundary_list: Vec<String> = boundaries.iter()
+            let boundary_list: Vec<String> = boundaries
+                .iter()
                 .map(|b| format!("  • {} — {}", b.topic, b.reason))
                 .collect();
             format!(
@@ -97,7 +96,9 @@ pub async fn process_message(
     // interview system context so the model runs in gatekeeper mode.
     #[cfg(feature = "discord")]
     let content = if msg.platform == "discord" {
-        if let Some(interview) = crate::platform::discord::onboarding::get_interview_for_thread(&msg.channel_id) {
+        if let Some(interview) =
+            crate::platform::discord::onboarding::get_interview_for_thread(&msg.channel_id)
+        {
             let interview_ctx = crate::platform::discord::onboarding::interview_prompt(
                 &interview.user_name,
                 interview.turn_count,
@@ -116,7 +117,8 @@ pub async fn process_message(
         &content,
         msg.attachments.clone(),
         &ctx,
-    ).await?;
+    )
+    .await?;
 
     tracing::info!(
         platform = %msg.platform,

@@ -53,19 +53,21 @@ async fn handle_relay_socket(mut socket: WebSocket, state: SharedState) {
     // Main relay loop
     while let Some(Ok(msg)) = socket.recv().await {
         match msg {
-            WsMessage::Text(text) => {
-                match serde_json::from_str::<RelayMessage>(&text) {
-                    Ok(relay_msg) => {
-                        handle_relay_message(&mut socket, &state, relay_msg).await;
-                    }
-                    Err(e) => {
-                        tracing::warn!(error = %e, "Invalid relay message from mobile");
-                        send_relay(&mut socket, &RelayMessage::Error {
-                            message: format!("Invalid message format: {e}"),
-                        }).await;
-                    }
+            WsMessage::Text(text) => match serde_json::from_str::<RelayMessage>(&text) {
+                Ok(relay_msg) => {
+                    handle_relay_message(&mut socket, &state, relay_msg).await;
                 }
-            }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Invalid relay message from mobile");
+                    send_relay(
+                        &mut socket,
+                        &RelayMessage::Error {
+                            message: format!("Invalid message format: {e}"),
+                        },
+                    )
+                    .await;
+                }
+            },
             WsMessage::Ping(data) => {
                 let _ = socket.send(WsMessage::Pong(data)).await;
             }
@@ -81,11 +83,7 @@ async fn handle_relay_socket(mut socket: WebSocket, state: SharedState) {
 }
 
 /// Handle a parsed relay message from a mobile client.
-async fn handle_relay_message(
-    socket: &mut WebSocket,
-    state: &SharedState,
-    msg: RelayMessage,
-) {
+async fn handle_relay_message(socket: &mut WebSocket, state: &SharedState, msg: RelayMessage) {
     match msg {
         RelayMessage::DiscoverRequest => {
             let st = state.read().await;
@@ -130,9 +128,10 @@ async fn handle_relay_message(
             let lesson_count = serde_json::from_str::<Vec<serde_json::Value>>(&lessons_json)
                 .map(|v| v.len())
                 .unwrap_or(0);
-            let training_count = serde_json::from_str::<Vec<serde_json::Value>>(&training_data_json)
-                .map(|v| v.len())
-                .unwrap_or(0);
+            let training_count =
+                serde_json::from_str::<Vec<serde_json::Value>>(&training_data_json)
+                    .map(|v| v.len())
+                    .unwrap_or(0);
 
             tracing::info!(
                 lesson_count = lesson_count,
@@ -145,14 +144,9 @@ async fn handle_relay_message(
                 let st = state.read().await;
                 let mobile_dir = st.config.general.data_dir.join("mobile_sync");
                 if std::fs::create_dir_all(&mobile_dir).is_ok() {
-                    let _ = std::fs::write(
-                        mobile_dir.join("lessons.json"),
-                        &lessons_json,
-                    );
-                    let _ = std::fs::write(
-                        mobile_dir.join("training_data.json"),
-                        &training_data_json,
-                    );
+                    let _ = std::fs::write(mobile_dir.join("lessons.json"), &lessons_json);
+                    let _ =
+                        std::fs::write(mobile_dir.join("training_data.json"), &training_data_json);
                 }
             }
 
@@ -163,10 +157,14 @@ async fn handle_relay_message(
                 std::fs::read_to_string(&les_path).unwrap_or_else(|_| "[]".to_string())
             };
 
-            send_relay(socket, &RelayMessage::SyncMemoryPull {
-                lessons_json: desktop_lessons,
-                adapter_version: None,
-            }).await;
+            send_relay(
+                socket,
+                &RelayMessage::SyncMemoryPull {
+                    lessons_json: desktop_lessons,
+                    adapter_version: None,
+                },
+            )
+            .await;
         }
 
         // Desktop→Mobile messages — should not be received server-side
@@ -302,23 +300,39 @@ async fn handle_relay_chat(
             ReactEvent::Token(token) => {
                 full_response.push_str(&token);
                 total_tokens += 1;
-                send_relay(socket, &RelayMessage::StreamToken {
-                    content: token,
-                    is_thinking: false,
-                }).await;
+                send_relay(
+                    socket,
+                    &RelayMessage::StreamToken {
+                        content: token,
+                        is_thinking: false,
+                    },
+                )
+                .await;
             }
             ReactEvent::Thinking(token) => {
-                send_relay(socket, &RelayMessage::StreamToken {
-                    content: token,
-                    is_thinking: true,
-                }).await;
+                send_relay(
+                    socket,
+                    &RelayMessage::StreamToken {
+                        content: token,
+                        is_thinking: true,
+                    },
+                )
+                .await;
             }
-            ReactEvent::ToolExecuting { name, id, arguments } => {
-                send_relay(socket, &RelayMessage::ToolCall {
-                    id,
-                    name,
-                    arguments,
-                }).await;
+            ReactEvent::ToolExecuting {
+                name,
+                id,
+                arguments,
+            } => {
+                send_relay(
+                    socket,
+                    &RelayMessage::ToolCall {
+                        id,
+                        name,
+                        arguments,
+                    },
+                )
+                .await;
             }
             ReactEvent::ToolCompleted { name: _, result: _ } => {
                 // Tool results are internal to the ReAct loop
@@ -343,19 +357,26 @@ async fn handle_relay_chat(
                         &st.session_mgr.active().messages,
                         st.model_spec.context_length,
                     );
-                    Some(serde_json::json!({
-                        "context_usage": usage,
-                        "model": st.model_spec.name,
-                    }).to_string())
+                    Some(
+                        serde_json::json!({
+                            "context_usage": usage,
+                            "model": st.model_spec.name,
+                        })
+                        .to_string(),
+                    )
                 };
 
-                send_relay(socket, &RelayMessage::ChatComplete {
-                    full_response: text,
-                    total_tokens,
-                    prompt_tokens: 0, // Not available from ReAct events
-                    completion_tokens: total_tokens,
-                    snapshot_json,
-                }).await;
+                send_relay(
+                    socket,
+                    &RelayMessage::ChatComplete {
+                        full_response: text,
+                        total_tokens,
+                        prompt_tokens: 0, // Not available from ReAct events
+                        completion_tokens: total_tokens,
+                        snapshot_json,
+                    },
+                )
+                .await;
             }
             ReactEvent::Error(msg) => {
                 send_relay(socket, &RelayMessage::Error { message: msg }).await;
@@ -380,15 +401,23 @@ async fn handle_relay_chat(
         }
         Ok(Err(e)) => {
             tracing::error!(error = %e, "Relay ReAct loop error");
-            send_relay(socket, &RelayMessage::Error {
-                message: format!("Inference error: {e}"),
-            }).await;
+            send_relay(
+                socket,
+                &RelayMessage::Error {
+                    message: format!("Inference error: {e}"),
+                },
+            )
+            .await;
         }
         Err(e) => {
             tracing::error!(error = %e, "Relay task panicked");
-            send_relay(socket, &RelayMessage::Error {
-                message: "Internal error".to_string(),
-            }).await;
+            send_relay(
+                socket,
+                &RelayMessage::Error {
+                    message: "Internal error".to_string(),
+                },
+            )
+            .await;
         }
     }
 }
@@ -402,9 +431,7 @@ async fn send_relay(socket: &mut WebSocket, msg: &RelayMessage) {
 
 /// Get the system hostname.
 fn hostname() -> Option<String> {
-    hostname::get()
-        .ok()
-        .and_then(|h| h.into_string().ok())
+    hostname::get().ok().and_then(|h| h.into_string().ok())
 }
 
 #[cfg(test)]
@@ -428,7 +455,10 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: RelayMessage = serde_json::from_str(&json).unwrap();
         match deserialized {
-            RelayMessage::StreamToken { content, is_thinking } => {
+            RelayMessage::StreamToken {
+                content,
+                is_thinking,
+            } => {
                 assert_eq!(content, "Hello");
                 assert!(!is_thinking);
             }

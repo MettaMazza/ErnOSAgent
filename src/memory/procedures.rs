@@ -50,7 +50,10 @@ impl ProcedureStore {
                 .with_context(|| format!("Failed to read procedures file: {}", path.display()))?;
             store.procedures = serde_json::from_str(&content)
                 .with_context(|| format!("Failed to parse procedures file: {}", path.display()))?;
-            tracing::info!(count = store.procedures.len(), "Loaded procedures from disk");
+            tracing::info!(
+                count = store.procedures.len(),
+                "Loaded procedures from disk"
+            );
         }
 
         Ok(store)
@@ -59,8 +62,9 @@ impl ProcedureStore {
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create procedures dir: {}", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create procedures dir: {}", parent.display())
+                })?;
             }
             let content = serde_json::to_string_pretty(&self.procedures)
                 .context("Failed to serialize procedures")?;
@@ -104,11 +108,17 @@ impl ProcedureStore {
 
     pub fn find_by_name(&self, name: &str) -> Option<&Procedure> {
         let lower = name.to_lowercase();
-        self.procedures.iter().find(|p| p.name.to_lowercase().contains(&lower))
+        self.procedures
+            .iter()
+            .find(|p| p.name.to_lowercase().contains(&lower))
     }
 
-    pub fn all(&self) -> &[Procedure] { &self.procedures }
-    pub fn count(&self) -> usize { self.procedures.len() }
+    pub fn all(&self) -> &[Procedure] {
+        &self.procedures
+    }
+    pub fn count(&self) -> usize {
+        self.procedures.len()
+    }
 }
 
 #[cfg(test)]
@@ -118,8 +128,14 @@ mod tests {
 
     fn sample_steps() -> Vec<ProcedureStep> {
         vec![
-            ProcedureStep { tool: "web_search".to_string(), purpose: "Find sources".to_string() },
-            ProcedureStep { tool: "reply_request".to_string(), purpose: "Deliver answer".to_string() },
+            ProcedureStep {
+                tool: "web_search".to_string(),
+                purpose: "Find sources".to_string(),
+            },
+            ProcedureStep {
+                tool: "reply_request".to_string(),
+                purpose: "Deliver answer".to_string(),
+            },
         ]
     }
 

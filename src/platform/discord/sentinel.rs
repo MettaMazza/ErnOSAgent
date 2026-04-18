@@ -46,7 +46,10 @@ impl SentinelState {
     }
 
     pub fn get_violations(&self, user_id: &str) -> u32 {
-        self.violations.get(user_id).map(|v| v.warning_count).unwrap_or(0)
+        self.violations
+            .get(user_id)
+            .map(|v| v.warning_count)
+            .unwrap_or(0)
     }
 
     pub fn add_warning(&mut self, user_id: &str) -> u32 {
@@ -90,7 +93,9 @@ fn sentinel_log_path() -> PathBuf {
 
 fn load_violations() -> HashMap<String, ViolationRecord> {
     let path = violations_path();
-    if !path.exists() { return HashMap::new(); }
+    if !path.exists() {
+        return HashMap::new();
+    }
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -107,7 +112,13 @@ fn save_violations(violations: &HashMap<String, ViolationRecord>) {
     }
 }
 
-fn log_sentinel_action(user_id: &str, user_name: &str, action: &str, reason: &str, message_content: &str) {
+fn log_sentinel_action(
+    user_id: &str,
+    user_name: &str,
+    action: &str,
+    reason: &str,
+    message_content: &str,
+) {
     let path = sentinel_log_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -131,7 +142,11 @@ fn log_sentinel_action(user_id: &str, user_name: &str, action: &str, reason: &st
     });
     if let Ok(json) = serde_json::to_string(&record) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let _ = writeln!(f, "{}", json);
         }
     }
@@ -160,20 +175,17 @@ pub async fn classify_message(
     content: &str,
 ) -> Verdict {
     // Skip very short messages — they're almost always safe
-    if content.len() < 3 { return Verdict::Safe; }
+    if content.len() < 3 {
+        return Verdict::Safe;
+    }
 
-    let prompt = format!(
-        "{}\"{}\":\n\n{}",
-        CLASSIFICATION_PROMPT, user_name, content
-    );
+    let prompt = format!("{}\"{}\":\n\n{}", CLASSIFICATION_PROMPT, user_name, content);
 
-    let messages = vec![
-        Message {
-            role: "user".to_string(),
-            content: prompt,
-            images: Vec::new(),
-        },
-    ];
+    let messages = vec![Message {
+        role: "user".to_string(),
+        content: prompt,
+        images: Vec::new(),
+    }];
 
     match provider.chat_sync(model, &messages, Some(0.1)).await {
         Ok(response) => parse_classification(&response),
@@ -187,7 +199,12 @@ pub async fn classify_message(
 /// Parse the model's classification response.
 fn parse_classification(response: &str) -> Verdict {
     let first_line = response.lines().next().unwrap_or("").trim().to_uppercase();
-    let reason = response.lines().nth(1).unwrap_or("No reason given").trim().to_string();
+    let reason = response
+        .lines()
+        .nth(1)
+        .unwrap_or("No reason given")
+        .trim()
+        .to_string();
 
     if first_line.starts_with("BAN") {
         Verdict::Ban(reason)
@@ -215,7 +232,9 @@ pub async fn run_sentinel_worker(
 
     while let Some(msg) = rx.recv().await {
         // Skip admin messages
-        if admin_user_ids.contains(&msg.user_id) { continue; }
+        if admin_user_ids.contains(&msg.user_id) {
+            continue;
+        }
 
         let verdict = classify_message(&provider, &model, &msg.user_name, &msg.content).await;
 
@@ -227,7 +246,13 @@ pub async fn run_sentinel_worker(
                     s.add_warning(&msg.user_id)
                 };
 
-                log_sentinel_action(&msg.user_id, &msg.user_name, "warning", &reason, &msg.content);
+                log_sentinel_action(
+                    &msg.user_id,
+                    &msg.user_name,
+                    "warning",
+                    &reason,
+                    &msg.content,
+                );
 
                 if count >= 3 {
                     // 3 warnings → ban
@@ -236,9 +261,23 @@ pub async fn run_sentinel_worker(
                         warnings = count,
                         "Sentinel: 3 warnings reached — banning user"
                     );
-                    log_sentinel_action(&msg.user_id, &msg.user_name, "ban", "3 warnings accumulated", &msg.content);
-                    let ban_reason = format!("Sentinel auto-ban: {} warnings. Last: {}", count, reason);
-                    if let Err(e) = super::onboarding::ban_user(&http, guild_id, msg.user_id.parse().unwrap_or(0), &ban_reason).await {
+                    log_sentinel_action(
+                        &msg.user_id,
+                        &msg.user_name,
+                        "ban",
+                        "3 warnings accumulated",
+                        &msg.content,
+                    );
+                    let ban_reason =
+                        format!("Sentinel auto-ban: {} warnings. Last: {}", count, reason);
+                    if let Err(e) = super::onboarding::ban_user(
+                        &http,
+                        guild_id,
+                        msg.user_id.parse().unwrap_or(0),
+                        &ban_reason,
+                    )
+                    .await
+                    {
                         tracing::error!(error = %e, "Sentinel: failed to ban user");
                     }
                     // Clean up violations after ban
@@ -255,9 +294,9 @@ pub async fn run_sentinel_worker(
 
                     // Try to mute them for escalating durations
                     let mute_mins = match count {
-                        1 => None, // First warning: just a warning
+                        1 => None,     // First warning: just a warning
                         2 => Some(10), // Second warning: 10 min mute
-                        _ => None, // 3+ handled above as ban
+                        _ => None,     // 3+ handled above as ban
                     };
 
                     if let Some(mins) = mute_mins {
@@ -300,7 +339,13 @@ pub async fn run_sentinel_worker(
                         if let Ok(json) = serde_json::to_string_pretty(&users) {
                             let _ = std::fs::write(&muted_path, json);
                         }
-                        log_sentinel_action(&msg.user_id, &msg.user_name, "mute", &format!("{} minutes — {}", mins, reason), &msg.content);
+                        log_sentinel_action(
+                            &msg.user_id,
+                            &msg.user_name,
+                            "mute",
+                            &format!("{} minutes — {}", mins, reason),
+                            &msg.content,
+                        );
                     }
                 }
             }
@@ -313,7 +358,14 @@ pub async fn run_sentinel_worker(
                     "Sentinel: immediate ban"
                 );
                 let ban_reason = format!("Sentinel auto-ban: {}", reason);
-                if let Err(e) = super::onboarding::ban_user(&http, guild_id, msg.user_id.parse().unwrap_or(0), &ban_reason).await {
+                if let Err(e) = super::onboarding::ban_user(
+                    &http,
+                    guild_id,
+                    msg.user_id.parse().unwrap_or(0),
+                    &ban_reason,
+                )
+                .await
+                {
                     tracing::error!(error = %e, "Sentinel: failed to ban user");
                 }
             }
@@ -374,7 +426,11 @@ mod tests {
             violations: HashMap::new(),
         };
         assert_eq!(state.get_violations("user1"), 0);
-        state.violations.entry("user1".to_string()).or_default().warning_count = 2;
+        state
+            .violations
+            .entry("user1".to_string())
+            .or_default()
+            .warning_count = 2;
         assert_eq!(state.get_violations("user1"), 2);
     }
 
@@ -383,7 +439,13 @@ mod tests {
         let mut state = SentinelState {
             violations: HashMap::new(),
         };
-        state.violations.insert("user1".to_string(), ViolationRecord { warning_count: 3, last_warning: None });
+        state.violations.insert(
+            "user1".to_string(),
+            ViolationRecord {
+                warning_count: 3,
+                last_warning: None,
+            },
+        );
         assert_eq!(state.get_violations("user1"), 3);
         state.violations.remove("user1");
         assert_eq!(state.get_violations("user1"), 0);

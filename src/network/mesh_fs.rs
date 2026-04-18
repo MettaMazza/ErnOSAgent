@@ -60,8 +60,9 @@ impl MeshFS {
 
     /// Split a file into chunks and produce a manifest.
     pub fn chunk_file(&mut self, data: &[u8], filename: Option<&str>) -> Result<FileManifest> {
-        std::fs::create_dir_all(&self.chunks_dir)
-            .with_context(|| format!("Failed to create chunks dir: {}", self.chunks_dir.display()))?;
+        std::fs::create_dir_all(&self.chunks_dir).with_context(|| {
+            format!("Failed to create chunks dir: {}", self.chunks_dir.display())
+        })?;
 
         let mut file_hasher = Sha256::new();
         file_hasher.update(data);
@@ -110,22 +111,18 @@ impl MeshFS {
         // Verify hash
         let computed = Self::hash_bytes(data);
         if computed != hash {
-            anyhow::bail!(
-                "Chunk hash mismatch: expected {}, got {}", hash, computed
-            );
+            anyhow::bail!("Chunk hash mismatch: expected {}, got {}", hash, computed);
         }
 
         let path = self.chunks_dir.join(hash);
-        std::fs::write(&path, data)
-            .with_context(|| format!("Failed to store chunk: {}", hash))?;
+        std::fs::write(&path, data).with_context(|| format!("Failed to store chunk: {}", hash))?;
         Ok(())
     }
 
     /// Read a locally stored chunk.
     pub fn read_chunk(&self, hash: &str) -> Result<Vec<u8>> {
         let path = self.chunks_dir.join(hash);
-        std::fs::read(&path)
-            .with_context(|| format!("Chunk not found: {}", hash))
+        std::fs::read(&path).with_context(|| format!("Chunk not found: {}", hash))
     }
 
     /// Check if a chunk exists locally.
@@ -150,7 +147,8 @@ impl MeshFS {
         if computed != manifest.file_hash {
             anyhow::bail!(
                 "Reassembled file hash mismatch: expected {}, got {}",
-                manifest.file_hash, computed
+                manifest.file_hash,
+                computed
             );
         }
 
@@ -169,7 +167,9 @@ impl MeshFS {
 
     /// List missing chunks for a manifest.
     pub fn missing_chunks(&self, manifest: &FileManifest) -> Vec<String> {
-        manifest.chunk_hashes.iter()
+        manifest
+            .chunk_hashes
+            .iter()
             .filter(|h| !self.has_chunk(h))
             .cloned()
             .collect()
@@ -191,8 +191,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_meshfs_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_meshfs_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }
@@ -202,10 +202,14 @@ mod tests {
         let dir = temp_dir();
         let mut fs = MeshFS::new(&dir, 64); // Small chunks for testing
 
-        let original = b"This is test data that should be split across multiple chunks for verification.";
+        let original =
+            b"This is test data that should be split across multiple chunks for verification.";
         let manifest = fs.chunk_file(original, Some("test.txt")).unwrap();
 
-        assert!(manifest.chunk_hashes.len() > 1, "Should produce multiple chunks");
+        assert!(
+            manifest.chunk_hashes.len() > 1,
+            "Should produce multiple chunks"
+        );
         assert_eq!(manifest.total_size, original.len() as u64);
 
         let reassembled = fs.reassemble(&manifest).unwrap().unwrap();

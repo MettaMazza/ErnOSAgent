@@ -64,15 +64,19 @@ impl TrustGate {
     pub fn load(mesh_dir: &Path, local_attestation: Attestation) -> Result<Self> {
         let store_path = mesh_dir.join("trust.json");
         let records = if store_path.exists() {
-            let content = std::fs::read_to_string(&store_path)
-                .with_context(|| format!("Failed to read trust store from {}", store_path.display()))?;
-            serde_json::from_str(&content)
-                .with_context(|| "Failed to parse trust store")?
+            let content = std::fs::read_to_string(&store_path).with_context(|| {
+                format!("Failed to read trust store from {}", store_path.display())
+            })?;
+            serde_json::from_str(&content).with_context(|| "Failed to parse trust store")?
         } else {
             HashMap::new()
         };
 
-        Ok(Self { records, store_path, local_attestation })
+        Ok(Self {
+            records,
+            store_path,
+            local_attestation,
+        })
     }
 
     /// Get our local attestation.
@@ -82,7 +86,8 @@ impl TrustGate {
 
     /// Record a successful attestation for a peer.
     pub fn attest(&mut self, peer_id: &PeerId, attestation: Attestation) {
-        let record = self.records
+        let record = self
+            .records
             .entry(peer_id.0.clone())
             .or_insert_with(|| TrustRecord {
                 peer_id: peer_id.clone(),
@@ -115,7 +120,8 @@ impl TrustGate {
 
     /// Record a violation, potentially downgrading trust.
     pub fn record_violation(&mut self, peer_id: &PeerId, reason: &str) {
-        let record = self.records
+        let record = self
+            .records
             .entry(peer_id.0.clone())
             .or_insert_with(|| TrustRecord {
                 peer_id: peer_id.clone(),
@@ -148,7 +154,8 @@ impl TrustGate {
 
     /// Get trust level for a peer.
     pub fn trust_level(&self, peer_id: &PeerId) -> TrustLevel {
-        self.records.get(&peer_id.0)
+        self.records
+            .get(&peer_id.0)
             .map(|r| r.level)
             .unwrap_or(TrustLevel::Unattested)
     }
@@ -197,8 +204,12 @@ impl TrustGate {
     pub fn save(&self) -> Result<()> {
         let json = serde_json::to_string_pretty(&self.records)
             .context("Failed to serialise trust records")?;
-        std::fs::write(&self.store_path, json)
-            .with_context(|| format!("Failed to write trust store to {}", self.store_path.display()))?;
+        std::fs::write(&self.store_path, json).with_context(|| {
+            format!(
+                "Failed to write trust store to {}",
+                self.store_path.display()
+            )
+        })?;
         Ok(())
     }
 
@@ -230,8 +241,8 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         static CTR: AtomicU64 = AtomicU64::new(0);
         let n = CTR.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("ernos_trust_test_{}_{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("ernos_trust_test_{}_{}", std::process::id(), n));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }

@@ -8,8 +8,8 @@
 //! For each prompt, the agent generates `group_size` candidate responses via
 //! the inference provider, then scores each with the composite reward function.
 
-use crate::provider::{Message, Provider};
 use super::rewards::CompositeReward;
+use crate::provider::{Message, Provider};
 use std::sync::Arc;
 
 /// A scored candidate response within a GRPO group.
@@ -61,13 +61,11 @@ pub async fn generate_group(
 ) -> anyhow::Result<Vec<String>> {
     let mut candidates = Vec::with_capacity(group_size);
 
-    let messages = vec![
-        Message {
-            role: "user".to_string(),
-            content: prompt.to_string(),
-            images: Vec::new(),
-        },
-    ];
+    let messages = vec![Message {
+        role: "user".to_string(),
+        content: prompt.to_string(),
+        images: Vec::new(),
+    }];
 
     for i in 0..group_size {
         let response = provider
@@ -97,7 +95,11 @@ pub fn score_group(
         .map(|response| {
             let reward = rewards.score(prompt, &response);
             let breakdown = rewards.score_detailed(prompt, &response);
-            ScoredCandidate { response, reward, breakdown }
+            ScoredCandidate {
+                response,
+                reward,
+                breakdown,
+            }
         })
         .collect();
 
@@ -109,9 +111,11 @@ pub fn score_group(
     };
 
     let std_reward = if n > 1.0 {
-        let variance = scored.iter()
+        let variance = scored
+            .iter()
             .map(|c| (c.reward - mean_reward).powi(2))
-            .sum::<f64>() / (n - 1.0);
+            .sum::<f64>()
+            / (n - 1.0);
         variance.sqrt()
     } else {
         0.0
@@ -121,7 +125,13 @@ pub fn score_group(
         group_size = scored.len(),
         mean = format!("{:.3}", mean_reward),
         std = format!("{:.3}", std_reward),
-        best = format!("{:.3}", scored.iter().map(|c| c.reward).fold(f64::NEG_INFINITY, f64::max)),
+        best = format!(
+            "{:.3}",
+            scored
+                .iter()
+                .map(|c| c.reward)
+                .fold(f64::NEG_INFINITY, f64::max)
+        ),
         "GRPO group scored"
     );
 
@@ -140,11 +150,7 @@ mod tests {
 
     #[test]
     fn test_score_group_statistics() {
-        let candidates = vec![
-            "Short".to_string(),
-            "a".repeat(500),
-            "b".repeat(1000),
-        ];
+        let candidates = vec!["Short".to_string(), "a".repeat(500), "b".repeat(1000)];
         let rewards = default_rewards();
         let group = score_group("test prompt", candidates, &rewards);
 
@@ -158,8 +164,16 @@ mod tests {
         let group = ScoredGroup {
             prompt: "test".to_string(),
             candidates: vec![
-                ScoredCandidate { response: "a".to_string(), reward: 0.5, breakdown: vec![] },
-                ScoredCandidate { response: "b".to_string(), reward: 0.5, breakdown: vec![] },
+                ScoredCandidate {
+                    response: "a".to_string(),
+                    reward: 0.5,
+                    breakdown: vec![],
+                },
+                ScoredCandidate {
+                    response: "b".to_string(),
+                    reward: 0.5,
+                    breakdown: vec![],
+                },
             ],
             mean_reward: 0.5,
             std_reward: 0.0,
@@ -174,8 +188,16 @@ mod tests {
         let group = ScoredGroup {
             prompt: "test".to_string(),
             candidates: vec![
-                ScoredCandidate { response: "a".to_string(), reward: 1.0, breakdown: vec![] },
-                ScoredCandidate { response: "b".to_string(), reward: 0.0, breakdown: vec![] },
+                ScoredCandidate {
+                    response: "a".to_string(),
+                    reward: 1.0,
+                    breakdown: vec![],
+                },
+                ScoredCandidate {
+                    response: "b".to_string(),
+                    reward: 0.0,
+                    breakdown: vec![],
+                },
             ],
             mean_reward: 0.5,
             std_reward: 0.5,

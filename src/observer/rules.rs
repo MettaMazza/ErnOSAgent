@@ -86,7 +86,8 @@ mod tests {
         for i in 1..=23 {
             assert!(
                 AUDIT_RULES.contains(&format!("{}.", i)),
-                "AUDIT_RULES missing rule #{}", i
+                "AUDIT_RULES missing rule #{}",
+                i
             );
         }
     }
@@ -111,7 +112,8 @@ mod tests {
         for name in RULE_NAMES {
             assert!(
                 name.chars().all(|c| c.is_lowercase() || c == '_'),
-                "Rule name '{}' is not snake_case", name
+                "Rule name '{}' is not snake_case",
+                name
             );
         }
     }

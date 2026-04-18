@@ -52,8 +52,9 @@ impl ScratchpadStore {
     fn persist(&self) -> Result<()> {
         if let Some(ref path) = self.file_path {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create scratchpad dir: {}", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create scratchpad dir: {}", parent.display())
+                })?;
             }
             let content = serde_json::to_string_pretty(&self.entries)
                 .context("Failed to serialize scratchpad")?;
@@ -86,11 +87,18 @@ impl ScratchpadStore {
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.entries.iter().find(|e| e.key == key).map(|e| e.value.as_str())
+        self.entries
+            .iter()
+            .find(|e| e.key == key)
+            .map(|e| e.value.as_str())
     }
 
-    pub fn all(&self) -> &[ScratchpadEntry] { &self.entries }
-    pub fn count(&self) -> usize { self.entries.len() }
+    pub fn all(&self) -> &[ScratchpadEntry] {
+        &self.entries
+    }
+    pub fn count(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 #[cfg(test)]

@@ -13,8 +13,8 @@
 //!   Android: mobile/androidApp/src/main/kotlin/generated/
 //!   iOS: mobile/iosApp/ErnOS/Generated/
 
-use crate::mobile::{self, DownloadProgress, InferenceMode};
 use crate::mobile::model_manager::{ModelManager, ModelSpec, ModelStatus};
+use crate::mobile::{self, DownloadProgress, InferenceMode};
 use std::path::PathBuf;
 
 // ═══════════════════════════════════════════════════════════

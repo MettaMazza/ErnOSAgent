@@ -201,7 +201,11 @@ pub fn label_for(sae_index: usize) -> String {
 ///
 /// If a real SAE is loaded AND the embedding server is reachable, uses real
 /// SAE inference. Otherwise falls back to `simulate_snapshot()`.
-pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_override: Option<&str>) -> NeuralSnapshot {
+pub async fn snapshot_for_turn(
+    turn: usize,
+    prompt_text: &str,
+    embed_url_override: Option<&str>,
+) -> NeuralSnapshot {
     let state = get();
 
     let sae = match &state.sae {
@@ -226,8 +230,8 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 return snapshot::empty_snapshot(turn);
             }
 
-            // Run through SAE encoder — get top 150 features to ensure we reliably capture 
-            // baseline cognitive structures (Reasoning/Creativity) that otherwise get pushed 
+            // Run through SAE encoder — get top 150 features to ensure we reliably capture
+            // baseline cognitive structures (Reasoning/Creativity) that otherwise get pushed
             // out of the top 20 by high-valence Emotion features on shorter prompts.
             let mut features = sae.encode(&activations, 150);
 
@@ -240,9 +244,9 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 }
             }
 
-            // The L2 Norm of the raw unpooled residual vector explicitly represents 
-            // the baseline operational mass (uncategorized capability). We pass it down 
-            // to prevent the cognitive profile from yielding theoretical zeroes merely 
+            // The L2 Norm of the raw unpooled residual vector explicitly represents
+            // the baseline operational mass (uncategorized capability). We pass it down
+            // to prevent the cognitive profile from yielding theoretical zeroes merely
             // because emotions dominated the categorical slice.
             let l2_norm: f32 = activations.iter().map(|x| x * x).sum::<f32>().sqrt();
 
@@ -250,7 +254,8 @@ pub async fn snapshot_for_turn(turn: usize, prompt_text: &str, embed_url_overrid
                 turn = turn,
                 active_features = features.len(),
                 top_feature = features.first().map(|f| f.index).unwrap_or(0),
-                top_label = features.first()
+                top_label = features
+                    .first()
                     .and_then(|f| f.label.as_deref())
                     .unwrap_or("unlabeled"),
                 top_activation = features.first().map(|f| f.activation).unwrap_or(0.0),
@@ -297,7 +302,8 @@ async fn extract_activations(
         "content": text,
     });
 
-    let resp = client.post(&url)
+    let resp = client
+        .post(&url)
         .json(&body)
         .timeout(std::time::Duration::from_secs(10))
         .send()
@@ -325,10 +331,16 @@ async fn extract_activations(
                 // Check if it's nested: [[f32...]]
                 if let Some(inner) = outer.first().and_then(|v| v.as_array()) {
                     // Nested array — take first inner array
-                    inner.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+                    inner
+                        .iter()
+                        .filter_map(|v| v.as_f64().map(|f| f as f32))
+                        .collect()
                 } else {
                     // Flat array — [f32...]
-                    outer.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect()
+                    outer
+                        .iter()
+                        .filter_map(|v| v.as_f64().map(|f| f as f32))
+                        .collect()
                 }
             } else {
                 anyhow::bail!("Embedding field is not an array from {}", url);

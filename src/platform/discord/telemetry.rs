@@ -87,7 +87,9 @@ impl ThinkingThread {
         // Post the initial "thinking" embed
         let embed = Self::build_embed("⏳ Thinking...", "", Colour::from_rgb(255, 193, 7));
         let msg = CreateMessage::new().content("\u{200B}").embed(embed);
-        let sent: serenity::model::channel::Message = thread_id.send_message(http, msg).await
+        let sent: serenity::model::channel::Message = thread_id
+            .send_message(http, msg)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to post initial thinking embed: {e}"))?;
 
         tracing::debug!(
@@ -133,7 +135,10 @@ impl ThinkingThread {
         );
 
         let edit = EditMessage::new().content("\u{200B}").embed(embed);
-        let _ = self.thread_id.edit_message(http, self.embed_message_id, edit).await;
+        let _ = self
+            .thread_id
+            .edit_message(http, self.embed_message_id, edit)
+            .await;
         self.last_flush_len = self.buffer.len();
 
         Ok(())
@@ -156,7 +161,10 @@ impl ThinkingThread {
         );
 
         let edit = EditMessage::new().content("\u{200B}").embed(embed);
-        let _ = self.thread_id.edit_message(&*http, self.embed_message_id, edit).await;
+        let _ = self
+            .thread_id
+            .edit_message(&*http, self.embed_message_id, edit)
+            .await;
 
         tracing::debug!(
             thread = %self.thread_id,
@@ -183,7 +191,9 @@ impl ThinkingThread {
             .title(title)
             .description(description)
             .colour(colour)
-            .footer(serenity::builder::CreateEmbedFooter::new("ErnOS Agent — Reasoning Trace"))
+            .footer(serenity::builder::CreateEmbedFooter::new(
+                "ErnOS Agent — Reasoning Trace",
+            ))
     }
 }
 
@@ -196,14 +206,16 @@ pub struct ThinkingEmbed {
 }
 
 impl ThinkingEmbed {
-    pub async fn create(
-        http: &Http,
-        channel_id: ChannelId,
-        user_name: &str,
-    ) -> Result<Self> {
-        let embed = ThinkingThread::build_embed(&format!("⏳ {} — Thinking...", user_name), "", Colour::from_rgb(255, 193, 7));
+    pub async fn create(http: &Http, channel_id: ChannelId, user_name: &str) -> Result<Self> {
+        let embed = ThinkingThread::build_embed(
+            &format!("⏳ {} — Thinking...", user_name),
+            "",
+            Colour::from_rgb(255, 193, 7),
+        );
         let msg = CreateMessage::new().content("\u{200B}").embed(embed);
-        let sent = channel_id.send_message(http, msg).await
+        let sent = channel_id
+            .send_message(http, msg)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to post fallback thinking embed: {e}"))?;
 
         Ok(Self {
@@ -231,14 +243,14 @@ impl ThinkingEmbed {
             self.buffer.clone()
         };
 
-        let embed = ThinkingThread::build_embed(
-            "💭 Reasoning...",
-            &display,
-            Colour::from_rgb(255, 193, 7),
-        );
+        let embed =
+            ThinkingThread::build_embed("💭 Reasoning...", &display, Colour::from_rgb(255, 193, 7));
 
         let edit = EditMessage::new().content("\u{200B}").embed(embed);
-        let _ = self.channel_id.edit_message(http, self.embed_message_id, edit).await;
+        let _ = self
+            .channel_id
+            .edit_message(http, self.embed_message_id, edit)
+            .await;
         self.last_flush_len = self.buffer.len();
         Ok(())
     }
@@ -258,7 +270,10 @@ impl ThinkingEmbed {
         );
 
         let edit = EditMessage::new().embed(embed);
-        let _ = self.channel_id.edit_message(&*http, self.embed_message_id, edit).await;
+        let _ = self
+            .channel_id
+            .edit_message(&*http, self.embed_message_id, edit)
+            .await;
 
         let channel_id = self.channel_id;
         let msg_id = self.embed_message_id;

@@ -53,7 +53,8 @@ pub fn compute_dpo_loss(
 
 /// Sum of log-probabilities for non-ignored label positions.
 fn sequence_logprob(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
-    let (_, seq_len, _) = logits.dims3()
+    let (_, seq_len, _) = logits
+        .dims3()
         .context("logits must be [1, seq_len, vocab_size]")?;
 
     let mut probs: Vec<Tensor> = Vec::new();
@@ -72,7 +73,9 @@ fn sequence_logprob(logits: &Tensor, labels: &[i32]) -> Result<Tensor> {
         return Tensor::zeros((), DType::F32, logits.device()).context("zero logprob");
     }
 
-    Tensor::stack(&probs, 0)?.sum(D::Minus1).context("sequence logprob sum failed")
+    Tensor::stack(&probs, 0)?
+        .sum(D::Minus1)
+        .context("sequence logprob sum failed")
 }
 
 #[cfg(test)]
@@ -95,15 +98,22 @@ mod tests {
         let labels = vec![-100i32, 0];
 
         let loss = compute_dpo_loss(
-            &chosen_logits, &rejected_logits,
-            &ref_logits, &ref_logits,
-            &labels, &labels,
+            &chosen_logits,
+            &rejected_logits,
+            &ref_logits,
+            &ref_logits,
+            &labels,
+            &labels,
             0.1,
-        ).unwrap();
+        )
+        .unwrap();
 
         let val = loss.to_scalar::<f32>().unwrap();
         assert!(val.is_finite());
-        assert!(val < 1.0, "DPO loss should be small when chosen dominates: {val}");
+        assert!(
+            val < 1.0,
+            "DPO loss should be small when chosen dominates: {val}"
+        );
     }
 
     #[test]
@@ -113,15 +123,15 @@ mod tests {
         let ref_l = make_logits(&[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], 2, 4);
         let labels = vec![-100i32, 0];
 
-        let loss = compute_dpo_loss(
-            &chosen, &rejected, &ref_l, &ref_l,
-            &labels, &labels, 0.0,
-        ).unwrap();
+        let loss =
+            compute_dpo_loss(&chosen, &rejected, &ref_l, &ref_l, &labels, &labels, 0.0).unwrap();
 
         let val = loss.to_scalar::<f32>().unwrap();
         // When beta=0, scaled=0, loss = log(1 + exp(0)) = log(2) ≈ 0.693
-        assert!((val - 0.693).abs() < 0.01,
-            "β=0 should give loss=log(2)≈0.693: {val}");
+        assert!(
+            (val - 0.693).abs() < 0.01,
+            "β=0 should give loss=log(2)≈0.693: {val}"
+        );
     }
 
     #[test]
@@ -130,14 +140,14 @@ mod tests {
         let logits = make_logits(&[2.0, 1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.0], 2, 4);
         let labels = vec![-100i32, 0];
 
-        let loss = compute_dpo_loss(
-            &logits, &logits, &logits, &logits,
-            &labels, &labels, 1.0,
-        ).unwrap();
+        let loss =
+            compute_dpo_loss(&logits, &logits, &logits, &logits, &labels, &labels, 1.0).unwrap();
 
         let val = loss.to_scalar::<f32>().unwrap();
         // When chosen==rejected and current==ref, diff=0, loss=log(2)
-        assert!((val - 0.693).abs() < 0.01,
-            "Equal policies should give loss=log(2): {val}");
+        assert!(
+            (val - 0.693).abs() < 0.01,
+            "Equal policies should give loss=log(2): {val}"
+        );
     }
 }
