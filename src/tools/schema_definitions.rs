@@ -149,10 +149,10 @@ pub fn self_skills_tool_schema() -> serde_json::Value {
                 "type": "object",
                 "properties": {
                     "action": { "type": "string", "enum": ["list", "view", "create", "refine", "delete"] },
-                    "name": { "type": "string", "description": "Skill name" },
+                    "name": { "type": "string", "description": "Skill name (used for create/view, also accepted for refine/delete as lookup)" },
                     "description": { "type": "string", "description": "Skill description (for create)" },
                     "steps": { "type": "array", "description": "Array of step objects with tool+instruction" },
-                    "id": { "type": "string", "description": "Skill ID (for refine/delete)" }
+                    "id": { "type": "string", "description": "Skill ID (for refine/delete — alternative to name)" }
                 },
                 "required": ["action"]
             }

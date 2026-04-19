@@ -330,16 +330,31 @@ async fn dispatch_lessons(state: &AppState, args: &serde_json::Value) -> anyhow:
         }
         "remove" => {
             let id = args["id"].as_str().unwrap_or("");
-            if id.is_empty() {
-                return Ok("Error: 'id' is required for remove. Use 'list' to see lesson IDs, then pass the ID.".to_string());
+            let query = args["query"].as_str().unwrap_or("");
+            if !id.is_empty() {
+                match memory.lessons.remove(id) {
+                    Ok(()) => Ok(format!("Removed lesson: {}", id)),
+                    Err(e) => Ok(format!("Error removing lesson '{}': {}", id, e)),
+                }
+            } else if !query.is_empty() {
+                let matches: Vec<String> = memory.lessons.search(query, 100)
+                    .iter().map(|l| l.id.clone()).collect();
+                if matches.is_empty() {
+                    return Ok(format!("No lessons matching '{}' to remove", query));
+                }
+                let count = matches.len();
+                for mid in &matches {
+                    let _ = memory.lessons.remove(mid);
+                }
+                Ok(format!("Removed {} lesson(s) matching '{}'", count, query))
+            } else {
+                Ok("Error: 'id' or 'query' required for remove. Use 'list' to see lesson IDs.".to_string())
             }
-            let _ = memory.lessons.remove(id);
-            Ok(format!("Removed lesson: {}", id))
         }
         "list" => {
             let all = memory.lessons.all();
             let results: Vec<String> = all.iter()
-                .map(|l| format!("[{:.0}%] {}", l.confidence * 100.0, l.rule))
+                .map(|l| format!("[{}] [{:.0}%] {}", &l.id[..8], l.confidence * 100.0, l.rule))
                 .collect();
             Ok(if results.is_empty() { "No lessons learned yet.".to_string() } else { results.join("\n") })
         }
@@ -347,7 +362,7 @@ async fn dispatch_lessons(state: &AppState, args: &serde_json::Value) -> anyhow:
             let q = args["query"].as_str().unwrap_or("");
             let matches = memory.lessons.search(q, 20);
             let results: Vec<String> = matches.iter()
-                .map(|l| format!("[{:.0}%] {}", l.confidence * 100.0, l.rule))
+                .map(|l| format!("[{}] [{:.0}%] {}", &l.id[..8], l.confidence * 100.0, l.rule))
                 .collect();
             Ok(if results.is_empty() { format!("No lessons matching '{}'", q) } else { results.join("\n") })
         }

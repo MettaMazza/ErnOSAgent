@@ -126,15 +126,54 @@ def generate(req: GenerateRequest):
     if req.seed is not None:
         generator = torch.Generator("cpu").manual_seed(req.seed)
 
-    image = pipe(
-        req.prompt,
-        guidance_scale=req.guidance,
-        num_inference_steps=req.steps,
-        width=req.width,
-        height=req.height,
-        max_sequence_length=512,
-        generator=generator,
-    ).images[0]
+    scheduler_error_count = [0]
+    original_safe_step = pipe.scheduler.step if hasattr(pipe.scheduler, '_is_patched') else None
+
+    # Track if the scheduler bugfix triggered during this generation
+    if hasattr(pipe.scheduler, '_is_patched') and pipe.scheduler._is_patched:
+        _orig_step = pipe.scheduler.step
+        def tracking_step(model_output, timestep, sample, **kwargs):
+            result = _orig_step(model_output, timestep, sample, **kwargs)
+            # Check if we got back the unchanged sample (scheduler failure)
+            if hasattr(result, 'prev_sample') and torch.equal(result.prev_sample, sample):
+                scheduler_error_count[0] += 1
+            return result
+        pipe.scheduler.step = tracking_step
+
+    try:
+        image = pipe(
+            req.prompt,
+            guidance_scale=req.guidance,
+            num_inference_steps=req.steps,
+            width=req.width,
+            height=req.height,
+            max_sequence_length=512,
+            generator=generator,
+        ).images[0]
+    finally:
+        # Restore original step if we wrapped it
+        if original_safe_step is not None:
+            pipe.scheduler.step = original_safe_step
+
+    # Detect blank/black output
+    import numpy as np
+    pixels = np.array(image)
+    is_blank = pixels.max() == 0
+    mean_val = float(pixels.mean())
+
+    if is_blank or scheduler_error_count[0] > 0:
+        error_msg = (
+            f"Generation produced blank output. "
+            f"Scheduler errors: {scheduler_error_count[0]}/{req.steps} steps. "
+            f"Pixel stats: mean={mean_val:.2f}, max={int(pixels.max())}. "
+            f"Device: {get_device()}, dtype: {get_dtype(get_device())}. "
+            f"This is a known MPS IndexError in the Flux scheduler. "
+            f"Try: smaller dimensions ({req.width//2}x{req.height//2}), fewer steps ({max(10, req.steps//2)}), "
+            f"or set a specific seed."
+        )
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": error_msg})
 
     buf = io.BytesIO()
     image.save(buf, format="PNG")
