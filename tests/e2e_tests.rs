@@ -222,6 +222,7 @@ mod state_tests {
                 ern_os::platform::registry::PlatformRegistry::new()
             )),
             mutable_config: Arc::new(RwLock::new(AppConfig::default())),
+            resume_message: Arc::new(RwLock::new(None)),
         }
     }
 

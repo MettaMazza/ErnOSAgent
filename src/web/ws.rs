@@ -36,6 +36,21 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         return;
     }
 
+    // Deliver post-recompile resume message if pending (first client consumes it)
+    {
+        let mut resume = state.resume_message.write().await;
+        if let Some(msg) = resume.take() {
+            tracing::info!(msg_len = msg.len(), "Delivering post-recompile resume to WebSocket client");
+            let resume_payload = serde_json::json!({
+                "type": "text_delta",
+                "content": format!("✅ {}", msg),
+            });
+            let _ = sender.send(WsMessage::Text(resume_payload.to_string().into())).await;
+            let done = serde_json::json!({"type": "done"});
+            let _ = sender.send(WsMessage::Text(done.to_string().into())).await;
+        }
+    }
+
     // Delayed reinforcement state — holds the last tool chain for next-turn evaluation
     let mut pending_chain: Option<PendingToolChain> = None;
 

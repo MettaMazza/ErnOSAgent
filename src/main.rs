@@ -39,8 +39,11 @@ async fn main() -> Result<()> {
     // Auto-start code-server (VS Code IDE) if enabled
     maybe_start_code_server(&config).await;
 
-    // Check for post-recompile resume state
-    check_recompile_resume(&config);
+    // Check for post-recompile resume state — store in AppState for WebSocket delivery
+    let resume_msg = check_recompile_resume(&config);
+    if resume_msg.is_some() {
+        *state.resume_message.write().await = resume_msg;
+    }
 
     // Start platform router (forwards platform messages to hub)
     let router_registry = state.platforms.clone();
@@ -175,6 +178,7 @@ fn build_app_state(
         browser: Arc::new(RwLock::new(ern_os::tools::browser_tool::BrowserState::new())),
         platforms: Arc::new(RwLock::new(ern_os::platform::registry::PlatformRegistry::new())),
         mutable_config: Arc::new(RwLock::new(config.clone())),
+        resume_message: Arc::new(RwLock::new(None)),
     })
 }
 
@@ -425,25 +429,37 @@ fn open_browser(url: &str) -> Result<()> {
     Ok(())
 }
 
-/// Check for post-recompile resume state.
-fn check_recompile_resume(config: &ern_os::config::AppConfig) {
+/// Check for post-recompile resume state. Returns the resume message if found.
+fn check_recompile_resume(config: &ern_os::config::AppConfig) -> Option<String> {
     let resume_path = config.general.data_dir.join("resume.json");
-    if resume_path.exists() {
-        match std::fs::read_to_string(&resume_path) {
-            Ok(content) => {
-                if let Ok(resume) = serde_json::from_str::<serde_json::Value>(&content) {
-                    let msg = resume["message"].as_str().unwrap_or("Recompile complete");
-                    let at = resume["compiled_at"].as_str().unwrap_or("unknown");
-                    tracing::info!(
-                        compiled_at = %at,
-                        "POST-RECOMPILE RESUME: {}",
-                        msg
-                    );
-                }
-            }
-            Err(e) => tracing::warn!(error = %e, "Failed to read resume state"),
-        }
-        let _ = std::fs::remove_file(&resume_path);
-        tracing::info!("Resume state consumed and deleted");
+    if !resume_path.exists() {
+        return None;
     }
+
+    let result = match std::fs::read_to_string(&resume_path) {
+        Ok(content) => {
+            if let Ok(resume) = serde_json::from_str::<serde_json::Value>(&content) {
+                let msg = resume["message"].as_str().unwrap_or("Recompile complete").to_string();
+                let at = resume["compiled_at"].as_str().unwrap_or("unknown");
+                tracing::info!(
+                    compiled_at = %at,
+                    "POST-RECOMPILE RESUME: {}",
+                    msg
+                );
+                Some(msg)
+            } else {
+                None
+            }
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to read resume state");
+            None
+        }
+    };
+
+    let _ = std::fs::remove_file(&resume_path);
+    if result.is_some() {
+        tracing::info!("Resume state consumed and deleted — will deliver to first WebSocket client");
+    }
+    result
 }
