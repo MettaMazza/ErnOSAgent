@@ -54,8 +54,8 @@ tracing-appender = "0.2"
 dirs = "6"
 sysinfo = "0.32"
 
-# ML — Candle with Metal GPU acceleration
-candle-core = { version = "0.8", features = ["metal"] }
+# ML — Candle (Metal GPU acceleration enabled only on macOS/iOS)
+candle-core = { version = "0.8" }
 candle-nn = { version = "0.8" }
 candle-transformers = { version = "0.8" }
 safetensors = { version = "0.4" }
@@ -75,6 +75,13 @@ teloxide = { version = "0.13", features = ["macros"], optional = true }
 tokio-test = "0.4"
 tempfile = "3"
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+
+# Apple-only: enable Metal GPU acceleration for Candle
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8", features = ["metal"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+candle-core = { version = "0.8", features = ["metal"] }
 
 [profile.release]
 opt-level = 3

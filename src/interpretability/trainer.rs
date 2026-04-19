@@ -107,8 +107,16 @@ impl SaeTrainer {
     /// - b_enc: zeros
     /// - b_dec: zeros
     pub fn new(config: TrainConfig) -> Result<Self> {
+        // Use Metal GPU on macOS, fall back to CPU on Linux/Windows
+        #[cfg(target_os = "macos")]
         let device = Device::new_metal(0)
-            .context("Metal GPU required for SAE training")?;
+            .context("Metal GPU initialization failed — falling back to CPU")
+            .unwrap_or(Device::Cpu);
+
+        #[cfg(not(target_os = "macos"))]
+        let device = Device::Cpu;
+
+        let device_name = if matches!(device, Device::Cpu) { "CPU" } else { "Metal" };
 
         tracing::info!(
             num_features = config.num_features,
@@ -117,7 +125,7 @@ impl SaeTrainer {
             batch_size = config.batch_size,
             l1_coeff = config.l1_coefficient,
             lr = config.learning_rate,
-            device = "Metal",
+            device = device_name,
             "Initializing SAE trainer"
         );
 

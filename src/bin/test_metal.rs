@@ -1,8 +1,14 @@
 use candle_core::{Device, Tensor};
 
 fn main() -> anyhow::Result<()> {
-    let device = Device::new_metal(0)?;
-    println!("Metal device OK");
+    #[cfg(target_os = "macos")]
+    let device = Device::new_metal(0).unwrap_or(Device::Cpu);
+
+    #[cfg(not(target_os = "macos"))]
+    let device = Device::Cpu;
+
+    let device_name = if matches!(device, Device::Cpu) { "CPU" } else { "Metal" };
+    println!("{} device OK", device_name);
 
     let nf = 131072usize;
     let md = 5376usize;
