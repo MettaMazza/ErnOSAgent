@@ -17,7 +17,12 @@ pub mod codebase_search;
 pub mod file_extractor;
 pub mod file_read;
 pub mod file_write;
+#[cfg(feature = "desktop")]
 pub mod browser_tool;
+#[cfg(not(feature = "desktop"))]
+pub mod browser_tool_stub;
+#[cfg(not(feature = "desktop"))]
+pub use browser_tool_stub as browser_tool;
 pub mod artifact_tool;
 pub mod image_gen_tool;
 pub mod containment;

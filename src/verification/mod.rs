@@ -6,5 +6,6 @@
 //! 3. Returns structured results for auto-fix loops
 
 pub mod compiler_check;
+#[cfg(feature = "desktop")]
 pub mod browser;
 pub mod pipeline;

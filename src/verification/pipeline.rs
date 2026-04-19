@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use std::path::PathBuf;
 
 use super::compiler_check::{self, CompileResult};
+#[cfg(feature = "desktop")]
 use super::browser::{self, BrowserCheckResult};
 
 /// Configuration for a verification run.
@@ -36,7 +37,10 @@ pub struct VerificationResult {
     pub overall_pass: bool,
     pub build_result: CompileResult,
     pub test_result: Option<CompileResult>,
+    #[cfg(feature = "desktop")]
     pub browser_result: Option<BrowserCheckResult>,
+    #[cfg(not(feature = "desktop"))]
+    pub browser_result: Option<String>,
     pub stage_failed: Option<VerificationStage>,
 }
 
@@ -87,6 +91,7 @@ pub async fn run_verification(config: &VerificationConfig) -> Result<Verificatio
         None
     };
 
+    #[cfg(feature = "desktop")]
     let browser_result = if let Some(ref url) = config.browser_url {
         let br = browser::check_url(url, 5).await
             .context("Browser verification failed")?;
@@ -104,6 +109,8 @@ pub async fn run_verification(config: &VerificationConfig) -> Result<Verificatio
     } else {
         None
     };
+    #[cfg(not(feature = "desktop"))]
+    let browser_result: Option<String> = None;
 
     tracing::info!("Verification pipeline passed");
     Ok(VerificationResult {
@@ -136,9 +143,12 @@ pub fn format_fix_prompt(result: &VerificationResult) -> String {
         }
         Some(VerificationStage::Browser) => {
             prompt.push_str("## Browser Validation Failed\n\n");
+            #[cfg(feature = "desktop")]
             if let Some(ref br) = result.browser_result {
                 prompt.push_str(&browser::format_browser_report(&[br.clone()]));
             }
+            #[cfg(not(feature = "desktop"))]
+            prompt.push_str("Browser validation not available on this platform.\n");
         }
         None => {
             prompt.push_str("(No specific failure stage recorded)\n");

@@ -34,18 +34,43 @@ pub async fn execute_tool_with_state(
         "file_read" => crate::tools::file_read::execute(&args).await,
         "file_write" => crate::tools::file_write::execute(&args).await,
         "browse_url" => {
-            let url = args["url"].as_str().unwrap_or("");
-            crate::tools::browser_tool::browse_url(&state.browser, url).await
+            #[cfg(feature = "desktop")]
+            {
+                let url = args["url"].as_str().unwrap_or("");
+                crate::tools::browser_tool::browse_url(&state.browser, url).await
+            }
+            #[cfg(not(feature = "desktop"))]
+            Ok("browse_url requires the desktop engine. Switch to Host mode or use the desktop WebUI.".to_string())
         }
         "screenshot_url" => {
-            let url = args["url"].as_str().unwrap_or("");
-            crate::tools::browser_tool::screenshot_url(&state.browser, url).await
+            #[cfg(feature = "desktop")]
+            {
+                let url = args["url"].as_str().unwrap_or("");
+                crate::tools::browser_tool::screenshot_url(&state.browser, url).await
+            }
+            #[cfg(not(feature = "desktop"))]
+            Ok("screenshot_url requires the desktop engine. Switch to Host mode or use the desktop WebUI.".to_string())
         }
-        "browser" => crate::tools::browser_tool::execute_action(&state.browser, &args).await,
+        "browser" => {
+            #[cfg(feature = "desktop")]
+            { crate::tools::browser_tool::execute_action(&state.browser, &args).await }
+            #[cfg(not(feature = "desktop"))]
+            Ok("Browser tool requires the desktop engine. Switch to Host mode or use the desktop WebUI.".to_string())
+        }
         "create_artifact" => crate::tools::artifact_tool::execute(&args).await,
-        "generate_image" => crate::tools::image_gen_tool::execute(&args).await,
+        "generate_image" => {
+            #[cfg(feature = "desktop")]
+            { crate::tools::image_gen_tool::execute(&args).await }
+            #[cfg(not(feature = "desktop"))]
+            Ok("Image generation requires the desktop engine (Flux server). Switch to Host mode or use the desktop WebUI.".to_string())
+        }
         "codebase_edit" => dispatch_codebase_edit(state, &args).await,
-        "system_recompile" => dispatch_system_recompile().await,
+        "system_recompile" => {
+            #[cfg(feature = "desktop")]
+            { dispatch_system_recompile().await }
+            #[cfg(not(feature = "desktop"))]
+            Ok("System recompile requires the desktop engine (Cargo). Not available on mobile.".to_string())
+        }
         "checkpoint" => dispatch_checkpoint(state, &args).await,
         "system_logs" => {
             let data_dir = &state.config.general.data_dir;
@@ -405,6 +430,7 @@ async fn dispatch_codebase_edit(state: &AppState, args: &serde_json::Value) -> a
     }
 }
 
+#[cfg(feature = "desktop")]
 async fn dispatch_system_recompile() -> anyhow::Result<String> {
     crate::tools::compiler::run_recompile()
         .await

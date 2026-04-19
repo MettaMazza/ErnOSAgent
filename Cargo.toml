@@ -7,9 +7,14 @@ license = "MIT"
 default-run = "ern-os"
 
 [features]
-default = ["file-extract"]
+default = ["file-extract", "desktop"]
 discord = ["serenity"]
 telegram = ["teloxide"]
+# Desktop-only features (headless browser, code-server, etc.)
+# Excluded on Android builds: cargo ndk --features android
+desktop = ["dep:chromiumoxide"]
+# Android companion app — excludes desktop-only deps
+android = ["dep:jni"]
 # GPU acceleration for Candle ML operations — opt-in per hardware:
 #   cargo build --release --features metal    (macOS — Apple Silicon)
 #   cargo build --release --features cuda     (Linux/Windows — NVIDIA)
@@ -80,8 +85,11 @@ zip = { version = "2.2", optional = true }
 rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
 quick-xml = { version = "0.37", optional = true }
 
-# Headless browser
-chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
+# Headless browser (desktop only — gated behind "desktop" feature)
+chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false, optional = true }
+
+# Android JNI bridge (android only)
+jni = { version = "0.21", features = ["invocation"], optional = true }
 
 # Platform adapters (optional)
 serenity = { version = "0.12", default-features = false, features = ["client", "gateway", "model", "http", "rustls_backend"], optional = true }

@@ -22,3 +22,5 @@ pub mod planning;
 pub mod checkpoint;
 pub mod platform;
 pub mod web;
+#[cfg(feature = "android")]
+pub mod android_bridge;
