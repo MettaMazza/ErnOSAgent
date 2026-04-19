@@ -15,3 +15,4 @@ pub mod voice;
 pub mod video;
 pub mod upload;
 pub mod version;
+pub mod checkpoint;

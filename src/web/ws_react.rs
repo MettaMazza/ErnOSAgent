@@ -213,6 +213,14 @@ pub async fn run_react_loop(
                     consecutive_fails = 0;
                 }
                 ctx.add_tool_result(&tc, result);
+                // Auto-verify: after code-modifying tools, remind agent to verify
+                if matches!(tc.name.as_str(), "codebase_edit" | "file_write") {
+                    ctx.messages.push(Message::text("system",
+                        "[AUTO-VERIFY HINT] You just modified code. Consider calling `verify_code` \
+                         to confirm build + tests pass before proceeding. If verify fails, fix errors \
+                         and re-verify until clean."
+                    ));
+                }
                 remaining_turns = remaining_turns.saturating_sub(1);
                 total_iterations += 1;
             }

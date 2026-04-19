@@ -24,7 +24,16 @@ pub struct SubAgentResult {
 }
 
 /// Run an isolated sub-agent loop with restricted tools.
-pub async fn run_sub_agent(
+/// Uses Box::pin to break recursive async type (sub_agent → tool_dispatch → dag → sub_agent).
+pub fn run_sub_agent<'a>(
+    provider: &'a dyn Provider,
+    config: SubAgentConfig,
+    state: &'a AppState,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<SubAgentResult>> + Send + 'a>> {
+    Box::pin(run_sub_agent_inner(provider, config, state))
+}
+
+async fn run_sub_agent_inner(
     provider: &dyn Provider,
     config: SubAgentConfig,
     state: &AppState,

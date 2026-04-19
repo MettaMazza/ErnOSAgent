@@ -135,6 +135,43 @@ async fn handle_text_message(
             tracing::info!(session = %session_id, "WS: Plan decision received");
             handle_plan_decision(&parsed, state, sender, pending_chain, &stop_flag).await;
         }
+        "set_autonomy" => {
+            let level = parsed["level"].as_str().unwrap_or("supervised");
+            let max_turns = parsed["max_turns"].as_u64().unwrap_or(200) as usize;
+            let report_interval = parsed["report_interval"].as_u64().unwrap_or(5) as usize;
+            let pause_on_fail = parsed["pause_on_failure"].as_bool().unwrap_or(true);
+            let allow_destructive = parsed["allow_destructive"].as_bool().unwrap_or(false);
+            let autonomy_level = match level {
+                "interactive" => crate::inference::autonomy::AutonomyLevel::Interactive,
+                "autonomous" => crate::inference::autonomy::AutonomyLevel::Autonomous,
+                _ => crate::inference::autonomy::AutonomyLevel::Supervised,
+            };
+            let config = crate::inference::autonomy::AutonomyConfig {
+                level: autonomy_level,
+                max_turns,
+                report_interval_steps: report_interval,
+                pause_on_failure: pause_on_fail,
+                allow_destructive,
+            };
+            tracing::info!(level = %level, max_turns, "WS: Autonomy config updated");
+            send_ws(sender, "autonomy_set", &serde_json::json!({
+                "level": level,
+                "max_turns": config.max_turns,
+                "report_interval": config.report_interval_steps,
+                "pause_on_failure": config.pause_on_failure,
+                "allow_destructive": config.allow_destructive,
+            })).await;
+        }
+        "get_autonomy" => {
+            let default_config = crate::inference::autonomy::AutonomyConfig::default();
+            send_ws(sender, "autonomy_status", &serde_json::json!({
+                "level": format!("{:?}", default_config.level).to_lowercase(),
+                "max_turns": default_config.max_turns,
+                "report_interval": default_config.report_interval_steps,
+                "pause_on_failure": default_config.pause_on_failure,
+                "allow_destructive": default_config.allow_destructive,
+            })).await;
+        }
         _ => {
             tracing::warn!(msg_type = %msg_type, raw = %text, "WS: Unknown message type received");
             send_ws(sender, "error", &serde_json::json!({"message": format!("Unknown type: {}", msg_type)})).await;

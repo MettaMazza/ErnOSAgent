@@ -4,7 +4,7 @@
 //! Axum web server — thin router orchestrator. Handlers live in `handlers/`.
 
 use crate::web::state::AppState;
-use crate::web::handlers::{system, sessions, memory, scheduler, onboarding, api_keys, agents, content, tts, codes, platforms, voice, video, upload, version};
+use crate::web::handlers::{system, sessions, memory, scheduler, onboarding, api_keys, agents, content, tts, codes, platforms, voice, video, upload, version, checkpoint};
 use anyhow::Result;
 use axum::{Router, routing::{get, post, put, delete}};
 use tower_http::cors::CorsLayer;
@@ -107,6 +107,11 @@ pub async fn run(state: AppState, addr: &str) -> Result<()> {
         .route("/api/version/update", post(version::update_version))
         .route("/api/version/rollback", post(version::rollback_version))
         .route("/api/version/history", get(version::version_history))
+        // REST API — State Checkpoints (atomic snapshots)
+        .route("/api/state-checkpoint", get(checkpoint::list_checkpoints))
+        .route("/api/state-checkpoint", post(checkpoint::create_checkpoint))
+        .route("/api/state-checkpoint/restore", post(checkpoint::restore_checkpoint))
+        .route("/api/state-checkpoint/{id}", delete(checkpoint::delete_checkpoint))
         // WebSocket
         .route("/ws", get(crate::web::ws::ws_handler))
         .route("/ws/voice", get(voice::ws_voice_handler))

@@ -18,6 +18,7 @@ pub mod scratchpad;
 pub mod lessons;
 pub mod procedures;
 pub mod synaptic;
+pub mod skills;
 
 use anyhow::{Context, Result};
 use std::path::Path;

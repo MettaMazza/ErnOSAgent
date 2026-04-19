@@ -135,8 +135,17 @@ async fn consolidate_if_needed(
     let total_chars = history_chars + system_prompt.len() + content.len();
     let usage_pct = total_chars as f32 / (context_length as f32 * 4.0);
 
-    if usage_pct < 0.80 {
+    if usage_pct < 0.60 {
         return session_history;
+    }
+
+    // ── Stage 1: Progressive trim at 60-80% — compress verbose tool results ──
+    if usage_pct < 0.80 {
+        tracing::info!(
+            usage_pct = format!("{:.0}%", usage_pct * 100.0),
+            "Context at 60-80% — progressive trimming tool results"
+        );
+        return trim_verbose_tool_results(session_history);
     }
 
     tracing::info!(
@@ -196,3 +205,34 @@ async fn consolidate_if_needed(
     working_history.extend(recent_messages);
     working_history
 }
+
+/// Progressive condensation: trim verbose tool results to reduce context usage.
+/// Keeps the last 10 messages intact, trims older tool results to 500 chars.
+fn trim_verbose_tool_results(history: Vec<Message>) -> Vec<Message> {
+    let keep_recent = 10;
+    let len = history.len();
+
+    if len <= keep_recent {
+        return history;
+    }
+
+    let boundary = len - keep_recent;
+    let mut trimmed = Vec::with_capacity(len);
+
+    for (i, msg) in history.into_iter().enumerate() {
+        if i < boundary && msg.role == "tool" {
+            let text = msg.text_content();
+            if text.len() > 500 {
+                let truncated = format!("{}... [trimmed {}/{} chars]", &text[..500], 500, text.len());
+                trimmed.push(Message::tool_result(
+                    msg.tool_call_id.as_deref().unwrap_or(""),
+                    &truncated,
+                ));
+                continue;
+            }
+        }
+        trimmed.push(msg);
+    }
+    trimmed
+}
+

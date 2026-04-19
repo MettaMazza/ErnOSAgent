@@ -51,6 +51,8 @@ pub async fn execute_tool_with_state(
             let data_dir = &state.config.general.data_dir;
             crate::tools::system_logs::execute(&args, data_dir)
         }
+        "verify_code" => crate::web::dispatch_planning::dispatch_verify_code(&args).await,
+        "plan_and_execute" => crate::web::dispatch_planning::dispatch_plan_and_execute(state, &args).await,
         other => Ok(format!("Unknown tool: {}", other)),
     };
 
@@ -439,6 +441,7 @@ async fn dispatch_checkpoint(state: &AppState, args: &serde_json::Value) -> anyh
         other => Ok(format!("Unknown checkpoint action: {}", other)),
     }
 }
+
 
 #[cfg(test)]
 mod tests {

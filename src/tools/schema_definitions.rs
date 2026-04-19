@@ -433,3 +433,52 @@ pub fn system_logs_tool_schema() -> serde_json::Value {
         }
     })
 }
+
+pub fn plan_and_execute_tool_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": "plan_and_execute",
+            "description": "Decompose a complex objective into a DAG of sub-tasks and execute them automatically via sub-agents. Use for multi-component work (e.g. 'build a blog with auth'). The planner breaks the goal into ordered tasks with dependencies, then executes them in sequence.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "objective": {
+                        "type": "string",
+                        "description": "High-level objective to accomplish (e.g., 'Build a REST API with auth and tests')"
+                    },
+                    "project_context": {
+                        "type": "string",
+                        "description": "Context about the project (tech stack, file structure, constraints)"
+                    }
+                },
+                "required": ["objective"]
+            }
+        }
+    })
+}
+
+pub fn verify_code_tool_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": "verify_code",
+            "description": "Run the verification pipeline to check if recent code changes compile, pass tests, and optionally validate in a browser. Returns structured results. Use after making code changes to ensure correctness.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "run_tests": {
+                        "type": "boolean",
+                        "description": "Whether to run cargo test (default: true)"
+                    },
+                    "browser_url": {
+                        "type": "string",
+                        "description": "Optional URL to validate in a headless browser"
+                    }
+                },
+                "required": []
+            }
+        }
+    })
+}
+
