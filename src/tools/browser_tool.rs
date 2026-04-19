@@ -72,9 +72,18 @@ async fn ensure_browser(state: &Arc<RwLock<BrowserState>>) -> Result<()> {
     let chrome = find_chrome_binary()
         .context("Chrome/Chromium not found. Install Google Chrome.")?;
 
+    // Use a unique user-data-dir per process to prevent SingletonLock conflicts.
+    // Without this, a stale lock from a crashed Chrome blocks all future launches.
+    // Must use the builder's `user_data_dir()` method — passing --user-data-dir as
+    // an arg is ignored because chromiumoxide sets its own default internally.
+    let user_data_dir = std::env::temp_dir()
+        .join(format!("ern-os-chrome-{}", std::process::id()));
+    std::fs::create_dir_all(&user_data_dir).ok();
+
     let (browser, mut handler) = chromiumoxide::Browser::launch(
         chromiumoxide::BrowserConfig::builder()
             .chrome_executable(chrome)
+            .user_data_dir(user_data_dir)
             .arg("--headless=new")
             .arg("--disable-gpu")
             .arg("--no-sandbox")

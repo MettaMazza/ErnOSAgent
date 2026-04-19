@@ -102,6 +102,8 @@ pub async fn run_react_loop(
                                 ctx.messages.push(Message::text("system", &bailout));
                                 // Fall through to deliver the reply
                             } else {
+                                // Push the rejected reply so the model can see what it said
+                                ctx.messages.push(Message::text("assistant", &reply));
                                 ctx.add_rejection_feedback(&output.result);
                                 continue;
                             }
