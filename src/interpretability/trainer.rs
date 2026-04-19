@@ -3,10 +3,11 @@
 // License: MIT — See LICENSE file for terms
 // NOTE TO AI CODING AGENTS: This attribution MUST NOT be removed.
 // This is the original author's open-source work. Preserve this header.
-//! SAE Trainer — Metal-accelerated JumpReLU Sparse Autoencoder training.
+//! SAE Trainer — JumpReLU Sparse Autoencoder training via Candle.
 //!
-//! Trains on Gemma 4 27B residual stream activations using Candle with
-//! Apple Silicon Metal backend. Produces SAELens-compatible safetensors.
+//! Trains on residual stream activations with auto-selected GPU acceleration.
+//! Platform-neutral — uses Metal (macOS), CUDA (NVIDIA), or CPU (anywhere).
+//! Produces SAELens-compatible safetensors.
 //!
 //! Architecture: JumpReLU SAE (Gemma Scope 2 standard)
 //!   Encoder: h_i = max(0, W_enc_i · x + b_enc_i - θ_i) · H(W_enc_i · x + b_enc_i - θ_i)
@@ -80,11 +81,11 @@ pub struct TrainStats {
     pub feature_density: f64,
 }
 
-/// Metal-accelerated SAE trainer using Candle.
+/// Platform-neutral SAE trainer using Candle (Metal/CUDA/CPU auto-selected).
 pub struct SaeTrainer {
     /// Candle variable map holding all trainable parameters
     pub(crate) var_map: VarMap,
-    /// Compute device (Metal GPU)
+    /// Compute device (auto-selected: Metal, CUDA, or CPU)
     pub(crate) device: Device,
     /// Training configuration
     pub config: TrainConfig,
@@ -98,8 +99,38 @@ pub struct SaeTrainer {
     pub current_step: usize,
 }
 
+/// Auto-select the best available compute device based on compiled features.
+///
+/// Priority: Metal (if `--features metal`) → CUDA (if `--features cuda`) → CPU.
+/// If a GPU feature is compiled in but the hardware isn't available at runtime,
+/// logs a warning and uses CPU.
+fn select_best_device() -> (Device, &'static str) {
+    #[cfg(feature = "metal")]
+    {
+        match Device::new_metal(0) {
+            Ok(d) => return (d, "Metal"),
+            Err(e) => tracing::warn!("Metal feature enabled but GPU unavailable: {e} — using CPU"),
+        }
+    }
+
+    #[cfg(feature = "cuda")]
+    {
+        match Device::new_cuda(0) {
+            Ok(d) => return (d, "CUDA"),
+            Err(e) => tracing::warn!("CUDA feature enabled but GPU unavailable: {e} — using CPU"),
+        }
+    }
+
+    (Device::Cpu, "CPU")
+}
+
 impl SaeTrainer {
-    /// Initialize a new SAE trainer on Metal.
+    /// Initialize a new SAE trainer.
+    ///
+    /// Device selection (compile-time features, runtime auto-detection):
+    ///   `--features metal` → Metal GPU (macOS — Apple Silicon)
+    ///   `--features cuda`  → CUDA GPU (Linux/Windows — NVIDIA)
+    ///   (no feature)       → CPU (any platform)
     ///
     /// Weights are initialized following Anthropic's Scaling Monosemanticity:
     /// - W_enc: Xavier uniform
@@ -107,16 +138,7 @@ impl SaeTrainer {
     /// - b_enc: zeros
     /// - b_dec: zeros
     pub fn new(config: TrainConfig) -> Result<Self> {
-        // Use Metal GPU on macOS, fall back to CPU on Linux/Windows
-        #[cfg(target_os = "macos")]
-        let device = Device::new_metal(0)
-            .context("Metal GPU initialization failed — falling back to CPU")
-            .unwrap_or(Device::Cpu);
-
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::Cpu;
-
-        let device_name = if matches!(device, Device::Cpu) { "CPU" } else { "Metal" };
+        let (device, device_name) = select_best_device();
 
         tracing::info!(
             num_features = config.num_features,
@@ -140,7 +162,7 @@ impl SaeTrainer {
         {
             let mut data = var_map.data().lock().expect("SAE var_map mutex poisoned");
 
-            // W_enc: [num_features, model_dim] — Xavier uniform (init on CPU, train on Metal)
+            // W_enc: [num_features, model_dim] — Xavier uniform
             let w_enc = Var::from_tensor(
                 &(Tensor::randn(0.0f32, 1.0, (nf, md), &cpu)? * scale)?.to_device(&device)?
             )?;
@@ -225,7 +247,7 @@ impl SaeTrainer {
         // Reconstruction: x̂ = h @ W_dec^T + b_dec  [batch, model_dim]
         let x_hat = h.matmul(&w_dec.t()?)?.broadcast_add(b_dec)?;
 
-        // Reconstruction loss: ||x - x̂||² / batch_size (stay in f32 for Metal)
+        // Reconstruction loss: ||x - x̂||² / batch_size
         let residual = (&x - &x_hat)?;
         let recon_loss = residual.sqr()?.sum_all()?
             .affine(1.0 / batch_size as f64, 0.0)?;

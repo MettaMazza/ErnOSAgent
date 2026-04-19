@@ -87,7 +87,7 @@ impl SaeTrainer {
     }
 }
 
-/// Estimate training time for the given configuration on M3 Ultra Metal.
+/// Estimate training time for the given configuration.
 pub fn estimate_training_time(config: &super::trainer::TrainConfig) -> std::time::Duration {
     let ms_per_step = if config.num_features <= 32768 { 0.5 }
         else if config.num_features <= 131072 { 5.0 }

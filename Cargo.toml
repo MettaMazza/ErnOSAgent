@@ -10,6 +10,12 @@ default-run = "ern-os"
 default = []
 discord = ["serenity"]
 telegram = ["teloxide"]
+# GPU acceleration for SAE training — opt-in per hardware:
+#   cargo build --release --features metal    (macOS — Apple Silicon)
+#   cargo build --release --features cuda     (Linux/Windows — NVIDIA)
+#   cargo build --release                     (any platform — CPU)
+metal = ["candle-core/metal"]
+cuda = ["candle-core/cuda"]
 
 [dependencies]
 # Async runtime
@@ -54,7 +60,7 @@ tracing-appender = "0.2"
 dirs = "6"
 sysinfo = "0.32"
 
-# ML — Candle (Metal GPU acceleration enabled only on macOS/iOS)
+# ML — Candle (GPU features opt-in: --features metal OR --features cuda)
 candle-core = { version = "0.8" }
 candle-nn = { version = "0.8" }
 candle-transformers = { version = "0.8" }
@@ -75,13 +81,6 @@ teloxide = { version = "0.13", features = ["macros"], optional = true }
 tokio-test = "0.4"
 tempfile = "3"
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
-
-# Apple-only: enable Metal GPU acceleration for Candle
-[target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.8", features = ["metal"] }
-
-[target.'cfg(target_os = "ios")'.dependencies]
-candle-core = { version = "0.8", features = ["metal"] }
 
 [profile.release]
 opt-level = 3

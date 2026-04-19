@@ -1,19 +1,19 @@
+// Ern-OS — Candle compute device diagnostic tool.
+// Tests tensor operations on the best available accelerator.
+// Build with: cargo run --release --bin test_metal --features metal  (macOS)
+//             cargo run --release --bin test_metal --features cuda   (NVIDIA)
+//             cargo run --release --bin test_metal                   (CPU)
+
 use candle_core::{Device, Tensor};
 
 fn main() -> anyhow::Result<()> {
-    #[cfg(target_os = "macos")]
-    let device = Device::new_metal(0).unwrap_or(Device::Cpu);
-
-    #[cfg(not(target_os = "macos"))]
-    let device = Device::Cpu;
-
-    let device_name = if matches!(device, Device::Cpu) { "CPU" } else { "Metal" };
+    let (device, device_name) = select_device();
     println!("{} device OK", device_name);
 
     let nf = 131072usize;
     let md = 5376usize;
     let total = nf * md;
-    println!("Generating {} random f32 values on Metal ({:.1} GB)...", total, total as f64 * 4.0 / 1e9);
+    println!("Generating {} random f32 values on {} ({:.1} GB)...", total, device_name, total as f64 * 4.0 / 1e9);
     
     let t = Tensor::randn(0.0f32, 1.0, (nf, md), &device)?;
     
@@ -40,4 +40,23 @@ fn main() -> anyhow::Result<()> {
     println!("  has_nan={}, has_inf={}", r_max.is_nan() || r_min.is_nan(), r_max.is_infinite() || r_min.is_infinite() || r_sum.is_infinite());
     
     Ok(())
+}
+
+/// Auto-select the best available compute device.
+fn select_device() -> (Device, &'static str) {
+    #[cfg(feature = "metal")]
+    {
+        if let Ok(d) = Device::new_metal(0) {
+            return (d, "Metal");
+        }
+    }
+
+    #[cfg(feature = "cuda")]
+    {
+        if let Ok(d) = Device::new_cuda(0) {
+            return (d, "CUDA");
+        }
+    }
+
+    (Device::Cpu, "CPU")
 }

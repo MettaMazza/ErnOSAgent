@@ -4,7 +4,7 @@
 // Manages the complete lifecycle:
 // 1. Start Gemma 4 in embedding mode (or connect to existing)
 // 2. Collect activation vectors from diverse corpus
-// 3. Train JumpReLU SAE on Metal with ETA tracking
+// 3. Train JumpReLU SAE with auto-selected GPU acceleration and ETA tracking
 // 4. Save checkpoints and final weights as safetensors
 // 5. Can resume from checkpoint if interrupted
 
@@ -200,7 +200,7 @@ async fn train_sae(
         features = config.num_features,
         model_dim = config.model_dim,
         steps = config.num_steps,
-        "Phase 2: Training SAE on Metal"
+        "Phase 2: Training SAE"
     );
 
     let mut trainer = SaeTrainer::new(config.clone())?;

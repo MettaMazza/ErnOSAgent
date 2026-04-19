@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         model_path,
         server_binary,
         embed_port: 8082,
-        n_gpu_layers: -1,  // All layers on Metal
+        n_gpu_layers: -1,  // All layers on GPU (if available)
         data_dir,
         train_config,
         min_samples: 50,  // 95+ diversity prompts should exceed this easily
