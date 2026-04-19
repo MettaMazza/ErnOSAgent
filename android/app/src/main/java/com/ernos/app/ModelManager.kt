@@ -15,7 +15,6 @@ class ModelManager(private val context: Context) {
     companion object {
         private const val TAG = "ErnOS.Model"
         private const val MODEL_FILENAME = "gemma-4b.gguf"
-        // TODO: Replace with actual HuggingFace URL when model is available
         private const val MODEL_URL = "https://huggingface.co/google/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it.gguf"
         private const val EXPECTED_SHA256 = "" // Set when URL is finalized
     }

@@ -38,29 +38,22 @@ pub extern "C" fn Java_com_ernos_app_EngineService_startEngine(
         .map(|s| s.into())
         .unwrap_or_else(|_| "local".to_string());
 
-    // Build a minimal config for Android
     let data_path = std::path::PathBuf::from(&data_dir);
+    ensure_data_dirs(&data_path);
 
-    // Ensure data directories exist
-    let _ = std::fs::create_dir_all(data_path.join("sessions"));
-    let _ = std::fs::create_dir_all(data_path.join("timeline"));
-    let _ = std::fs::create_dir_all(data_path.join("steering"));
-    let _ = std::fs::create_dir_all(data_path.join("logs"));
-    let _ = std::fs::create_dir_all(data_path.join("prompts"));
-    let _ = std::fs::create_dir_all(data_path.join("snapshots"));
-    let _ = std::fs::create_dir_all(data_path.join("checkpoints"));
-
-    // Start the tokio runtime and launch the engine
-    let rt = tokio::runtime::Builder::new_multi_thread()
+    let rt = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .expect("Failed to create Tokio runtime on Android");
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Ern-OS: Failed to create Tokio runtime: {e}");
+            return;
+        }
+    };
 
     rt.block_on(async move {
-        // Initialize logging to Android logcat
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .init();
+        init_logging();
 
         tracing::info!(
             data_dir = %data_dir,
@@ -69,75 +62,18 @@ pub extern "C" fn Java_com_ernos_app_EngineService_startEngine(
             "Ern-OS Android engine starting"
         );
 
-        // Load or create config
-        let mut config = crate::config::AppConfig::default();
-        config.general.data_dir = data_path;
-        config.general.active_provider = "llamacpp".to_string();
-        config.llamacpp.api_url = provider_url;
-        config.web.port = 3000;
-        config.web.open_browser = false;
+        let config = build_config(&data_path, &provider_url);
 
-        // Create provider
-        let provider: std::sync::Arc<dyn crate::provider::Provider> =
-            std::sync::Arc::from(
-                crate::provider::create_provider(&config)
-                    .expect("Failed to create provider on Android")
-            );
+        let provider = match create_provider(&config).await {
+            Some(p) => p,
+            None => return,
+        };
 
-        // Wait for provider health
-        tracing::info!("Waiting for provider health...");
-        let mut retries = 0;
-        while !provider.health().await {
-            retries += 1;
-            if retries > 120 {
-                tracing::error!("Provider not healthy after 120s — engine starting without provider");
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
+        let model_spec = provider.get_model_spec().await.unwrap_or_default();
 
-        let model_spec = provider.get_model_spec().await
-            .unwrap_or_default();
-
-        let state = crate::web::state::AppState {
-            config: std::sync::Arc::new(config.clone()),
-            model_spec: std::sync::Arc::new(model_spec),
-            memory: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::memory::MemoryManager::new(&config.general.data_dir)
-                    .expect("Failed to init memory")
-            )),
-            sessions: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::session::SessionManager::new(&config.general.data_dir.join("sessions"))
-                    .expect("Failed to init sessions")
-            )),
-            provider,
-            golden_buffer: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::learning::buffers::GoldenBuffer::new(500)
-            )),
-            rejection_buffer: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::learning::buffers_rejection::RejectionBuffer::new()
-            )),
-            scheduler: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::scheduler::store::JobStore::load(&config.general.data_dir)
-                    .expect("Failed to init scheduler")
-            )),
-            agents: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::agents::AgentRegistry::new(&config.general.data_dir)
-                    .expect("Failed to init agents")
-            )),
-            teams: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::agents::teams::TeamRegistry::new(&config.general.data_dir)
-                    .expect("Failed to init teams")
-            )),
-            browser: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::tools::browser_tool::BrowserState::new()
-            )),
-            platforms: std::sync::Arc::new(tokio::sync::RwLock::new(
-                crate::platform::registry::PlatformRegistry::new()
-            )),
-            mutable_config: std::sync::Arc::new(tokio::sync::RwLock::new(config.clone())),
-            resume_message: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            sae: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        let state = match build_app_state(&config, provider, model_spec) {
+            Some(s) => s,
+            None => return,
         };
 
         let addr = "0.0.0.0:3000";
@@ -147,4 +83,120 @@ pub extern "C" fn Java_com_ernos_app_EngineService_startEngine(
             tracing::error!(error = %e, "Ern-OS Android server failed");
         }
     });
+}
+
+/// Ensure all required data directories exist.
+#[cfg(feature = "android")]
+fn ensure_data_dirs(data_path: &std::path::Path) {
+    let dirs = ["sessions", "timeline", "steering", "logs", "prompts", "snapshots", "checkpoints"];
+    for dir in &dirs {
+        let _ = std::fs::create_dir_all(data_path.join(dir));
+    }
+}
+
+/// Initialize tracing subscriber for Android logcat.
+#[cfg(feature = "android")]
+fn init_logging() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+}
+
+/// Build the application config from Android-provided paths.
+#[cfg(feature = "android")]
+fn build_config(
+    data_path: &std::path::Path,
+    provider_url: &str,
+) -> crate::config::AppConfig {
+    let mut config = crate::config::AppConfig::default();
+    config.general.data_dir = data_path.to_path_buf();
+    config.general.active_provider = "llamacpp".to_string();
+    config.llamacpp.api_url = provider_url.to_string();
+    config.web.port = 3000;
+    config.web.open_browser = false;
+    config
+}
+
+/// Create and health-check the inference provider.
+#[cfg(feature = "android")]
+async fn create_provider(
+    config: &crate::config::AppConfig,
+) -> Option<std::sync::Arc<dyn crate::provider::Provider>> {
+    let provider: std::sync::Arc<dyn crate::provider::Provider> = match crate::provider::create_provider(config) {
+        Ok(p) => std::sync::Arc::from(p),
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to create provider on Android");
+            return None;
+        }
+    };
+
+    tracing::info!("Waiting for provider health...");
+    let mut retries = 0;
+    while !provider.health().await {
+        retries += 1;
+        if retries > 120 {
+            tracing::error!("Provider not healthy after 120s — engine starting without provider");
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+
+    Some(provider)
+}
+
+/// Build AppState with clean error handling — logs and returns None on failure.
+#[cfg(feature = "android")]
+fn build_app_state(
+    config: &crate::config::AppConfig,
+    provider: std::sync::Arc<dyn crate::provider::Provider>,
+    model_spec: crate::model::ModelSpec,
+) -> Option<crate::web::state::AppState> {
+    let data_dir = &config.general.data_dir;
+
+    let memory = match crate::memory::MemoryManager::new(data_dir) {
+        Ok(m) => m,
+        Err(e) => { tracing::error!(error = %e, "Failed to init memory"); return None; }
+    };
+    let sessions = match crate::session::SessionManager::new(&data_dir.join("sessions")) {
+        Ok(s) => s,
+        Err(e) => { tracing::error!(error = %e, "Failed to init sessions"); return None; }
+    };
+    let scheduler = match crate::scheduler::store::JobStore::load(data_dir) {
+        Ok(s) => s,
+        Err(e) => { tracing::error!(error = %e, "Failed to init scheduler"); return None; }
+    };
+    let agents = match crate::agents::AgentRegistry::new(data_dir) {
+        Ok(a) => a,
+        Err(e) => { tracing::error!(error = %e, "Failed to init agents"); return None; }
+    };
+    let teams = match crate::agents::teams::TeamRegistry::new(data_dir) {
+        Ok(t) => t,
+        Err(e) => { tracing::error!(error = %e, "Failed to init teams"); return None; }
+    };
+
+    Some(crate::web::state::AppState {
+        config: std::sync::Arc::new(config.clone()),
+        model_spec: std::sync::Arc::new(model_spec),
+        memory: std::sync::Arc::new(tokio::sync::RwLock::new(memory)),
+        sessions: std::sync::Arc::new(tokio::sync::RwLock::new(sessions)),
+        provider,
+        golden_buffer: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::learning::buffers::GoldenBuffer::new(500)
+        )),
+        rejection_buffer: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::learning::buffers_rejection::RejectionBuffer::new()
+        )),
+        scheduler: std::sync::Arc::new(tokio::sync::RwLock::new(scheduler)),
+        agents: std::sync::Arc::new(tokio::sync::RwLock::new(agents)),
+        teams: std::sync::Arc::new(tokio::sync::RwLock::new(teams)),
+        browser: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::tools::browser_tool::BrowserState::new()
+        )),
+        platforms: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::platform::registry::PlatformRegistry::new()
+        )),
+        mutable_config: std::sync::Arc::new(tokio::sync::RwLock::new(config.clone())),
+        resume_message: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        sae: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+    })
 }
