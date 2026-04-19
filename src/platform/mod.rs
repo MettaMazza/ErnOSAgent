@@ -3,3 +3,11 @@
 pub mod adapter;
 pub mod registry;
 pub mod router;
+
+#[cfg(feature = "discord")]
+pub mod discord;
+#[cfg(feature = "discord")]
+pub mod discord_handler;
+
+#[cfg(feature = "telegram")]
+pub mod telegram;

@@ -82,19 +82,42 @@ Controls the Kokoro text-to-speech engine.
 | `enabled` | bool | `true` | Enable TTS |
 | `port` | u16 | `8880` | Port for the Kokoro TTS server |
 
-TTS is auto-started via `~/.ernos/sandbox/scripts/start-kokoro.py` using the Python environment at `~/.ernos/python/bin/python3.12`. The ONNX model runs locally with no external API calls.
+TTS is auto-started via `~/.ernos/kokoro-venv/bin/python` (or fallback Python) using the `start-kokoro.py` script. The ONNX model runs locally with no external API calls. TTS port is configured via `[general] kokoro_port`.
+
+## `[discord]`
+
+Discord platform adapter configuration.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `token` | Option\<String\> | `None` | Bot token (also reads from `DISCORD_TOKEN` env var) |
+| `admin_ids` | Vec\<String\> | `[]` | User IDs with full (admin) tool access |
+| `listen_channels` | Vec\<String\> | `[]` | Channel IDs to respond in (empty = all channels) |
+| `enabled` | bool | `false` | Whether the adapter is enabled |
+
+## `[telegram]`
+
+Telegram platform adapter configuration.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `token` | Option\<String\> | `None` | Bot token (also reads from `TELEGRAM_TOKEN` env var) |
+| `admin_ids` | Vec\<i64\> | `[]` | User IDs with full (admin) tool access |
+| `allowed_chats` | Vec\<i64\> | `[]` | Chat IDs to respond in (empty = all chats) |
+| `enabled` | bool | `false` | Whether the adapter is enabled |
 
 ## Sidecar Services (Auto-Started)
 
-Ern-OS auto-starts three sidecar services on boot:
+Ern-OS auto-starts four sidecar services on boot:
 
-| Service | Default Port | Script | Purpose |
+| Service | Default Port | Script / Binary | Purpose |
 |---------|-------------|--------|---------|
-| **Kokoro TTS** | 8880 | `scripts/start-kokoro.py` | Text-to-speech for message playback and voice calls |
+| **Kokoro TTS** | 8880 | `~/.ernos/kokoro-venv/bin/python start-kokoro.py` | Text-to-speech for message playback and voice calls |
 | **Flux Image** | 8890 | `scripts/flux_server.py` | Local image generation via Flux model |
+| **code-server** | 8443 | `~/.ernos/code-server-*/bin/code-server` | VS Code IDE in browser |
 | **Whisper STT** | 8891 | (planned) | Speech-to-text for voice call input |
 
-All services are health-checked on startup — if already running, they are reused. If the startup script is not found, the service is silently disabled.
+All services are health-checked on startup — if already running, they are reused. If the startup script/binary is not found, the service is silently disabled.
 
 ## Environment Variables
 
@@ -107,7 +130,7 @@ The config is loaded from `ern-os.toml`. API keys for web search providers can b
 | `TAVILY_API_KEY` | Tavily (3rd) |
 | `SERPAPI_API_KEY` | SerpAPI (4th) |
 
-DuckDuckGo and Wikipedia require no API keys (free fallbacks).
+DuckDuckGo, Google Web Scrape, Wikipedia, and Google News RSS require no API keys (free fallbacks).
 
 ## Example `ern-os.toml`
 
@@ -140,4 +163,14 @@ workspace = "."
 
 [prompt]
 thinking_enabled = true
+
+[discord]
+admin_ids = []
+listen_channels = []
+enabled = false
+
+[telegram]
+admin_ids = []
+allowed_chats = []
+enabled = false
 ```

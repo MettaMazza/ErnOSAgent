@@ -26,6 +26,10 @@ pub struct AppConfig {
     pub prompt: PromptConfig,
     #[serde(default)]
     pub codes: CodesConfig,
+    #[serde(default)]
+    pub discord: DiscordConfig,
+    #[serde(default)]
+    pub telegram: TelegramConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +200,88 @@ impl Default for CodesConfig {
     }
 }
 
+/// Discord platform adapter configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscordConfig {
+    /// Bot token — also reads from DISCORD_TOKEN env var.
+    #[serde(default)]
+    pub token: Option<String>,
+    /// User IDs with full (admin) tool access.
+    #[serde(default)]
+    pub admin_ids: Vec<String>,
+    /// Channel IDs to respond in. Empty = all channels.
+    #[serde(default)]
+    pub listen_channels: Vec<String>,
+    /// Whether the adapter is enabled.
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+impl Default for DiscordConfig {
+    fn default() -> Self {
+        Self {
+            token: None,
+            admin_ids: Vec::new(),
+            listen_channels: Vec::new(),
+            enabled: false,
+        }
+    }
+}
+
+impl DiscordConfig {
+    /// Resolve the bot token: config value takes priority, then env var.
+    pub fn resolve_token(&self) -> Option<String> {
+        self.token.clone()
+            .or_else(|| std::env::var("DISCORD_TOKEN").ok())
+    }
+
+    /// Whether this adapter has valid credentials to connect.
+    pub fn is_configured(&self) -> bool {
+        self.enabled && self.resolve_token().is_some()
+    }
+}
+
+/// Telegram platform adapter configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramConfig {
+    /// Bot token — also reads from TELEGRAM_TOKEN env var.
+    #[serde(default)]
+    pub token: Option<String>,
+    /// User IDs with full (admin) tool access.
+    #[serde(default)]
+    pub admin_ids: Vec<i64>,
+    /// Chat IDs to respond in. Empty = all chats.
+    #[serde(default)]
+    pub allowed_chats: Vec<i64>,
+    /// Whether the adapter is enabled.
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+impl Default for TelegramConfig {
+    fn default() -> Self {
+        Self {
+            token: None,
+            admin_ids: Vec::new(),
+            allowed_chats: Vec::new(),
+            enabled: false,
+        }
+    }
+}
+
+impl TelegramConfig {
+    /// Resolve the bot token: config value takes priority, then env var.
+    pub fn resolve_token(&self) -> Option<String> {
+        self.token.clone()
+            .or_else(|| std::env::var("TELEGRAM_TOKEN").ok())
+    }
+
+    /// Whether this adapter has valid credentials to connect.
+    pub fn is_configured(&self) -> bool {
+        self.enabled && self.resolve_token().is_some()
+    }
+}
+
 impl AppConfig {
     /// Load config from `ern-os.toml` in the current directory, or use defaults.
     pub fn load() -> Result<Self> {
@@ -226,6 +312,8 @@ impl Default for AppConfig {
             web: WebConfig::default(),
             prompt: PromptConfig::default(),
             codes: CodesConfig::default(),
+            discord: DiscordConfig::default(),
+            telegram: TelegramConfig::default(),
         }
     }
 }

@@ -1691,15 +1691,19 @@ const ErnOS = (() => {
         container.innerHTML = '<p class="empty-state">Loading...</p>';
 
         try {
-            const [statusResp, modelsResp, apiKeysResp] = await Promise.all([
+            const [statusResp, modelsResp, apiKeysResp, platformResp, platformStatusResp] = await Promise.all([
                 fetch('/api/status'),
                 fetch('/api/models'),
                 fetch('/api/api-keys'),
+                fetch('/api/platforms/config'),
+                fetch('/api/platforms'),
             ]);
             const status = await statusResp.json();
             const modelsData = await modelsResp.json();
             const apiKeysData = await apiKeysResp.json();
             const apiKeys = apiKeysData.keys || {};
+            const platformConfig = await platformResp.json();
+            const platformStatus = await platformStatusResp.json();
             const model = status.model || {};
 
             // Load saved preferences
@@ -1830,6 +1834,80 @@ const ErnOS = (() => {
                             + 'style="background:transparent;border:1px solid var(--danger,#f44);color:var(--danger,#f44);padding:4px 8px;border-radius:6px;font-size:10px;cursor:pointer">Clear</button>' : '')
                             + '</div></div>';
                     }).join('')}
+                </div>
+
+                <!-- Platform Adapters -->
+                <div class="settings-card">
+                    <div class="card-title"><span class="title-icon">📡</span> Platform Adapters</div>
+                    <span class="label-desc" style="display:block;margin-bottom:8px">Connect Discord and Telegram bots to this Ern-OS instance. Tokens are masked after saving.</span>
+
+                    <!-- Discord -->
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                            <span style="font-weight:700;font-size:13px">🎮 Discord</span>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="discord-enabled" ${platformConfig.discord?.enabled ? 'checked' : ''} onchange="ErnOS.savePlatformConfig()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                ${(() => {
+                                    const ds = (platformStatus.platforms || []).find(p => p.name === 'Discord');
+                                    if (ds && ds.connected) return '<span style="color:var(--accent);font-size:10px;font-weight:700">🟢 CONNECTED</span>';
+                                    if (platformConfig.discord?.has_token) return '<button onclick="ErnOS.connectPlatform(\'Discord\')" style="background:var(--accent);border:none;color:#000;padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer;font-weight:700">Connect</button>';
+                                    return '<span style="color:var(--text-secondary);font-size:10px">Not configured</span>';
+                                })()}
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Bot Token</span><span class="label-desc">Or set DISCORD_TOKEN env var${platformConfig.discord?.has_token ? ' — <span style="color:var(--accent)">✓ SET</span>' : ''}</span></div>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <input type="password" id="discord-token" placeholder="${platformConfig.discord?.token || 'Paste bot token…'}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                                <button onclick="ErnOS.savePlatformConfig()" style="background:var(--accent);border:none;color:#000;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">Save</button>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Admin User IDs</span><span class="label-desc">Comma-separated Discord user IDs with full tool access</span></div>
+                            <input type="text" id="discord-admin-ids" value="${(platformConfig.discord?.admin_ids || []).join(', ')}" placeholder="123456,789012" onchange="ErnOS.savePlatformConfig()" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Listen Channels</span><span class="label-desc">Comma-separated channel IDs (empty = all)</span></div>
+                            <input type="text" id="discord-channels" value="${(platformConfig.discord?.listen_channels || []).join(', ')}" placeholder="All channels" onchange="ErnOS.savePlatformConfig()" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                        </div>
+                    </div>
+
+                    <!-- Telegram -->
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:10px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                            <span style="font-weight:700;font-size:13px">✈️ Telegram</span>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="telegram-enabled" ${platformConfig.telegram?.enabled ? 'checked' : ''} onchange="ErnOS.savePlatformConfig()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                ${(() => {
+                                    const ts = (platformStatus.platforms || []).find(p => p.name === 'Telegram');
+                                    if (ts && ts.connected) return '<span style="color:var(--accent);font-size:10px;font-weight:700">🟢 CONNECTED</span>';
+                                    if (platformConfig.telegram?.has_token) return '<button onclick="ErnOS.connectPlatform(\'Telegram\')" style="background:var(--accent);border:none;color:#000;padding:3px 8px;border-radius:5px;font-size:10px;cursor:pointer;font-weight:700">Connect</button>';
+                                    return '<span style="color:var(--text-secondary);font-size:10px">Not configured</span>';
+                                })()}
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Bot Token</span><span class="label-desc">Or set TELEGRAM_TOKEN env var${platformConfig.telegram?.has_token ? ' — <span style="color:var(--accent)">✓ SET</span>' : ''}</span></div>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <input type="password" id="telegram-token" placeholder="${platformConfig.telegram?.token || 'Paste bot token…'}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                                <button onclick="ErnOS.savePlatformConfig()" style="background:var(--accent);border:none;color:#000;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">Save</button>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Admin User IDs</span><span class="label-desc">Comma-separated Telegram user IDs with full tool access</span></div>
+                            <input type="text" id="telegram-admin-ids" value="${(platformConfig.telegram?.admin_ids || []).join(', ')}" placeholder="123456,789012" onchange="ErnOS.savePlatformConfig()" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label"><span class="label-text">Allowed Chats</span><span class="label-desc">Comma-separated chat IDs (empty = all)</span></div>
+                            <input type="text" id="telegram-chats" value="${(platformConfig.telegram?.allowed_chats || []).join(', ')}" placeholder="All chats" onchange="ErnOS.savePlatformConfig()" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-family:JetBrains Mono,monospace;font-size:11px;width:200px" />
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Engine -->
@@ -2238,6 +2316,71 @@ const ErnOS = (() => {
             }
         } catch (e) {
             alert('Failed to clear API key: ' + e.message);
+        }
+    }
+
+    async function savePlatformConfig() {
+        const discordToken = document.getElementById('discord-token')?.value?.trim();
+        const telegramToken = document.getElementById('telegram-token')?.value?.trim();
+        const payload = {
+            discord: {
+                enabled: document.getElementById('discord-enabled')?.checked || false,
+                admin_ids: (document.getElementById('discord-admin-ids')?.value || '').split(',').map(s => s.trim()).filter(Boolean),
+                listen_channels: (document.getElementById('discord-channels')?.value || '').split(',').map(s => s.trim()).filter(Boolean),
+            },
+            telegram: {
+                enabled: document.getElementById('telegram-enabled')?.checked || false,
+                admin_ids: (document.getElementById('telegram-admin-ids')?.value || '').split(',').map(s => s.trim()).filter(Boolean).map(Number),
+                allowed_chats: (document.getElementById('telegram-chats')?.value || '').split(',').map(s => s.trim()).filter(Boolean).map(Number),
+            },
+        };
+        if (discordToken) payload.discord.token = discordToken;
+        if (telegramToken) payload.telegram.token = telegramToken;
+        try {
+            const resp = await fetch('/api/platforms/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Platform config saved');
+                loadSettingsView();
+            } else {
+                showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+            }
+        } catch (e) {
+            showToast('Failed to save platform config: ' + e.message, 'error');
+        }
+    }
+
+    async function connectPlatform(name) {
+        try {
+            const resp = await fetch('/api/platforms/' + name + '/connect', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(name + ' connected');
+                loadSettingsView();
+            } else {
+                showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+            }
+        } catch (e) {
+            showToast('Failed to connect ' + name + ': ' + e.message, 'error');
+        }
+    }
+
+    async function disconnectPlatform(name) {
+        try {
+            const resp = await fetch('/api/platforms/' + name + '/disconnect', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(name + ' disconnected');
+                loadSettingsView();
+            } else {
+                showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+            }
+        } catch (e) {
+            showToast('Failed to disconnect ' + name + ': ' + e.message, 'error');
         }
     }
 
@@ -2799,7 +2942,7 @@ const ErnOS = (() => {
         copyMessage, copyCode, removeFile, handleFilesSelected,
         switchView, loadMemoryTier, toggleTool,
         factoryReset, setTheme, setFontSize, setMsgWidth,
-        saveApiKey, clearApiKey,
+        saveApiKey, clearApiKey, savePlatformConfig, connectPlatform, disconnectPlatform,
         filterFeatures, toggleLogFilter,
         toggleSchedulerJob, deleteSchedulerJob, showAddJobForm, createSchedulerJob,
         submitOnboardingProfile, skipIdentityInterview, startIdentityInterview,

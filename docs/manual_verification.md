@@ -182,7 +182,7 @@
 
 ---
 
-## 8. Tool Dispatch — All 29 Tools
+## 8. Tool Dispatch — All 27 Tools
 
 ### 8.1 Execution Tools
 
@@ -308,7 +308,7 @@ Use `curl` from a terminal while Ern-OS is running.
 | 10.9 | Memory procedures | `curl -s localhost:3000/api/memory/procedures \| python3 -m json.tool` | Procedures array | ☐ |
 | 10.10 | Memory scratchpad | `curl -s localhost:3000/api/memory/scratchpad \| python3 -m json.tool` | Scratchpad entries | ☐ |
 | 10.11 | Memory synaptic | `curl -s localhost:3000/api/memory/synaptic \| python3 -m json.tool` | Synaptic graph data | ☐ |
-| 10.12 | Tools catalog | `curl -s localhost:3000/api/tools \| python3 -m json.tool` | Array of 29 tool schemas | ☐ |
+| 10.12 | Tools catalog | `curl -s localhost:3000/api/tools \| python3 -m json.tool` | Array of 27 tool schemas | ☐ |
 | 10.13 | Training data | `curl -s localhost:3000/api/training \| python3 -m json.tool` | Golden/rejection buffer counts | ☐ |
 | 10.14 | Interp features | `curl -s localhost:3000/api/interpretability/features \| python3 -m json.tool` | Feature data or empty list | ☐ |
 | 10.15 | Interp snapshots | `curl -s localhost:3000/api/interpretability/snapshots \| python3 -m json.tool` | Snapshot list | ☐ |

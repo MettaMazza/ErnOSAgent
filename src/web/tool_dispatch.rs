@@ -469,6 +469,9 @@ mod tests {
             platforms: std::sync::Arc::new(tokio::sync::RwLock::new(
                 crate::platform::registry::PlatformRegistry::new()
             )),
+            mutable_config: std::sync::Arc::new(tokio::sync::RwLock::new(
+                crate::config::AppConfig::default()
+            )),
         };
         let result = rt.block_on(execute_tool_with_state(&state, &tc));
         assert!(result.output.contains("Unknown tool"));

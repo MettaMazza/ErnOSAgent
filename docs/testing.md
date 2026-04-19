@@ -23,8 +23,9 @@ cargo test --lib
 
 | Category | Count | Location |
 |----------|-------|----------|
-| Unit (inline) | 244 | `src/**/*.rs` — `#[cfg(test)] mod tests` blocks |
-| **Total** | **244** | |
+| Unit (inline) | 304 | `src/**/*.rs` — `#[cfg(test)] mod tests` blocks |
+| E2E (integration) | 76 | `tests/e2e_tests.rs` |
+| **Total** | **380** | |
 | **Failures** | **0** | |
 
 ## Unit Test Distribution
@@ -33,33 +34,27 @@ Tests are embedded in each module via `#[cfg(test)]` blocks:
 
 | Module | Tests |
 |--------|-------|
+| `tools` (schema, shell, browser, dispatch, search_providers) | 47 |
+| `observer` (parser, rules, insights, skills) | 38 |
+| `interpretability` (sae, features, trainer, trainer_tests, collector, etc.) | 24 |
+| `platform` (adapter, registry, router, discord, discord_handler) | 22 |
+| `memory` (mod, scratchpad, lessons, timeline, procedures, etc.) | 21 |
 | `learning::lora` (training, weights, loss, loss_dpo, loss_kto, loss_simpo, optimizer, ewc, adapters) | 20 |
+| `provider` (stream_parser, llamacpp, ollama, openai_compat) | 16 |
+| `scheduler` (job, store) | 13 |
+| `learning` (mod, buffers, sleep, teacher, observer_buffer) | 13 |
+| `agents` | 12 |
+| `prompt` (hud, tools) | 11 |
+| `web::handlers` | 9 |
 | `memory::synaptic` (mod, plasticity, query, relationships) | 9 |
 | `learning::grpo` (generation, rewards, training) | 8 |
-| `provider::stream_parser` | 7 |
-| `observer::parser` | 5 |
-| `steering::vectors` | 5 |
-| `tools::schema` | 4 |
+| `steering` (vectors, server) | 7 |
+| `inference` (fast_reply, react_loop, sub_agent) | 7 |
+| `web` (state, ws, tool_dispatch) | 4 |
 | `session` | 4 |
-| `provider::llamacpp` | 4 |
-| `interpretability::sae` | 4 |
+| `model` | 2 |
 | `config` | 2 |
-| `interpretability::features` | 2 |
-| `interpretability::trainer` | 2 |
-| `tools::shell` | 3 |
-| `memory::scratchpad` | 3 |
-| `memory::lessons` | 3 |
-| `learning::teacher` | 3 |
-| `inference::react_loop` | 3 |
-| `web::tool_dispatch` | 1 |
-| `scheduler::job` | 6 |
-| `scheduler::store` | 6 |
-| `tools::browser_tool` | 2 |
-| `platform::adapter` | 2 |
-| `platform::registry` | 1 |
-| `platform::router` | 1 |
-| `agents` | 2 |
-| *...and more across all modules* |
+| `logging` | 1 |
 
 ## E2E Test Suites (`tests/e2e_tests.rs`)
 

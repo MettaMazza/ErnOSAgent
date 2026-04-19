@@ -11,13 +11,14 @@ The inference engine uses a **dual-layer architecture** defined across `src/infe
 | `fast_reply.rs` | Layer 1 fast reply logic |
 | `react_loop.rs` | Layer 2 ReAct agentic loop |
 | `react_observer.rs` | Observer integration within the ReAct loop |
+| `sub_agent.rs` | Sub-agent isolation and execution |
 
 ## Layer 1: Fast Reply
 
 The default path for simple interactions. The provider receives:
 - System prompt with memory context (including learned skills)
 - User message
-- `layer1_tools` schema (8 tools: `start_react_system`, `run_bash_command`, `web_search`, `file_read`, `codebase_search`, `browse_url`, `screenshot_url`)
+- `layer1_tools` schema (18 tools: `start_react_system`, `propose_plan`, `run_bash_command`, `web_search`, `file_read`, `file_write`, `codebase_search`, `browser`, `memory`, `scratchpad`, `timeline`, `lessons`, `create_artifact`, `generate_image`, `steering`, `interpretability`, `learning`, `system_logs`)
 
 **Outcomes** (determined by `consume_silently()` in `ws.rs`):
 
@@ -130,7 +131,7 @@ Layer 1 and Layer 2 use different tool sets, defined in `src/tools/schema.rs`:
 
 | Function | Tools Included |
 |----------|---------------|
-| `layer1_tools()` | `start_react_system`, `run_bash_command`, `web_search`, `file_read`, `codebase_search`, `browse_url`, `screenshot_url` (8 tools) |
-| `layer2_tools()` | All Layer 1 tools + `reply_request`, `refuse_request`, `extend_turns`, `memory`, `scratchpad`, `synaptic`, `timeline`, `lessons`, `self_skills`, `learning`, `steering`, `interpretability`, `file_write` (20 tools) |
+| `layer1_tools()` | `start_react_system`, `propose_plan`, `run_bash_command`, `web_search`, `file_read`, `file_write`, `codebase_search`, `browser`, `memory`, `scratchpad`, `timeline`, `lessons`, `create_artifact`, `generate_image`, `steering`, `interpretability`, `learning`, `system_logs` (18 tools) |
+| `layer2_tools()` | `reply_request`, `refuse_request`, `extend_turns`, `run_bash_command`, `web_search`, `memory`, `scratchpad`, `synaptic`, `timeline`, `lessons`, `self_skills`, `learning`, `steering`, `interpretability`, `codebase_search`, `file_read`, `file_write`, `browser`, `create_artifact`, `generate_image`, `spawn_sub_agent`, `codebase_edit`, `system_recompile`, `checkpoint`, `system_logs` (25 tools) |
 
 Tool calls from the model are dispatched by `tool_dispatch.rs` (for state-dependent tools) or `executor.rs` (for stateless tools like shell commands).

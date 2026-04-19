@@ -12,6 +12,10 @@ The interpretability subsystem provides real-time feature analysis via Sparse Au
 | `sae.rs` | SAE model — load `.safetensors`, encode activations, extract top features |
 | `features.rs` | 195-feature labeled dictionary across 5 categories |
 | `trainer.rs` | SAE training loop (pure f32 vector math, no tensor library) |
+| `trainer_persist.rs` | Weight saving/loading for SAE training |
+| `trainer_tests.rs` | Unit tests for SAE trainer |
+| `train_runner.rs` | SAE training binary runner (batch activation collection + training) |
+| `corpus.rs` | Training corpus management and activation extraction |
 | `collector.rs` | Activation sample collection and JSONL flush |
 | `snapshot.rs` | Capture and store neural snapshots |
 | `divergence.rs` | KL divergence + cosine distance tracking |

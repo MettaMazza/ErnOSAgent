@@ -40,12 +40,12 @@ User → WebUI (localhost:3000)
          ↓ WebSocket (chat / voice / video)
     ┌────────────────────────────────┐
     │  Dual-Layer Inference Engine   │
-    │  Layer 1: Fast Reply (7 tools) │
-    │  Layer 2: ReAct Loop (22 tools)│
+    │  Layer 1: Fast Reply (18 tools)│
+    │  Layer 2: ReAct Loop (25 tools)│
     ├────────────────────────────────┤
     │  Observer Audit + Insights     │
     ├────────────────────────────────┤
-    │  22-Tool Executor (shell, web, │
+    │  27-Tool Executor (shell, web, │
     │  memory, browser, image, sub-  │
     │  agent, artifacts, files, SAE) │
     ├────────────────────────────────┤
@@ -72,7 +72,7 @@ User → WebUI (localhost:3000)
 | [Memory System](memory.md) | 7-tier memory: timeline, scratchpad, lessons, synaptic, procedures, embeddings, consolidation |
 | [Inference Pipeline](inference.md) | Dual-layer engine, ReAct loop, observer audit |
 | [Learning Pipeline](learning.md) | LoRA, GRPO, sleep consolidation, preference training |
-| [Tools](tools.md) | 22-tool registry with schemas, parallel execution |
+| [Tools](tools.md) | 27-tool registry with schemas, parallel execution |
 | [Interpretability](interpretability.md) | SAE, feature analysis, steering vectors, divergence tracking |
 | [Provider Interface](providers.md) | Provider trait, implementations, model neutrality |
 | [Testing](testing.md) | Test structure, coverage, running tests |
@@ -82,13 +82,13 @@ User → WebUI (localhost:3000)
 | Metric | Value |
 |--------|-------|
 | Language | Rust (Edition 2021) |
-| Source files | 144 `.rs` files |
-| Lines of code | ~20,000 (src only) |
-| Tests | 378 passing (302 lib + 76 e2e) |
+| Source files | 147 `.rs` files |
+| Lines of code | ~21,000 (src only) |
+| Tests | 380 passing (304 lib + 76 e2e) |
 | Test failures | 0 |
 | Compiler warnings | 0 |
 | Modules | 18 top-level |
-| Tools | 22 |
-| API endpoints | 68 REST routes + 3 WebSocket (chat, voice, video) |
+| Tools | 27 |
+| API endpoints | 70 REST routes + 3 WebSocket (chat, voice, video) |
 | Dashboard views | 12 tabs |
 | Auto-starting services | 4 (WebUI, Kokoro TTS, Flux Image, code-server) |

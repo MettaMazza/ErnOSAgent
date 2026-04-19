@@ -1,8 +1,8 @@
 # Tools
 
-Ern-OS provides 28 tools across two layers. Tool schemas are defined in `src/tools/schema.rs`. Execution is handled by `src/web/tool_dispatch.rs` which routes all tool calls through `AppState`.
+Ern-OS provides 27 tools across two layers. Tool schemas are defined in `src/tools/schema.rs` and `src/tools/schema_definitions.rs`. Execution is handled by `src/web/tool_dispatch.rs` which routes all tool calls through `AppState`.
 
-## Layer 1 Tools (7 tools)
+## Layer 1 Tools (18 tools)
 
 Available during fast reply (Layer 1). Defined by `layer1_tools()`.
 
@@ -11,16 +11,27 @@ Available during fast reply (Layer 1). Defined by `layer1_tools()`.
 | `start_react_system` | Escalate to the ReAct agentic loop with an objective and optional plan |
 | `propose_plan` | Create a detailed plan for user approval before executing |
 | `run_bash_command` | Execute a shell command |
-| `web_search` | Search the web via 6-engine waterfall |
+| `web_search` | Search the web via 8-engine waterfall or visit a URL |
 | `file_read` | Read file contents |
+| `file_write` | Write content to a file |
 | `codebase_search` | Recursively search files in a directory |
 | `browser` | Interactive headless browser (10 actions) |
+| `memory` | 7-tier memory: recall, status, consolidate, search, reset |
+| `scratchpad` | Pin/unpin persistent notes |
+| `timeline` | Query conversation timeline |
+| `lessons` | Manage learned behavioral rules |
+| `create_artifact` | Create rich markdown documents |
+| `generate_image` | Generate images locally via Flux model |
+| `steering` | Manage cognitive steering vectors |
+| `interpretability` | SAE feature analysis and activation inspection |
+| `learning` | Manage the self-learning pipeline |
+| `system_logs` | Read-only access to error logs and self-edit audit trail |
 
 Layer 1 decides whether to answer directly or escalate. If the task is simple, it responds immediately. If complex, it calls `start_react_system` to enter Layer 2.
 
-## Layer 2 Tools (28 tools)
+## Layer 2 Tools (25 tools)
 
-Available during the ReAct loop (Layer 2). Defined by `layer2_tools()`. Includes all Layer 1 tools plus:
+Available during the ReAct loop (Layer 2). Defined by `layer2_tools()`. Includes these tools (note: not all L1 tools carry over — L2 has its own curated set):
 
 ### Control Tools
 
@@ -35,7 +46,7 @@ Available during the ReAct loop (Layer 2). Defined by `layer2_tools()`. Includes
 | Tool | File | Description |
 |------|------|-------------|
 | `run_bash_command` | `shell.rs` | Execute a shell command with optional working directory |
-| `web_search` | `web_search.rs` | 6-engine waterfall: Brave → Serper → Tavily → SerpAPI → DuckDuckGo → Wikipedia |
+| `web_search` | `web_search.rs` | 8-engine waterfall: Brave → Serper → Tavily → SerpAPI → DuckDuckGo → Google → Wikipedia → Google News RSS |
 | `codebase_search` | `codebase_search.rs` | Recursively search files in a directory for content matches |
 | `file_read` | `file_read.rs` | Read the contents of a file |
 | `file_write` | `file_write.rs` | Write content to a file (creates parent dirs) |
@@ -113,7 +124,7 @@ All memory tools route through `tool_dispatch.rs` which accesses `AppState.memor
 
 When the model emits multiple tool calls in a single turn, they are executed concurrently via `futures::join_all`. Results are collected and injected together, enabling efficient multi-tool information gathering.
 
-## Web Search: 6-Engine Waterfall
+## Web Search: 8-Engine Waterfall
 
 `web_search::search(query)` tries each search provider in order until one succeeds:
 
@@ -122,7 +133,9 @@ When the model emits multiple tool calls in a single turn, they are executed con
 3. **Tavily** — requires `TAVILY_API_KEY`
 4. **SerpAPI** — requires `SERPAPI_API_KEY`
 5. **DuckDuckGo** — no key required (free fallback)
-6. **Wikipedia** — no key required (final fallback)
+6. **Google Web Scrape** — no key required
+7. **Wikipedia** — no key required (final knowledge fallback)
+8. **Google News RSS** — no key required (news fallback)
 
 All implementations in `src/tools/search_providers.rs`.
 
@@ -167,6 +180,6 @@ src/tools/
 ├── file_read.rs            — File reading
 ├── file_write.rs           — File writing
 ├── artifact_tool.rs        — Persistent artifact creation
-├── image_tool.rs           — Local Flux image generation
-└── sub_agent_tool.rs       — Isolated sub-agent spawning
+├── image_gen_tool.rs       — Local Flux image generation
+└── sub_agent_tool.rs       — Isolated sub-agent spawning (src/inference/sub_agent.rs)
 ```

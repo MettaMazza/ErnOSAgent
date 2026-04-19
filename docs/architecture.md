@@ -8,13 +8,13 @@ Ern-OS is a **WebUI-centric** agent engine with autonomous learning. The WebUI i
 ┌─────────────────────────────────────────────────────┐
 │                   WebUI Hub (ws.rs)                  │
 │   WebSocket (/ws)  ·  Static Frontend (index.html)   │
-│   56 REST API endpoints · 12 Dashboard views         │
+│   70 REST API endpoints · 12 Dashboard views         │
 ├─────────────────────────────────────────────────────┤
 │                Internal Engine Services              │
 │                                                      │
 │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐  │
 │  │ Inference │ │ Observer │ │ Tools  │ │ Sessions │  │
-│  │  Engine   │ │  Audit   │ │25 Tools│ │ Manager  │  │
+│  │  Engine   │ │  Audit   │ │27 Tools│ │ Manager  │  │
 │  └──────────┘ └──────────┘ └────────┘ └──────────┘  │
 │                                                      │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────────┐  │
@@ -45,7 +45,7 @@ Ern-OS is a **WebUI-centric** agent engine with autonomous learning. The WebUI i
 
 ## Module Map
 
-All source lives under `src/`. 19 top-level modules:
+All source lives under `src/`. 18 top-level modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
@@ -64,8 +64,8 @@ All source lives under `src/`. 19 top-level modules:
 | `scheduler` | `src/scheduler/` | Cron engine: job definitions (job.rs), persistent store (store.rs), 8 built-in system jobs |
 | `session` | `src/session/mod.rs` | JSON-backed session CRUD with pin, archive, fork, search, reactions |
 | `steering` | `src/steering/` | Activation steering vectors (vectors.rs), server interface (server.rs) |
-| `tools` | `src/tools/` | 25-tool registry: schema definitions + tool implementation files |
-| `web` | `src/web/` | Axum server (58 routes), WebSocket handler (chat + voice + video), 14 handler modules, state, static frontend |
+| `tools` | `src/tools/` | 27-tool registry: schema definitions + tool implementation files |
+| `web` | `src/web/` | Axum server (70 routes), WebSocket handler (chat + voice + video), 14 handler modules, state, static frontend |
 
 ## Data Flow: User Message → Response
 
@@ -76,7 +76,7 @@ All source lives under `src/`. 19 top-level modules:
    └─ Includes: scratchpad (35%), lessons (25%), skills (15%),
       timeline (15%), knowledge graph (10%)
 4. Message ingested into Timeline memory
-5. Layer 1: Provider.chat() with layer1_tools (8 tools)
+5. Layer 1: Provider.chat() with layer1_tools (18 tools)
 6. Stream consumed via consume_silently()
    ├─ TextDelta → buffered (NOT sent to user yet)
    ├─ ToolCall "start_react_system" → escalate to Layer 2
@@ -116,6 +116,7 @@ pub struct AppState {
     pub teams: Arc<RwLock<TeamRegistry>>,
     pub browser: Arc<RwLock<BrowserState>>,
     pub platforms: Arc<RwLock<PlatformRegistry>>,
+    pub mutable_config: Arc<RwLock<AppConfig>>,
 }
 ```
 
@@ -124,6 +125,7 @@ pub struct AppState {
 - `Arc<RwLock<AgentRegistry>>` manages custom agent personas
 - `Arc<RwLock<BrowserState>>` lazily initialized headless Chromium instance
 - `Arc<RwLock<PlatformRegistry>>` manages Discord/Telegram adapter connections
+- `Arc<RwLock<AppConfig>>` (`mutable_config`) — runtime-updatable config for Settings UI changes
 
 ## Auto-Starting Services
 
@@ -158,7 +160,7 @@ The `spawn_sub_agent` tool creates an isolated ReAct loop with:
 
 When the model emits multiple `ToolCalls` in a single response, they are dispatched concurrently via `futures::join_all`. All results are collected and injected as tool messages before the next inference turn.
 
-## REST API (58 routes)
+## REST API (70 routes)
 
 Organized by handler module in `src/web/handlers/`:
 
@@ -166,15 +168,15 @@ Organized by handler module in `src/web/handlers/`:
 |---------------|-----------|---------|
 | `sessions.rs` | 12 routes | CRUD, search, pin, archive, export, fork, message delete, reactions |
 | `memory.rs` | 6 routes | Stats + all 7 memory tiers |
-| `system.rs` | 15 routes | Health, status, models, tools, training, interpretability, steering, learning, observer, logs, prompts |
+| `system.rs` | 19 routes | Health, status, models, tools, training, interpretability (features/snapshots/sae), steering, learning (status/adapters/sleep-history), observer, logs, self-edits, checkpoints, prompts get/put, factory reset |
 | `scheduler.rs` | 5 routes | Job CRUD, toggle, history |
 | `agents.rs` | 8 routes | Agent/team CRUD |
 | `onboarding.rs` | 3 routes | Status, save profile, complete |
-| `api_keys.rs` | 2 routes | GET/PUT API key management |
+| `api_keys.rs` | 3 routes | GET/PUT API key management, env loading |
 | `tts.rs` | 2 routes | Synthesize, status |
 | `codes.rs` | 1 route | code-server health |
-| `platforms.rs` | 3 routes | List, connect, disconnect adapters |
-| `content.rs` | 3 routes | Static file serving (index.html, app.css, app.js) |
+| `platforms.rs` | 5 routes | List, config get/put, connect, disconnect, platform ingest |
+| `content.rs` | 4 routes | Static file serving (index.html, app.css, app.js, images) |
 
 ## Background Scheduler (Cron Engine)
 

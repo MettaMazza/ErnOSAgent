@@ -12,6 +12,14 @@ n_gpu_layers = 999
 embedding_port = 8081
 visual_token_budget = 560
 
+[ollama]
+base_url = "http://localhost:11434"
+model = "gemma4:26b"
+
+[openai_compat]
+base_url = "http://localhost:1234/v1"
+model = "gemma-4-26b-it"
+
 [observer]
 enabled = true
 
@@ -20,5 +28,27 @@ port = 3000
 open_browser = true
 
 [prompt]
-thinking_enabled = true
 system_prompt = "You are Ern-OS, a high-performance AI assistant with a 7-tier memory system, tool execution, and interpretability."
+thinking_enabled = true
+
+[codes]
+enabled = true
+port = 8443
+workspace = "."
+
+[discord]
+token = ""  # Set via DISCORD_TOKEN env var or add here locally
+admin_ids = [
+    "1299810741984956400",
+    "1282286389953695700",
+]
+listen_channels = ["1479744132904915200"]
+enabled = true
+
+[telegram]
+admin_ids = [
+    1299810741984956400,
+    1282286389953695700,
+]
+allowed_chats = [1479744132904915200]
+enabled = false

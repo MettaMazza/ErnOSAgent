@@ -32,4 +32,7 @@ pub struct AppState {
     pub teams: Arc<RwLock<TeamRegistry>>,
     pub browser: Arc<RwLock<BrowserState>>,
     pub platforms: Arc<RwLock<PlatformRegistry>>,
+    /// Mutable config — for runtime updates from the Settings UI.
+    /// Platform tokens, admin IDs, etc. are updated here and persisted to ern-os.toml.
+    pub mutable_config: Arc<RwLock<AppConfig>>,
 }

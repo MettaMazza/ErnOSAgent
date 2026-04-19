@@ -42,6 +42,13 @@ async fn main() -> Result<()> {
     // Check for post-recompile resume state
     check_recompile_resume(&config);
 
+    // Start platform router (forwards platform messages to hub)
+    let router_registry = state.platforms.clone();
+    let hub_port = config.web.port;
+    tokio::spawn(async move {
+        ern_os::platform::router::start_platform_router(router_registry, hub_port).await;
+    });
+
     launch_webui(state, &config).await
 }
 
@@ -167,6 +174,7 @@ fn build_app_state(
         teams: Arc::new(RwLock::new(teams)),
         browser: Arc::new(RwLock::new(ern_os::tools::browser_tool::BrowserState::new())),
         platforms: Arc::new(RwLock::new(ern_os::platform::registry::PlatformRegistry::new())),
+        mutable_config: Arc::new(RwLock::new(config.clone())),
     })
 }
 
