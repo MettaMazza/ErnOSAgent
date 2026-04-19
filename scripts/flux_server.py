@@ -120,27 +120,38 @@ def health():
 @app.post("/generate", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     if pipe is None:
-        return {"error": "Pipeline not loaded"}
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"error": "Pipeline not loaded"})
 
-    generator = None
-    if req.seed is not None:
-        generator = torch.Generator("cpu").manual_seed(req.seed)
+    try:
+        generator = None
+        if req.seed is not None:
+            generator = torch.Generator("cpu").manual_seed(req.seed)
 
-    image = pipe(
-        req.prompt,
-        guidance_scale=req.guidance,
-        num_inference_steps=req.steps,
-        width=req.width,
-        height=req.height,
-        max_sequence_length=512,
-        generator=generator,
-    ).images[0]
+        image = pipe(
+            req.prompt,
+            guidance_scale=req.guidance,
+            num_inference_steps=req.steps,
+            width=req.width,
+            height=req.height,
+            max_sequence_length=512,
+            generator=generator,
+        ).images[0]
 
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    return GenerateResponse(image_base64=b64, width=req.width, height=req.height)
+        return GenerateResponse(image_base64=b64, width=req.width, height=req.height)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Generation error: {e}\n{tb}", file=sys.stderr)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "traceback": tb},
+        )
 
 
 if __name__ == "__main__":
