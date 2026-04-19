@@ -181,18 +181,19 @@ Compile-time feature flags (passed via `--features`):
 
 | Feature | Platform | Purpose |
 |---------|----------|---------|
-| `metal` | macOS (Apple Silicon) | GPU-accelerated SAE training via Metal |
-| `cuda` | Linux/Windows (NVIDIA) | GPU-accelerated SAE training via CUDA |
+| `metal` | macOS (Apple Silicon) | GPU acceleration for Candle ML operations via Metal |
+| `cuda` | Linux/Windows (NVIDIA) | GPU acceleration for Candle ML operations via CUDA |
 | `discord` | Any | Enable Discord platform adapter |
 | `telegram` | Any | Enable Telegram platform adapter |
 
 ```bash
 # Examples:
-cargo build --release                           # CPU-only, all platforms
-cargo build --release --features metal          # macOS with Metal GPU
-cargo build --release --features cuda           # Linux with NVIDIA GPU
+cargo build --release                           # All platforms — full functionality
+cargo build --release --features metal          # macOS — Metal GPU for ML operations
+cargo build --release --features cuda           # Linux — NVIDIA GPU for ML operations
 cargo build --release --features discord        # With Discord adapter
 cargo build --release --features metal,discord  # macOS + Metal + Discord
 ```
 
-> **Note:** The core engine (inference, tools, WebUI, memory) works identically on all platforms with no features required. GPU features only affect SAE training performance. The inference model's GPU offload is handled by llama-server, not by the engine.
+> **Note:** All features are optional. `cargo build --release` produces a fully functional engine on any platform. The `metal` and `cuda` features enable hardware-accelerated tensor operations for the interpretability and training subsystems. Model inference GPU offload is handled by llama-server, not by the engine.
+

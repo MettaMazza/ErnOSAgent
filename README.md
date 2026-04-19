@@ -41,21 +41,6 @@ cargo run --release
 
 Opens `http://localhost:3000` — the full dashboard with chat, memory explorer, tool logs, training controls, and more.
 
-### GPU Acceleration (SAE Training)
-
-The core engine runs on any platform. For SAE training, opt into GPU acceleration:
-
-```bash
-# macOS — Apple Silicon (Metal)
-cargo build --release --features metal
-
-# Linux/Windows — NVIDIA (CUDA, requires CUDA toolkit)
-cargo build --release --features cuda
-
-# Any platform — CPU (no extra dependencies)
-cargo build --release
-```
-
 ### Requirements
 
 | Dependency | Purpose |
