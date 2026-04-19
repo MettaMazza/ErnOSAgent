@@ -230,7 +230,6 @@ async fn process_chunk(
         if let Some(reason) = &choice.finish_reason {
             match reason.as_str() {
                 "length" => tracing::warn!("SSE: finish_reason=length — response truncated"),
-                "stop" if !produced => tracing::warn!("SSE: finish_reason=stop with NO content produced — premature EOS"),
                 _ => {}
             }
         }
