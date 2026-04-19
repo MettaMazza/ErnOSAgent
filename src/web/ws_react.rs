@@ -261,7 +261,7 @@ pub async fn run_react_loop(
                 return;
             }
             Err(e) => {
-                tracing::error!(error = %e, iteration = total_iterations, "ReAct iteration inference failed");
+                tracing::error!(error = ?e, iteration = total_iterations, "ReAct iteration inference failed (full chain)");
                 send_ws(sender, "error", &serde_json::json!({"message": format!("ReAct error: {}", e)})).await;
                 send_ws(sender, "done", &serde_json::json!({})).await;
                 return;

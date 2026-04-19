@@ -113,9 +113,22 @@ pub async fn run_iteration(
 ) -> Result<IterationResult> {
     let tools = schema::layer2_tools();
 
+    // Diagnostic: log message count and estimated payload size before inference
+    let msg_count = ctx.messages.len();
+    let est_chars: usize = ctx.messages.iter().map(|m| m.text_content().len()).sum();
+    tracing::debug!(messages = msg_count, est_chars, "ReAct iteration: sending to provider");
+
     let mut rx = provider
         .chat(&ctx.messages, Some(&tools), thinking_enabled)
         .await
+        .map_err(|e| {
+            tracing::error!(
+                messages = msg_count, est_chars,
+                error_chain = ?e,
+                "ReAct inference call failed — full error chain above"
+            );
+            e
+        })
         .context("ReAct iteration inference failed")?;
 
     let mut text = String::new();
