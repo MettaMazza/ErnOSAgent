@@ -511,7 +511,7 @@ Run these commands from the project root.
 | 5. Observer | 5 | Audit badges, toggle |
 | 6. Training Capture | 6 | Golden/rejection buffers |
 | 7. Memory (7 Tiers) | 25 | Timeline, scratchpad, lessons, synaptic, procedures, recall |
-| 8. Tool Dispatch (29) | 24 | Every tool tested with exact prompts |
+| 8. Tool Dispatch (27) | 24 | Every tool tested with exact prompts |
 | 9. Dashboard Views | 18 | All 6 tab views verified |
 | 10. REST API | 24 | All 24 API endpoints curl-tested |
 | 11. Learning Pipeline | 6 | Insights, decay, scheduler |
@@ -524,7 +524,7 @@ Run these commands from the project root.
 | 18. WebSocket | 5 | Streaming, events, sessions |
 | 19. Self-Coding | 18 | Containment, edit, recompile, checkpoint |
 | 20. Error Logs & Self-Healing | 8 | system_logs tool, self_edit audit |
-| 21. Master Capabilities Prompt | 10 | Full system stress test across all 52 tool calls |
+| 21. Master Capabilities Prompt | 15 | Full system stress test across all 78+ tool calls |
 | **Total** | **225** | |
 
 ---
@@ -548,166 +548,275 @@ If you're short on time, run these 10 checks to verify the core is working:
 
 ## 21. Master Capabilities Verification Prompt
 
-> **Purpose:** A single prompt that stress-tests the entire Ern-OS system by exercising every tool, every action, and every argument across both Layer 1 and Layer 2 in one autonomous run. Copy-paste this into a fresh Ern-OS chat session.
+### What Is This?
 
-> **Expected flow:** L1 handles the initial tool calls → escalates to L2 (ReAct) for the complex multi-tool chain → exercises all remaining tools inside the loop → exits the loop with `reply_request` → delivers a final verification report.
+This is a **single, copy-paste prompt** that stress-tests the entire Ern-OS system in one autonomous run. When you paste it into a fresh Ern-OS chat session, the agent will systematically call **every tool**, **every action variant**, and **every argument** — then deliver a structured pass/fail report.
 
-> **Coverage:** 29 unique tools, 73 distinct action/argument combinations, 80+ total tool calls.
+### How to Use It
+
+1. **Start Ern-OS** — `cargo run --release` and wait for the WebUI to open at `http://localhost:3000`
+2. **Open a fresh chat** — click "New Chat" in the sidebar (do NOT use an existing session)
+3. **Copy the entire prompt** from the code block below (everything inside the ``` fences)
+4. **Paste it** into the chat input and press Send
+5. **Watch** — the agent will work autonomously for 5–15 minutes
+6. **Do NOT interrupt** — let it complete all 78+ tool calls across both layers
+7. **At the end**, the agent delivers a structured verification report with ✅/❌ per tool
+
+### What Will Happen (Step by Step)
+
+The verification runs in **three phases**. Here's exactly what you'll see:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 1: Layer 1 — Fast Reply Path (steps 1–47)               │
+│                                                                 │
+│  The agent uses Layer 1 (single inference call, 18 tools) to    │
+│  execute 47 tool calls: shell, web search, files, browser,      │
+│  memory, scratchpad, timeline, lessons, learning, steering,     │
+│  interpretability, system_logs, image generation, artifacts,    │
+│  and propose_plan.                                              │
+│                                                                 │
+│  What you'll see in the UI:                                     │
+│  • Green tool chips appearing one by one (47 of them)           │
+│  • Each chip shows the tool name and completes with ✅           │
+│  • A browser window opens and closes (steps 7–16)              │
+│  • An image is generated (step 45)                             │
+│  • A plan proposal card appears (step 47)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  ESCALATION: Layer 1 → Layer 2                                  │
+│                                                                 │
+│  After completing all L1 tools, the agent calls                 │
+│  start_react_system to escalate into the ReAct loop.            │
+│                                                                 │
+│  What you'll see in the UI:                                     │
+│  • Status bar: "ReAct loop activated (20 turns planned)"       │
+│  • Terminal: "L1 result: Escalate → ReAct" log line            │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 2: Layer 2 — ReAct Loop (steps 48–78)                   │
+│                                                                 │
+│  The agent enters the multi-turn ReAct loop (25 tools) and      │
+│  executes 31 more tool calls: synaptic graph, self_skills,      │
+│  codebase_edit, checkpoint, sub-agent, system_recompile,        │
+│  cleanup, and final verification reads.                         │
+│                                                                 │
+│  What you'll see in the UI:                                     │
+│  • "Iteration 0", "Iteration 1", ... in the terminal           │
+│  • More green tool chips appearing inside the ReAct loop        │
+│  • Sub-agent spawned (step 70, briefly shows nested execution) │
+│  • system_recompile returns "BLOCKED" (step 78, expected)      │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 3: Final Report                                          │
+│                                                                 │
+│  The agent calls reply_request to exit the ReAct loop and       │
+│  deliver a structured verification report with a pass/fail      │
+│  matrix covering all 27 unique tools and 78+ tool calls.        │
+│                                                                 │
+│  What you'll see in the UI:                                     │
+│  • The ReAct loop terminates                                   │
+│  • A markdown report renders in the chat with tables           │
+│  • Overall PASS or FAIL verdict at the bottom                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ### The Prompt
+
+> **Instructions:** Copy everything inside the code block below and paste it into a fresh Ern-OS chat session. The agent will handle the rest autonomously.
 
 ```
 I need you to run a COMPLETE system capabilities verification. Execute every single tool, every action variant, and every argument in the exact order listed below. Do NOT loop, retry, or skip. Call each tool exactly as specified, collect every result, then deliver a single comprehensive report at the end.
 
-=== PHASE 1: L1 Tools (before escalation) ===
+============================================================================
+  PHASE 1: L1 Tools (executed BEFORE escalation to the ReAct loop)
+  
+  These 47 tool calls use Layer 1's fast-reply path. Execute them in order.
+  After completing step 47, escalate to Layer 2 for Phase 2.
+============================================================================
 
---- run_bash_command (all args) ---
+--- TOOL: run_bash_command ---
+(Tests shell execution with all arguments: command + working_dir)
 1. run_bash_command: command="echo 'VERIFICATION_MARKER_L1' && uname -a && date -u", working_dir="."
 
---- web_search (both actions, all args) ---
+--- TOOL: web_search ---
+(Tests both actions: "search" and "visit", with all arguments: action, query, url)
 2. web_search (search): action="search", query="Ern-OS AI agent engine Rust"
 3. web_search (visit): action="visit", url="https://httpbin.org/get"
 
---- file_read (all args) ---
+--- TOOL: file_read ---
+(Tests file reading with all arguments: path)
 4. file_read: path="ern-os.toml"
 
---- file_write (all args) ---
+--- TOOL: file_write ---
+(Tests file writing with all arguments: path + content)
 5. file_write: path="data/verification_test.txt", content="Master verification test executed. All systems nominal."
 
---- codebase_search (all args) ---
+--- TOOL: codebase_search ---
+(Tests recursive search with all arguments: query, path, max_results)
 6. codebase_search: query="fn main", path="src/", max_results=5
 
---- browser (all 10 actions, all args) ---
-7. browser (open): action="open", url="https://httpbin.org/html"
-8. browser (wait): action="wait", page_id=[from step 7], selector="body", timeout_ms=3000
-9. browser (extract): action="extract", page_id=[from step 7], selector="h1", attribute="innerText"
+--- TOOL: browser ---
+(Tests ALL 10 browser actions with all arguments. Steps 7–16 form a complete browser lifecycle: open → interact → close)
+7.  browser (open):       action="open", url="https://httpbin.org/html"
+8.  browser (wait):       action="wait", page_id=[from step 7], selector="body", timeout_ms=3000
+9.  browser (extract):    action="extract", page_id=[from step 7], selector="h1", attribute="innerText"
 10. browser (screenshot): action="screenshot", page_id=[from step 7]
-11. browser (evaluate): action="evaluate", page_id=[from step 7], script="document.title"
-12. browser (type): action="type", page_id=[from step 7], selector="body", text="verification test"
-13. browser (click): action="click", page_id=[from step 7], selector="a"
-14. browser (navigate): action="navigate", page_id=[from step 7], url="https://httpbin.org/get"
-15. browser (list): action="list"
-16. browser (close): action="close", page_id=[from step 7]
+11. browser (evaluate):   action="evaluate", page_id=[from step 7], script="document.title"
+12. browser (type):       action="type", page_id=[from step 7], selector="body", text="verification test"
+13. browser (click):      action="click", page_id=[from step 7], selector="a"
+14. browser (navigate):   action="navigate", page_id=[from step 7], url="https://httpbin.org/get"
+15. browser (list):       action="list"
+16. browser (close):      action="close", page_id=[from step 7]
 
---- memory (all 5 actions, all args) ---
-17. memory (status): action="status"
-18. memory (recall): action="recall", query="verification"
-19. memory (search): action="search", query="system"
+--- TOOL: memory ---
+(Tests 4 of 5 memory actions. The 5th action "reset" runs in Phase 2 cleanup)
+17. memory (status):      action="status"
+18. memory (recall):      action="recall", query="verification"
+19. memory (search):      action="search", query="system"
 20. memory (consolidate): action="consolidate"
 
---- scratchpad (all 4 actions, all args) ---
-21. scratchpad (pin): action="pin", key="verification_run", value="Master capabilities test executed successfully"
+--- TOOL: scratchpad ---
+(Tests 3 of 4 scratchpad actions. The 4th action "unpin" runs in Phase 2 cleanup)
+21. scratchpad (pin):  action="pin", key="verification_run", value="Master capabilities test executed successfully"
 22. scratchpad (list): action="list"
-23. scratchpad (get): action="get", key="verification_run"
+23. scratchpad (get):  action="get", key="verification_run"
 
---- timeline (all 3 actions, all args) ---
-24. timeline (recent): action="recent", limit=5
-25. timeline (search): action="search", query="verification"
+--- TOOL: timeline ---
+(Tests all 3 timeline actions with all arguments)
+24. timeline (recent):  action="recent", limit=5
+25. timeline (search):  action="search", query="verification"
 26. timeline (session): action="session", session_id="current"
 
---- lessons (all 4 actions, all args) ---
-27. lessons (add): action="add", rule="System verification should be run after every major update", confidence=0.95
-28. lessons (list): action="list"
+--- TOOL: lessons ---
+(Tests 3 of 4 lessons actions. The 4th action "remove" runs in Phase 2 cleanup)
+27. lessons (add):    action="add", rule="System verification should be run after every major update", confidence=0.95
+28. lessons (list):   action="list"
 29. lessons (search): action="search", query="verification"
 
---- learning (all 5 actions, all args) ---
-30. learning (status): action="status"
-31. learning (buffer_stats): action="buffer_stats"
+--- TOOL: learning ---
+(Tests 4 of 5 learning actions. The 5th action "list_adapters" runs in Phase 2)
+30. learning (status):           action="status"
+31. learning (buffer_stats):     action="buffer_stats"
 32. learning (trigger_training): action="trigger_training", method="sft"
-33. learning (sleep): action="sleep"
+33. learning (sleep):            action="sleep"
 
---- steering (all 4 actions, all args) ---
-34. steering (list): action="list"
-35. steering (status): action="status"
-36. steering (activate): action="activate", name="test_vector", strength=1.0
+--- TOOL: steering ---
+(Tests all 4 steering actions with all arguments)
+34. steering (list):       action="list"
+35. steering (status):     action="status"
+36. steering (activate):   action="activate", name="test_vector", strength=1.0
 37. steering (deactivate): action="deactivate", name="test_vector"
 
---- interpretability (all 3 actions, all args) ---
+--- TOOL: interpretability ---
+(Tests all 3 interpretability actions with all arguments)
 38. interpretability (top_features): action="top_features"
-39. interpretability (encode): action="encode", input="The Ern-OS verification system is running correctly"
-40. interpretability (snapshot): action="snapshot"
+39. interpretability (encode):       action="encode", input="The Ern-OS verification system is running correctly"
+40. interpretability (snapshot):     action="snapshot"
 
---- system_logs (all 4 actions, all args) ---
-41. system_logs (tail): action="tail", lines=10
-42. system_logs (errors): action="errors", max=5
-43. system_logs (search): action="search", pattern="verification"
+--- TOOL: system_logs ---
+(Tests all 4 system_logs actions with all arguments)
+41. system_logs (tail):       action="tail", lines=10
+42. system_logs (errors):     action="errors", max=5
+43. system_logs (search):     action="search", pattern="verification"
 44. system_logs (self_edits): action="self_edits"
 
---- generate_image (all args) ---
+--- TOOL: generate_image ---
+(Tests image generation with all arguments)
 45. generate_image: prompt="A glowing neural network visualization on dark background, abstract digital art", width=512, height=512, steps=8, guidance=3.5
 
---- create_artifact (all args, all artifact_type enum: report/plan/analysis/code) ---
+--- TOOL: create_artifact ---
+(Tests artifact creation with all arguments including artifact_type enum)
 46. create_artifact: title="Verification Report — L1 Phase", content="# Ern-OS L1 Verification\n\nAll L1 tools executed.\n\n## Tools Tested\n- run_bash_command ✅\n- web_search ✅\n- file_read ✅\n- file_write ✅\n- codebase_search ✅\n- browser (10 actions) ✅\n- memory (5 actions) ✅\n- scratchpad (4 actions) ✅\n- timeline (3 actions) ✅\n- lessons (4 actions) ✅\n- learning (5 actions) ✅\n- steering (4 actions) ✅\n- interpretability (3 actions) ✅\n- system_logs (4 actions) ✅\n- generate_image ✅\n\n## Analysis\nThis artifact exercises the 'report' type. Other valid types: plan, analysis, code.", artifact_type="report"
 
---- propose_plan (all args — tests plan proposal flow) ---
+--- TOOL: propose_plan ---
+(Tests the plan proposal UI flow with all arguments)
 47. propose_plan: title="L2 Verification Plan", plan_markdown="## Objective\nExercise all ReAct-exclusive tools.\n\n## Steps\n1. Populate synaptic graph (all 8 actions)\n2. Create/view/refine/delete self_skills (all 5 actions)\n3. Exercise codebase_edit (patch/insert/multi_patch/delete)\n4. Exercise checkpoint (list/rollback/prune)\n5. Spawn sub-agent\n6. Clean up and deliver report", estimated_turns=20
 
-=== PHASE 2: Escalate to L2 ReAct Loop ===
+
+============================================================================
+  ESCALATION: Phase 1 is now complete. Escalate to Phase 2.
+  
+  Call start_react_system to enter the ReAct loop for the remaining tools.
+============================================================================
 
 Now escalate using start_react_system with:
 - objective: "Complete the L2 tool verification by exercising all ReAct-exclusive tools: synaptic (8 actions), self_skills (5 actions), codebase_edit (4 actions), checkpoint (3 actions), spawn_sub_agent, system_recompile (dry-run), refuse_request, extend_turns, and deliver final report via reply_request"
 - plan: "Execute each L2-exclusive tool with every action variant and argument, then deliver final report"
 - planned_turns: 20
 
-Inside the ReAct loop, execute ALL of these in order:
 
---- synaptic (all 8 actions, all args) ---
-48. synaptic (store): action="store", concept="Ern-OS Verification", data={"description": "Master capabilities test entity"}, layer="system"
-49. synaptic (store #2): action="store", concept="System Integrity", data={"description": "Cross-tool verification proof"}, layer="core"
+============================================================================
+  PHASE 2: L2 ReAct Loop Tools (executed INSIDE the ReAct loop)
+  
+  These 31 tool calls use Layer 2's multi-turn ReAct loop.
+  After completing step 78, exit the loop with reply_request (Phase 3).
+============================================================================
+
+--- TOOL: synaptic ---
+(Tests ALL 8 synaptic actions with all arguments. Builds a small knowledge graph.)
+48. synaptic (store):              action="store", concept="Ern-OS Verification", data={"description": "Master capabilities test entity"}, layer="system"
+49. synaptic (store #2):           action="store", concept="System Integrity", data={"description": "Cross-tool verification proof"}, layer="core"
 50. synaptic (store_relationship): action="store_relationship", concept="Ern-OS Verification", target="System Integrity", edge_type="validates"
-51. synaptic (search): action="search", concept="Verification", limit=10
-52. synaptic (recent): action="recent", limit=5
-53. synaptic (stats): action="stats"
-54. synaptic (beliefs): action="beliefs"
-55. synaptic (layers): action="layers"
-56. synaptic (co_activate): action="co_activate", concept="Ern-OS Verification", target="System Integrity"
+51. synaptic (search):             action="search", concept="Verification", limit=10
+52. synaptic (recent):             action="recent", limit=5
+53. synaptic (stats):              action="stats"
+54. synaptic (beliefs):            action="beliefs"
+55. synaptic (layers):             action="layers"
+56. synaptic (co_activate):        action="co_activate", concept="Ern-OS Verification", target="System Integrity"
 
---- self_skills (all 5 actions, all args) ---
-57. self_skills (list): action="list"
+--- TOOL: self_skills ---
+(Tests ALL 5 self_skills actions. Creates a skill, views it, refines it, verifies the refinement, then deletes it in cleanup.)
+57. self_skills (list):   action="list"
 58. self_skills (create): action="create", name="System Verification", description="Run comprehensive tool verification across all tiers", steps=[{"tool": "memory", "instruction": "Check status"}, {"tool": "system_logs", "instruction": "Check for errors"}, {"tool": "learning", "instruction": "Check training status"}]
-59. self_skills (view): action="view", name="System Verification"
+59. self_skills (view):   action="view", name="System Verification"
 60. self_skills (refine): action="refine", id=[id from step 58], steps=[{"tool": "memory", "instruction": "Check status"}, {"tool": "system_logs", "instruction": "Check for errors"}, {"tool": "learning", "instruction": "Check training status"}, {"tool": "steering", "instruction": "Check steering status"}]
-61. self_skills (list): action="list" (verify refine applied)
+61. self_skills (list):   action="list" (verify refine applied)
 
---- codebase_edit (all 4 actions, all args) ---
-62. codebase_edit (insert): action="insert", path="data/verification_test.txt", anchor="All systems nominal.", content="\nL2 ReAct verification appended successfully.", position="after"
-63. codebase_edit (patch): action="patch", path="data/verification_test.txt", find="L2 ReAct verification appended successfully.", replace="L2 ReAct verification PASSED."
+--- TOOL: codebase_edit ---
+(Tests ALL 4 codebase_edit actions. Edits the file created in step 5, then creates+deletes a test file.)
+62. codebase_edit (insert):      action="insert", path="data/verification_test.txt", anchor="All systems nominal.", content="\nL2 ReAct verification appended successfully.", position="after"
+63. codebase_edit (patch):       action="patch", path="data/verification_test.txt", find="L2 ReAct verification appended successfully.", replace="L2 ReAct verification PASSED."
 64. codebase_edit (multi_patch): action="multi_patch", path="data/verification_test.txt", patches=[{"find": "Master verification", "replace": "MASTER VERIFICATION"}, {"find": "PASSED.", "replace": "PASSED ✅."}]
-65. file_write: path="data/verification_delete_me.txt", content="This file will be deleted by codebase_edit delete action"
-66. codebase_edit (delete): action="delete", path="data/verification_delete_me.txt"
+65. file_write:                  path="data/verification_delete_me.txt", content="This file will be deleted by codebase_edit delete action"
+66. codebase_edit (delete):      action="delete", path="data/verification_delete_me.txt"
 
---- checkpoint (all 3 actions, all args) ---
-67. checkpoint (list): action="list"
+--- TOOL: checkpoint ---
+(Tests ALL 3 checkpoint actions)
+67. checkpoint (list):     action="list"
 68. checkpoint (rollback): action="rollback", id=[pick first checkpoint id from step 67]
-69. checkpoint (prune): action="prune", max_age_hours=9999
+69. checkpoint (prune):    action="prune", max_age_hours=9999
 
---- spawn_sub_agent (all args) ---
+--- TOOL: spawn_sub_agent ---
+(Tests sub-agent spawning with all arguments)
 70. spawn_sub_agent: task="Verify the memory system status and report back", tools=["memory", "system_logs"], max_turns=3
 
---- file_read (verify edits) ---
+--- Verify previous edits ---
 71. file_read: path="data/verification_test.txt"
 
---- run_bash_command (L2 marker) ---
+--- L2 verification marker ---
 72. run_bash_command: command="echo 'VERIFICATION_MARKER_L2_REACT' && wc -l src/tools/*.rs && echo 'Tool files verified'"
 
---- learning (remaining action) ---
+--- TOOL: learning (remaining action from Phase 1) ---
 73. learning (list_adapters): action="list_adapters"
 
---- memory (reset — run LAST in cleanup) ---
-74. memory (reset): action="reset"
-
---- cleanup ---
-75. scratchpad (unpin): action="unpin", key="verification_run"
+--- CLEANUP (run these LAST, in this order) ---
+74. memory (reset):       action="reset"
+75. scratchpad (unpin):   action="unpin", key="verification_run"
 76. self_skills (delete): action="delete", name="System Verification"
-77. lessons (remove): action="remove", query="verification"
+77. lessons (remove):     action="remove", query="verification"
 
---- system_recompile (test that it blocks without changes) ---
-78. system_recompile: (no args — should return "RECOMPILE BLOCKED: No source files changed")
+--- TOOL: system_recompile ---
+(Tests the recompile blocker — should return "RECOMPILE BLOCKED: No source files changed")
+78. system_recompile: (no args — expected to be blocked since no code was changed)
 
---- refuse_request (test refusal path) ---
+--- TOOL: refuse_request ---
 Note: Do NOT actually refuse. Instead, just acknowledge that refuse_request exists and would be called with reason="The request violates containment policy" if needed. You can skip actually calling it since it would terminate the loop prematurely.
 
-=== PHASE 3: Final Report ===
+
+============================================================================
+  PHASE 3: Final Report
+  
+  All tools have been called. Exit the ReAct loop by calling reply_request
+  with a structured report in exactly the format specified below.
+============================================================================
 
 After all tools have been called, use reply_request (with message arg) to deliver a structured report in this exact format:
 
@@ -739,7 +848,6 @@ After all tools have been called, use reply_request (with message arg) to delive
 | system_logs | tail,errors,search,self_edits | 4/4 | action, lines, max, pattern | 4/4 | ✅/❌ |
 | create_artifact | 1 | 1 | title, content, artifact_type | 3/3 | ✅/❌ |
 | generate_image | 1 | 1 | prompt, width, height, steps, guidance | 5/5 | ✅/❌ |
-| browser | (see above) | 10/10 | | | ✅/❌ |
 | codebase_edit | patch,insert,multi_patch,delete | 4/4 | action, path, find, replace, anchor, content, position, patches | 8/8 | ✅/❌ |
 | checkpoint | list,rollback,prune | 3/3 | action, id, max_age_hours | 3/3 | ✅/❌ |
 | system_recompile | 1 | 1 | (none) | 0/0 | ✅/❌ |
@@ -751,7 +859,7 @@ After all tools have been called, use reply_request (with message arg) to delive
 | extend_turns | 1 | 0 (auto if needed) | progress_summary, remaining_work, additional_turns | N/A | ⚠️ |
 
 ## Summary
-- Total unique tools: 29/29
+- Total unique tools: 27/27
 - Total action variants: 73/73
 - Total argument variants: 80+
 - Total tool calls: ~78
@@ -772,30 +880,33 @@ After all tools have been called, use reply_request (with message arg) to delive
 
 ### Expected Outcomes
 
-| Phase | Expected Behavior |
-|-------|------------------|
-| L1 (Steps 1-47) | 47 tool chips fire in sequence. Each completes with ✅. Browser opens/interacts/closes. Image generated. Plan proposed. |
-| Escalation | `start_react_system` chip appears. Terminal shows "ReAct loop activated (20 turns planned)". |
-| L2 (Steps 48-78) | 31 tool calls inside the ReAct loop. Synaptic graph fully populated (8 actions). Skills created/refined/deleted (5 actions). Codebase edits with all 4 operations. Checkpoints listed/rolled-back/pruned. Sub-agent spawned. Recompile blocked (no changes). |
-| Report | `reply_request` terminates the loop. A structured markdown table with 78+ rows, full coverage matrix, and pass/fail status per tool. |
+After the prompt completes, here's what each phase should have produced:
 
-### Verification Checks
+| Phase | What You Should See |
+|-------|---------------------|
+| **Phase 1** (Steps 1–47) | 47 green tool chips fire in sequence. Each completes with ✅. The browser opens httpbin.org, interacts with the page (wait, extract, screenshot, evaluate, type, click, navigate), lists open pages, then closes. An image is generated via Flux. An artifact card appears in the chat. A plan proposal card appears. |
+| **Escalation** (L1 → L2) | A `start_react_system` tool chip appears. The status bar shows "ReAct loop activated (20 turns planned)". Terminal logs show the escalation. |
+| **Phase 2** (Steps 48–78) | 31 more tool calls inside the ReAct loop. The terminal shows "Iteration 0", "Iteration 1", etc. Synaptic graph is fully populated with 2 nodes and 1 edge. A "System Verification" skill is created, refined, then deleted. The test file from step 5 is edited by insert → patch → multi_patch operations. A sub-agent is spawned and completes. system_recompile returns "BLOCKED" (this is correct — no code was changed). Cleanup runs last: scratchpad unpinned, skill deleted, lesson removed, memory reset. |
+| **Phase 3** (Report) | `reply_request` terminates the ReAct loop. A structured markdown report renders in the chat with 78+ rows in the results matrix, a tool coverage summary table, and an overall PASS/FAIL verdict. |
 
-| # | After the master prompt completes, verify: | Expected |
-|---|-------------------------------------------|----------|
-| 21.1 | Terminal logs show L1 → L2 escalation | `start_react_system` log entry between L1 and L2 phases |
-| 21.2 | All 78+ tool calls appear in terminal logs | 78+ `Tool dispatch START` / `Tool dispatch OK` log pairs |
-| 21.3 | `data/verification_test.txt` exists | Contains edited text with "PASSED ✅" |
-| 21.4 | `data/checkpoints/` has entries | At least 3 checkpoint files from the codebase_edit calls |
-| 21.5 | `data/self_edit_log.jsonl` has entries | JSONL entries for insert + patch + multi_patch + delete |
-| 21.6 | Synaptic graph populated | Shows "Ern-OS Verification" + "System Integrity" + "validates" edge |
-| 21.7 | Artifact created | Artifact card visible in chat UI with "Verification Report" title |
-| 21.8 | Cleanup completed | Scratchpad key removed, test skill deleted, test lesson removed, memory reset |
-| 21.9 | No panics or crashes | Terminal shows 0 errors/panics throughout the entire run |
-| 21.10 | Final report delivered | Structured markdown table with 78+ rows and overall PASS/FAIL verdict |
-| 21.11 | Browser lifecycle complete | Open → interact → navigate → screenshot → close all worked |
-| 21.12 | Image generated | Image file created in data/ or artifacts/ |
-| 21.13 | Sub-agent completed | Sub-agent spawned and returned summary |
-| 21.14 | System recompile blocked | "No source files changed" message returned |
-| 21.15 | All 29 unique tools exercised | No tool name missing from the report matrix |
+### Post-Run Verification Checks
 
+After the master prompt completes, manually verify these items to confirm everything worked correctly:
+
+| # | What to Check | Where to Look | Expected Result |
+|---|---------------|---------------|-----------------|
+| 21.1 | L1 → L2 escalation occurred | Terminal logs | `start_react_system` log entry appears between Phase 1 and Phase 2 |
+| 21.2 | All tool calls executed | Terminal logs | 78+ pairs of `Tool dispatch START` / `Tool dispatch OK` log lines |
+| 21.3 | File edits applied | `cat data/verification_test.txt` | Contains "MASTER VERIFICATION" and "PASSED ✅" (from codebase_edit steps) |
+| 21.4 | Checkpoints created | `ls data/checkpoints/` | At least 3 checkpoint files from the codebase_edit operations |
+| 21.5 | Self-edit audit trail | `cat data/self_edit_log.jsonl` | JSONL entries for insert + patch + multi_patch + delete operations |
+| 21.6 | Synaptic graph populated | Memory tab in dashboard | Shows "Ern-OS Verification" node + "System Integrity" node + "validates" edge |
+| 21.7 | Artifact created | Chat UI | Artifact card visible with "Verification Report — L1 Phase" title |
+| 21.8 | Cleanup completed | Send `memory status` after | Scratchpad key removed, test skill deleted, test lesson removed, memory reset |
+| 21.9 | No panics or crashes | Terminal output | Zero errors/panics throughout the entire run |
+| 21.10 | Final report delivered | Chat UI | Structured markdown table with 78+ rows and overall PASS/FAIL verdict |
+| 21.11 | Browser lifecycle complete | Tool chips in chat | Open → wait → extract → screenshot → evaluate → type → click → navigate → list → close all completed |
+| 21.12 | Image generated | Tool chip or `ls data/` | Image file created in data/ or artifacts/ directory |
+| 21.13 | Sub-agent completed | Tool chip in chat | Sub-agent spawned, executed memory+logs tools, and returned a summary |
+| 21.14 | System recompile blocked | Tool chip in chat | Returns "RECOMPILE BLOCKED: No source files changed" (correct behavior) |
+| 21.15 | All 27 unique tools exercised | Final report matrix | Every tool name appears at least once in the report — no gaps |
