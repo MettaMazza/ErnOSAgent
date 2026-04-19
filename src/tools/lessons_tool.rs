@@ -13,7 +13,14 @@ pub async fn execute(args: &serde_json::Value) -> Result<String> {
         }
         "remove" => {
             let id = args["id"].as_str().unwrap_or("");
-            Ok(format!("Removed lesson: {}", id))
+            let query = args["query"].as_str().unwrap_or("");
+            if !id.is_empty() {
+                Ok(format!("Removed lesson: {}", id))
+            } else if !query.is_empty() {
+                Ok(format!("Removed lessons matching: '{}'", query))
+            } else {
+                Ok("Error: 'id' or 'query' required for remove".to_string())
+            }
         }
         "list" => Ok("All lessons — use LessonStore.all()".to_string()),
         "search" => {

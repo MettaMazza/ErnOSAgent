@@ -27,15 +27,38 @@ impl BrowserState {
 /// Auto-detect Chrome/Chromium binary path.
 fn find_chrome_binary() -> Option<String> {
     let candidates = [
+        // macOS
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        // Linux
         "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
         "/usr/bin/chromium-browser",
         "/usr/bin/chromium",
+        // Homebrew (macOS / Linux)
+        "/opt/homebrew/bin/chromium",
+        "/usr/local/bin/chromium",
+        // Windows (common paths)
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
     ];
     for c in &candidates {
         if std::path::Path::new(c).exists() {
             return Some(c.to_string());
+        }
+    }
+    // Fallback: check for headless-chrome download in user data
+    if let Some(home) = dirs::home_dir() {
+        let hc = home.join("Library/Application Support/headless-chrome");
+        if hc.exists() {
+            if let Ok(entries) = std::fs::read_dir(&hc) {
+                for entry in entries.flatten() {
+                    let chromium = entry.path().join("chrome-mac/Chromium.app/Contents/MacOS/Chromium");
+                    if chromium.exists() {
+                        return Some(chromium.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
     }
     None
@@ -56,6 +79,12 @@ async fn ensure_browser(state: &Arc<RwLock<BrowserState>>) -> Result<()> {
             .arg("--disable-gpu")
             .arg("--no-sandbox")
             .arg("--disable-dev-shm-usage")
+            .arg("--no-first-run")
+            .arg("--disable-extensions")
+            .arg("--disable-default-apps")
+            .arg("--disable-background-networking")
+            .arg("--disable-sync")
+            .arg("--disable-translate")
             .build()
             .map_err(|e| anyhow::anyhow!("{}", e))?,
     )

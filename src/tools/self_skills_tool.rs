@@ -49,22 +49,33 @@ fn create_skill(args: &serde_json::Value, procedures: &mut ProcedureStore) -> Re
     }
 }
 
-fn refine_skill(args: &serde_json::Value, procedures: &mut ProcedureStore) -> Result<String> {
-    let id = args["id"].as_str().unwrap_or("");
-    if id.is_empty() {
-        return Ok("Error: 'id' is required for refine. Use 'list' to see skill IDs, then pass the 8-char ID prefix.".to_string());
+/// Resolve a skill identifier — tries `id` first, then falls back to `name` lookup.
+fn resolve_id(args: &serde_json::Value, procedures: &ProcedureStore) -> Option<String> {
+    if let Some(id) = args["id"].as_str().filter(|s| !s.is_empty()) {
+        return Some(id.to_string());
     }
+    if let Some(name) = args["name"].as_str().filter(|s| !s.is_empty()) {
+        return procedures.find_by_name(name).map(|p| p.id.clone());
+    }
+    None
+}
+
+fn refine_skill(args: &serde_json::Value, procedures: &mut ProcedureStore) -> Result<String> {
+    let id = match resolve_id(args, procedures) {
+        Some(id) => id,
+        None => return Ok("Error: 'id' or 'name' required for refine. Use 'list' to see skills.".to_string()),
+    };
     let steps = parse_steps(args);
-    procedures.refine(id, steps)?;
+    procedures.refine(&id, steps)?;
     Ok(format!("Skill '{}' refined", id))
 }
 
 fn delete_skill(args: &serde_json::Value, procedures: &mut ProcedureStore) -> Result<String> {
-    let id = args["id"].as_str().unwrap_or("");
-    if id.is_empty() {
-        return Ok("Error: 'id' is required for delete. Use 'list' to see skill IDs, then pass the 8-char ID prefix.".to_string());
-    }
-    procedures.remove(id)?;
+    let id = match resolve_id(args, procedures) {
+        Some(id) => id,
+        None => return Ok("Error: 'id' or 'name' required for delete. Use 'list' to see skills.".to_string()),
+    };
+    procedures.remove(&id)?;
     Ok(format!("Skill '{}' deleted", id))
 }
 

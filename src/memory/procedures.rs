@@ -74,9 +74,10 @@ impl ProcedureStore {
         Ok(true)
     }
 
-    /// Refine an existing procedure's steps.
+    /// Refine an existing procedure's steps. Matches by full ID or prefix.
     pub fn refine(&mut self, id: &str, steps: Vec<ProcedureStep>) -> Result<()> {
-        let proc = self.procedures.iter_mut().find(|p| p.id == id)
+        let proc = self.procedures.iter_mut()
+            .find(|p| p.id == id || p.id.starts_with(id))
             .context(format!("Procedure '{}' not found for refinement", id))?;
         proc.steps = steps;
         proc.last_used = Some(chrono::Utc::now());
@@ -103,9 +104,10 @@ impl ProcedureStore {
         Ok(())
     }
 
+    /// Remove a procedure by full ID or prefix.
     pub fn remove(&mut self, id: &str) -> Result<()> {
         let before = self.procedures.len();
-        self.procedures.retain(|p| p.id != id);
+        self.procedures.retain(|p| p.id != id && !p.id.starts_with(id));
         if self.procedures.len() == before { anyhow::bail!("Procedure '{}' not found", id); }
         self.persist()
     }
