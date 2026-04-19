@@ -1,0 +1,72 @@
+[package]
+name = "ern-os"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance, model-neutral Rust AI agent engine with dual-layer inference"
+license = "MIT"
+default-run = "ern-os"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+futures-util = "0.3"
+async-trait = "0.1"
+
+# HTTP + streaming
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# IDs + time
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Search
+regex = "1"
+cron = "0.15"
+
+# Media encoding
+base64 = "0.22"
+
+# Web server + WebSocket
+axum = { version = "0.8", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+# Utilities
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-appender = "0.2"
+
+# Storage
+dirs = "6"
+sysinfo = "0.32"
+
+# ML — Candle with Metal GPU acceleration
+candle-core = { version = "0.8", features = ["metal"] }
+candle-nn = { version = "0.8" }
+candle-transformers = { version = "0.8" }
+safetensors = { version = "0.4" }
+memmap2 = { version = "0.9" }
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+slug = "0.1.6"
+urlencoding = "2"
+
+# Headless browser
+chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

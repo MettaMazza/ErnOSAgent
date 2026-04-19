@@ -1,0 +1,27 @@
+// Ern-OS — Tools module declarations
+pub mod schema;
+pub mod executor;
+pub mod shell;
+pub mod web_search;
+pub mod search_providers;
+pub mod memory_tool;
+pub mod scratchpad_tool;
+pub mod synaptic_tool;
+pub mod timeline_tool;
+pub mod lessons_tool;
+pub mod steering_tool;
+pub mod interpretability_tool;
+pub mod learning_tool;
+pub mod self_skills_tool;
+pub mod codebase_search;
+pub mod file_read;
+pub mod file_write;
+pub mod browser_tool;
+pub mod artifact_tool;
+pub mod image_gen_tool;
+pub mod containment;
+pub mod checkpoint;
+pub mod codebase_edit;
+pub mod compiler;
+pub mod schema_definitions;
+pub mod system_logs;

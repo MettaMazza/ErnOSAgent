@@ -1,0 +1,198 @@
+//! WebSocket context builder — assembles the full message context for inference.
+
+use crate::memory::consolidation::ConsolidationEngine;
+use crate::provider::Message;
+use crate::web::state::AppState;
+
+/// Assembled chat context ready for inference.
+pub struct ChatContext {
+    pub messages: Vec<Message>,
+    pub session_id: String,
+    pub user_query: String,
+}
+
+/// Build the full inference context: system prompt, memory, session history, consolidation.
+pub async fn build_chat_context(
+    state: &AppState,
+    content: &str,
+    session_id: &str,
+    agent_id: Option<&str>,
+    images: Vec<String>,
+) -> ChatContext {
+    let mut messages = Vec::new();
+
+    // ── Load session conversation history ──
+    let session_history = {
+        let sessions = state.sessions.read().await;
+        sessions.get(session_id).map(|s| s.messages.clone()).unwrap_or_default()
+    };
+    let turn_count = session_history.len();
+
+    // ── Multi-part system prompt assembly (agent-aware) ──
+    let (core_prompt, identity_prompt) = resolve_prompts(state, agent_id).await;
+
+    let (memory_context, memory_counts) = {
+        let memory = state.memory.read().await;
+        let ctx = memory.recall_context(content, 2000);
+        let counts = (
+            memory.timeline.entry_count(),
+            memory.lessons.count(),
+            memory.procedures.count(),
+            memory.scratchpad.count(),
+        );
+        (ctx, counts)
+    };
+
+    let golden_count = state.golden_buffer.read().await.count();
+    let rejection_count = state.rejection_buffer.read().await.count();
+
+    let hud = crate::prompt::hud::build_hud(&crate::prompt::hud::HudContext {
+        model_name: state.model_spec.name.clone(),
+        provider: state.config.general.active_provider.clone(),
+        context_length: state.model_spec.context_length,
+        session_id: session_id.to_string(),
+        turn_count,
+        platform: "web".to_string(),
+        timeline_count: memory_counts.0,
+        lesson_count: memory_counts.1,
+        procedure_count: memory_counts.2,
+        scratchpad_count: memory_counts.3,
+        golden_count,
+        rejection_count,
+        observer_enabled: state.config.observer.enabled,
+    });
+
+    let system_prompt = crate::prompt::assemble(&core_prompt, &identity_prompt, &memory_context, &hud);
+
+    // ── Context Consolidation ──
+    let working_history = consolidate_if_needed(state, session_history, &system_prompt, content).await;
+
+    // ── Message Assembly: Attention-Optimized Ordering ──
+    for msg in &working_history {
+        messages.push(msg.clone());
+    }
+    messages.push(Message::text("system", &system_prompt));
+
+    let current_user_msg = if images.is_empty() {
+        Message::text("user", content)
+    } else {
+        tracing::info!(count = images.len(), "Multimodal message with images");
+        Message::multipart("user", content, images)
+    };
+    messages.push(current_user_msg.clone());
+
+    // ── Persist to session ──
+    {
+        let mut sessions = state.sessions.write().await;
+        if let Some(session) = sessions.get_mut(session_id) {
+            session.messages.push(current_user_msg);
+            session.updated_at = chrono::Utc::now();
+            if session.messages.len() == 1 { session.auto_title(); }
+            let updated = session.clone();
+            let _ = sessions.update(&updated);
+        }
+    }
+
+    // Ingest turn into timeline memory
+    {
+        let mut memory = state.memory.write().await;
+        memory.ingest_turn("user", content, session_id);
+    }
+
+    ChatContext {
+        messages,
+        session_id: session_id.to_string(),
+        user_query: content.to_string(),
+    }
+}
+
+/// Resolve agent-specific or default prompts.
+async fn resolve_prompts(state: &AppState, agent_id: Option<&str>) -> (String, String) {
+    if let Some(aid) = agent_id {
+        let agents = state.agents.read().await;
+        let core = agents.resolve_prompt(aid, "core")
+            .unwrap_or_else(|_| crate::prompt::load_core(std::path::Path::new(&state.config.general.data_dir)));
+        let identity = agents.resolve_prompt(aid, "identity")
+            .unwrap_or_else(|_| crate::prompt::load_identity(std::path::Path::new(&state.config.general.data_dir)));
+        tracing::info!(agent = %aid, "Using agent-specific prompts");
+        (core, identity)
+    } else {
+        let core = crate::prompt::load_core(std::path::Path::new(&state.config.general.data_dir));
+        let identity = crate::prompt::load_identity(std::path::Path::new(&state.config.general.data_dir));
+        (core, identity)
+    }
+}
+
+/// Consolidate session history if context usage exceeds 80%.
+async fn consolidate_if_needed(
+    state: &AppState,
+    session_history: Vec<Message>,
+    system_prompt: &str,
+    content: &str,
+) -> Vec<Message> {
+    let context_length = state.model_spec.context_length;
+    let history_chars: usize = session_history.iter().map(|m| m.text_content().len()).sum();
+    let total_chars = history_chars + system_prompt.len() + content.len();
+    let usage_pct = total_chars as f32 / (context_length as f32 * 4.0);
+
+    if usage_pct < 0.80 {
+        return session_history;
+    }
+
+    tracing::info!(
+        usage_pct = format!("{:.0}%", usage_pct * 100.0),
+        history_msgs = session_history.len(),
+        "Context usage above 80% — triggering LLM consolidation"
+    );
+
+    let (old_messages, recent_messages) = {
+        let memory = state.memory.read().await;
+        memory.consolidation.split_for_consolidation(&session_history)
+    };
+
+    if old_messages.is_empty() {
+        return session_history;
+    }
+
+    let old_text: String = old_messages.iter()
+        .map(|m| format!("{}: {}", m.role, m.text_content()))
+        .collect::<Vec<_>>().join("\n");
+
+    let summary_prompt = vec![
+        Message::text("system",
+            "You are a context consolidation engine. Summarize the following conversation \
+             into a dense, factual summary preserving all key information, decisions, \
+             code changes, facts discussed, and user preferences. Be thorough but concise. \
+             Output ONLY the summary, no preamble."),
+        Message::text("user", &format!(
+            "Summarize this conversation segment ({} messages):\n\n{}",
+            old_messages.len(), old_text
+        )),
+    ];
+
+    let summary = match state.provider.chat_sync(&summary_prompt, None).await {
+        Ok(s) => {
+            tracing::info!(input_chars = old_text.len(), summary_chars = s.len(), "LLM consolidation generated");
+            s
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "LLM consolidation failed, keeping full content");
+            old_text.clone()
+        }
+    };
+
+    {
+        let mut memory = state.memory.write().await;
+        let _ = memory.consolidation.record_consolidation(old_messages.len(), &summary, old_text.len());
+    }
+
+    tracing::info!(
+        consolidated = old_messages.len(), kept = recent_messages.len(),
+        "Session context consolidated via LLM"
+    );
+
+    let mut working_history = Vec::new();
+    working_history.push(ConsolidationEngine::summary_message(&summary));
+    working_history.extend(recent_messages);
+    working_history
+}

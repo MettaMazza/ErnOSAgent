@@ -1,0 +1,8 @@
+target/
+*.swp
+.DS_Store
+models/
+data/
+*.log
+*.pkg
+implementation_plan.md

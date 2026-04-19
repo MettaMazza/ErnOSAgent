@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ern-OS — High-performance, model-neutral AI agent engine">
+    <title>Ern-OS</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="stylesheet" href="/app.css?v=9">
+    <!-- Vendor: syntax highlighting, LaTeX, diagrams (offline) -->
+    <link rel="stylesheet" href="/vendor/github-dark.min.css">
+    <link rel="stylesheet" href="/vendor/katex.min.css">
+    <script defer src="/vendor/highlight.min.js"></script>
+    <script defer src="/vendor/katex.min.js"></script>
+    <script defer src="/vendor/auto-render.min.js"></script>
+    <script defer src="/vendor/mermaid.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" role="complementary" aria-label="Navigation">
+        <div class="sidebar-header">
+            <div class="logo">E</div>
+            <div class="logo-text">Ern<span>-OS</span></div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="sidebar-nav">
+            <button class="nav-tab active" data-view="chat" onclick="ErnOS.switchView('chat')">
+                <span class="nav-icon">💬</span> Chat
+            </button>
+            <button class="nav-tab" data-view="memory" onclick="ErnOS.switchView('memory')">
+                <span class="nav-icon">🧠</span> Memory
+            </button>
+            <button class="nav-tab" data-view="tools" onclick="ErnOS.switchView('tools')">
+                <span class="nav-icon">🔧</span> Tools
+            </button>
+            <button class="nav-tab" data-view="training" onclick="ErnOS.switchView('training')">
+                <span class="nav-icon">📊</span> Training
+            </button>
+            <button class="nav-tab" data-view="interpretability" onclick="ErnOS.switchView('interpretability')">
+                <span class="nav-icon">🔬</span> Interpret
+            </button>
+            <button class="nav-tab" data-view="steering" onclick="ErnOS.switchView('steering')">
+                <span class="nav-icon">🎯</span> Steering
+            </button>
+            <button class="nav-tab" data-view="logs" onclick="ErnOS.switchView('logs')">
+                <span class="nav-icon">📋</span> Logs
+            </button>
+            <button class="nav-tab" data-view="identity" onclick="ErnOS.switchView('identity')">
+                <span class="nav-icon">📝</span> Prompts
+            </button>
+            <button class="nav-tab" data-view="agents" onclick="ErnOS.switchView('agents')">
+                <span class="nav-icon">🤖</span> Agents
+            </button>
+            <button class="nav-tab" data-view="scheduler" onclick="ErnOS.switchView('scheduler')">
+                <span class="nav-icon">⏱️</span> Scheduler
+            </button>
+            <button class="nav-tab" data-view="codes" onclick="ErnOS.switchView('codes')">
+                <span class="nav-icon">💻</span> Ern-OS Code
+            </button>
+            <button class="nav-tab" data-view="settings" onclick="ErnOS.switchView('settings')">
+                <span class="nav-icon">⚙️</span> Settings
+            </button>
+        </nav>
+
+        <!-- Sessions (visible in chat view) -->
+        <div class="sidebar-sessions" id="sidebar-sessions">
+            <button class="new-chat-btn" id="new-chat-btn" onclick="ErnOS.newChat()" aria-label="Start new chat">
+                + New Chat
+            </button>
+            <div class="session-search-wrap">
+                <input type="text" class="session-search" id="session-search" placeholder="Search sessions..." oninput="ErnOS.filterSessionList(this.value)" autocomplete="off">
+            </div>
+            <div class="sessions-list" id="sessions-list" role="list" aria-label="Chat sessions"></div>
+        </div>
+
+        <div class="sidebar-footer" id="status-bar">
+            <span class="status-dot disconnected"></span>Connecting...
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main" role="main">
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:12px">
+                <button class="sidebar-toggle" id="sidebar-toggle" onclick="ErnOS.toggleSidebar()" aria-label="Toggle sidebar">☰</button>
+                <div class="model-badge" id="model-badge">loading...</div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn danger" onclick="ErnOS.stopGeneration()" aria-label="Stop generation">Stop</button>
+                <button class="theme-toggle" id="theme-toggle" onclick="ErnOS.toggleTheme()" aria-label="Toggle theme">☀️</button>
+            </div>
+        </div>
+
+        <!-- Chat View -->
+        <div class="view active" id="view-chat">
+            <div class="messages" id="messages" role="log" aria-label="Chat messages" aria-live="polite">
+                <div class="welcome" id="welcome">
+                    <div class="welcome-logo">E</div>
+                    <h2>Welcome to Ern-OS</h2>
+                    <p>High-performance AI engine with dual-layer inference, 7-tier cognitive memory, 16 tools, observer audit, autonomous learning, and self-skills.</p>
+                    <div class="welcome-features">
+                        <div class="feature-card" onclick="ErnOS.fillPrompt('Recall my recent conversations and summarize what we have been working on')" data-prompt>
+                            <span>🧠</span><strong>Memory Recall</strong>
+                            <small>Search and recall from your 7-tier cognitive memory</small>
+                        </div>
+                        <div class="feature-card" onclick="ErnOS.fillPrompt('Search the web for the latest news about AI and give me a summary')" data-prompt>
+                            <span>🔍</span><strong>Web Search</strong>
+                            <small>Search the web and extract information from URLs</small>
+                        </div>
+                        <div class="feature-card" onclick="ErnOS.fillPrompt('List the files in the current directory and describe the project structure')" data-prompt>
+                            <span>💻</span><strong>Code & Files</strong>
+                            <small>Browse, read, write files and run shell commands</small>
+                        </div>
+                        <div class="feature-card" onclick="ErnOS.fillPrompt('Show my training buffer stats and learning progress')" data-prompt>
+                            <span>📊</span><strong>Training</strong>
+                            <small>Golden buffer, rejection pairs, preference learning</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="scroll-fab" id="scroll-fab" onclick="ErnOS.scrollToBottom()" style="display:none" aria-label="Scroll to bottom">↓</button>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <div class="file-preview" id="file-preview"></div>
+                        <textarea id="chat-input" placeholder="Type a message... (Ctrl+N new chat, Cmd+K search)" rows="1"
+                            onkeydown="ErnOS.handleKeyDown(event)" oninput="ErnOS.autoResize(this)"
+                            aria-label="Chat message input"></textarea>
+                        <button class="attach-btn" onclick="document.getElementById('file-input').click()" aria-label="Attach file">📎</button>
+                        <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
+                    </div>
+                    <button class="send-btn" id="send-btn" onclick="ErnOS.sendMessage()" aria-label="Send message">→</button>
+                    <button class="voice-btn" id="voice-btn" onclick="ErnOS.toggleVoiceCall()" aria-label="Voice call" title="Voice Call">🎙️</button>
+                    <button class="video-btn" id="video-btn" onclick="ErnOS.toggleVideoCall()" aria-label="Video call" title="Video Call">📹</button>
+                </div>
+                <div class="input-hint">Shift+Enter for newline · ↑ for history · Cmd+K to search</div>
+            </div>
+        </div>
+
+        <!-- Memory View -->
+        <div class="view" id="view-memory">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>🧠 Cognitive Memory</h2>
+                    <div class="memory-stats" id="memory-stats"></div>
+                </div>
+                <div class="tier-tabs">
+                    <button class="tier-tab active" onclick="ErnOS.loadMemoryTier('timeline', this)">Timeline</button>
+                    <button class="tier-tab" onclick="ErnOS.loadMemoryTier('lessons', this)">Lessons</button>
+                    <button class="tier-tab" onclick="ErnOS.loadMemoryTier('procedures', this)">Procedures</button>
+                    <button class="tier-tab" onclick="ErnOS.loadMemoryTier('scratchpad', this)">Scratchpad</button>
+                    <button class="tier-tab" onclick="ErnOS.loadMemoryTier('synaptic', this)">Synaptic</button>
+                </div>
+                <div class="tier-content" id="tier-content">
+                    <p class="empty-state">Select a tier to browse</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tools View -->
+        <div class="view" id="view-tools">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>🔧 Tool Catalog</h2>
+                    <p class="subtitle">All registered tools across Layer 1 and Layer 2</p>
+                </div>
+                <div class="tools-grid" id="tools-grid">
+                    <p class="empty-state">Loading tools...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training View -->
+        <div class="view" id="view-training">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>📊 Training Data</h2>
+                    <p class="subtitle">Golden buffer and rejection pairs for preference learning</p>
+                </div>
+                <div class="training-sections" id="training-sections">
+                    <p class="empty-state">Loading training data...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interpretability View -->
+        <div class="view" id="view-interpretability">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>🔬 Interpretability</h2>
+                    <p class="subtitle">SAE features, neural snapshots, and activation analysis</p>
+                </div>
+                <div id="interp-sae-status"></div>
+                <div id="interp-features-container">
+                    <p class="empty-state">Loading features...</p>
+                </div>
+                <div id="interp-snapshots-container" style="margin-top:20px"></div>
+            </div>
+        </div>
+
+        <!-- Steering View -->
+        <div class="view" id="view-steering">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>🎯 Steering Vectors</h2>
+                    <p class="subtitle">Real-time cognitive steering via GGUF control vectors</p>
+                </div>
+                <div id="steering-container">
+                    <p class="empty-state">Loading steering vectors...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs View -->
+        <div class="view" id="view-logs">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>📋 System Logs</h2>
+                    <p class="subtitle">Real-time engine telemetry and diagnostics</p>
+                </div>
+                <div id="log-filters" class="log-filters"></div>
+                <div id="logs-container">
+                    <p class="empty-state">Loading logs...</p>
+                </div>
+
+                <!-- Self-Edit Audit Trail -->
+                <div class="panel-header" style="margin-top:30px">
+                    <h2>🔏 Self-Edit Audit Trail</h2>
+                    <p class="subtitle">All codebase modifications logged for Observer audit</p>
+                </div>
+                <div id="self-edit-container">
+                    <p class="empty-state">Loading self-edit log...</p>
+                </div>
+
+                <!-- Checkpoints -->
+                <div class="panel-header" style="margin-top:30px">
+                    <h2>💾 File Checkpoints</h2>
+                    <p class="subtitle">Auto-snapshots from codebase edits — rollback available</p>
+                </div>
+                <div id="checkpoints-container">
+                    <p class="empty-state">Loading checkpoints...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agents View -->
+        <div class="view" id="view-agents">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>🤖 Agents & Teams</h2>
+                    <p class="subtitle">Create, customise, and orchestrate AI agents</p>
+                </div>
+
+                <!-- Create Agent -->
+                <div class="prompt-editor-card" style="margin-bottom:20px">
+                    <div class="prompt-editor-header">
+                        <h3>Create Agent</h3>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <input type="text" id="new-agent-name" class="onboarding-input" placeholder="Agent name" style="flex:1;min-width:150px;margin:0" />
+                        <input type="text" id="new-agent-desc" class="onboarding-input" placeholder="Description" style="flex:2;min-width:200px;margin:0" />
+                        <button class="save-prompt-btn" onclick="ErnOS.createAgent()" style="margin:0;white-space:nowrap">+ Create</button>
+                    </div>
+                </div>
+
+                <!-- Agent List -->
+                <div id="agents-list" class="identity-editors"></div>
+
+                <!-- Teams Section -->
+                <div class="prompt-editor-card" style="margin-top:24px">
+                    <div class="prompt-editor-header">
+                        <h3>Teams</h3>
+                        <span class="prompt-tag">Orchestration</span>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+                        <input type="text" id="new-team-name" class="onboarding-input" placeholder="Team name" style="flex:1;min-width:120px;margin:0" />
+                        <select id="new-team-mode" class="onboarding-input" style="flex:0;min-width:130px;margin:0;padding:10px">
+                            <option value="parallel">⚡ Parallel</option>
+                            <option value="sequential">🔗 Sequential</option>
+                        </select>
+                        <button class="save-prompt-btn" onclick="ErnOS.createTeam()" style="margin:0;white-space:nowrap">+ Create Team</button>
+                    </div>
+                    <div id="teams-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Identity View -->
+        <div class="view" id="view-identity">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>📝 System Prompts</h2>
+                    <p class="subtitle">Edit the prompts that define Ern-OS's identity, behaviour, and quality auditing</p>
+                </div>
+                <div class="identity-editors">
+                    <div class="prompt-editor-card">
+                        <div class="prompt-editor-header">
+                            <h3>identity.md</h3>
+                            <span class="prompt-tag">Personality & Character</span>
+                        </div>
+                        <textarea id="editor-identity" class="prompt-textarea" spellcheck="false"></textarea>
+                        <button class="save-prompt-btn" onclick="ErnOS.savePrompt('identity')">Save Identity</button>
+                    </div>
+                    <div class="prompt-editor-card">
+                        <div class="prompt-editor-header">
+                            <h3>core.md</h3>
+                            <span class="prompt-tag">Protocols & Behaviour Rules</span>
+                        </div>
+                        <textarea id="editor-core" class="prompt-textarea" spellcheck="false"></textarea>
+                        <button class="save-prompt-btn" onclick="ErnOS.savePrompt('core')">Save Core</button>
+                    </div>
+                    <div class="prompt-editor-card">
+                        <div class="prompt-editor-header">
+                            <h3>observer.md</h3>
+                            <span class="prompt-tag">Quality Audit Rules</span>
+                        </div>
+                        <textarea id="editor-observer" class="prompt-textarea" spellcheck="false"></textarea>
+                        <button class="save-prompt-btn" onclick="ErnOS.savePrompt('observer')">Save Observer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scheduler View -->
+        <div class="view" id="view-scheduler">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>⏱️ Scheduler & Cron Jobs</h2>
+                    <p class="subtitle">Manage background tasks + system jobs</p>
+                </div>
+                <div id="scheduler-sections">
+                    <p class="empty-state">Loading scheduler...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Codes IDE View -->
+        <div class="view" id="view-codes">
+            <div class="codes-container">
+                <div class="codes-toolbar">
+                    <div class="codes-status" id="codes-status">
+                        <span class="status-dot" id="codes-status-dot"></span>
+                        <span id="codes-status-text">Connecting to VS Code...</span>
+                    </div>
+                    <button class="codes-open-btn" id="codes-open-external" onclick="window.open(document.getElementById('codes-iframe').src, '_blank')" title="Open in new tab">↗ Open Externally</button>
+                </div>
+                <div class="codes-iframe-wrap" id="codes-iframe-wrap">
+                    <div class="codes-loading" id="codes-loading">
+                        <div class="codes-loading-icon">💻</div>
+                        <div class="codes-loading-text">Starting VS Code...</div>
+                        <div class="codes-loading-sub">code-server is initializing</div>
+                    </div>
+                    <iframe id="codes-iframe" class="codes-iframe" src="about:blank" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div class="view" id="view-settings">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2>⚙️ Settings</h2>
+                    <p class="subtitle">Configure appearance, model, observer, and engine</p>
+                </div>
+                <div class="settings-sections" id="settings-sections">
+                    <p class="empty-state">Loading settings...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay" onclick="ErnOS.toggleSidebar()"></div>
+
+    <!-- Voice/Video Call Overlay -->
+    <div class="call-overlay" id="call-overlay" style="display:none">
+        <div class="call-card">
+            <div class="call-status" id="call-status">Connecting...</div>
+            <div class="call-waveform" id="call-waveform"></div>
+            <video id="call-video-preview" class="call-video" autoplay muted playsinline style="display:none"></video>
+            <div class="call-transcript" id="call-transcript"></div>
+            <div class="call-response" id="call-response"></div>
+            <div class="call-actions">
+                <button class="call-action-btn mute-btn" id="call-mute" onclick="ErnOS.toggleCallMute()">🔇 Mute</button>
+                <button class="call-action-btn end-btn" id="call-end" onclick="ErnOS.endCall()">📞 End</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div class="drop-overlay" id="drop-overlay">📎 Drop files here</div>
+
+    <!-- Onboarding Overlay -->
+    <div class="onboarding-overlay" id="onboarding-overlay" style="display:none">
+        <div class="onboarding-card">
+            <div class="onboarding-logo">E</div>
+            <h2 id="onboarding-title">Welcome to Ern-OS</h2>
+            <p id="onboarding-subtitle">Let's get you set up. What should I call you?</p>
+            <div id="onboarding-body">
+                <div class="onboarding-form" id="onboarding-form">
+                    <input type="text" id="onboarding-name" class="onboarding-input" placeholder="Your name" autofocus />
+                    <input type="text" id="onboarding-desc" class="onboarding-input" placeholder="A bit about you (optional)" />
+                    <button class="onboarding-btn" onclick="ErnOS.submitOnboardingProfile()">Continue →</button>
+                </div>
+            </div>
+            <div class="onboarding-steps">
+                <span class="step active" id="step-1">1</span>
+                <span class="step" id="step-2">2</span>
+                <span class="step" id="step-3">3</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="context-menu" style="display:none">
+        <button class="ctx-item" data-action="rename">✏️ Rename</button>
+        <button class="ctx-item" data-action="pin">📌 Pin</button>
+        <button class="ctx-item" data-action="export">📥 Export</button>
+        <button class="ctx-item" data-action="archive">📦 Archive</button>
+        <hr class="ctx-divider">
+        <button class="ctx-item danger" data-action="delete">🗑️ Delete</button>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="confirm-overlay" id="confirm-overlay" style="display:none">
+        <div class="confirm-card">
+            <h3 id="confirm-title">Confirm</h3>
+            <p id="confirm-message">Are you sure?</p>
+            <div class="confirm-actions">
+                <button class="confirm-btn secondary" id="confirm-cancel">Cancel</button>
+                <button class="confirm-btn danger" id="confirm-ok">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Palette (Cmd+K) -->
+    <div class="search-palette" id="search-palette" style="display:none">
+        <div class="search-palette-card">
+            <input type="text" class="search-palette-input" id="search-palette-input" placeholder="Search all conversations..." autocomplete="off">
+            <div class="search-palette-results" id="search-palette-results"></div>
+            <div class="search-palette-hint">Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/app.js?v=15"></script>
+</body>
+</html>

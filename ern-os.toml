@@ -1,0 +1,24 @@
+[general]
+active_provider = "llamacpp"
+data_dir = "data"
+flux_port = 8890
+
+[llamacpp]
+server_binary = "/opt/homebrew/bin/llama-server"
+port = 8080
+model_path = "./models/gemma-4-26b-it-Q4_K_M.gguf"
+mmproj_path = "./models/mmproj-gemma-4-26B-A4B-it-f16.gguf"
+n_gpu_layers = 999
+embedding_port = 8081
+visual_token_budget = 560
+
+[observer]
+enabled = true
+
+[web]
+port = 3000
+open_browser = true
+
+[prompt]
+thinking_enabled = true
+system_prompt = "You are Ern-OS, a high-performance AI assistant with a 7-tier memory system, tool execution, and interpretability."
