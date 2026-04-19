@@ -2134,16 +2134,15 @@ pre[data-lang] { position: relative; padding-top: 28px; }
         padding-right: env(safe-area-inset-right);
     }
 
-    /* Sidebar → full-width overlay */
+    /* Sidebar — reinforce mobile overlay (same transform as 768px, add scroll + bg) */
     .sidebar {
-        position: fixed;
-        left: -100%;
-        width: 100%;
-        z-index: 100;
-        transition: left 0.3s ease;
-    }
-    .sidebar.open {
-        left: 0;
+        width: 85%;
+        max-width: 320px;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+        background: var(--bg-secondary);
+        z-index: 200;
     }
 
     /* Main area fills screen */

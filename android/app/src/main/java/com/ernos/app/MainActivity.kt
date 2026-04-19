@@ -135,43 +135,97 @@ class MainActivity : AppCompatActivity() {
                         50% { content: '..'; }
                         75% { content: '...'; }
                     }
+                    .progress-bar {
+                        width: 240px; height: 4px;
+                        background: rgba(255,255,255,0.1);
+                        border-radius: 2px;
+                        margin-top: 16px;
+                        overflow: hidden;
+                    }
+                    .progress-fill {
+                        height: 100%; width: 0%;
+                        background: linear-gradient(90deg, #00FF88, #3b82f6);
+                        border-radius: 2px;
+                        transition: width 0.5s ease;
+                    }
+                    .sub {
+                        font-size: 0.75rem;
+                        color: rgba(255,255,255,0.35);
+                        margin-top: 12px;
+                        text-align: center;
+                    }
                 </style>
             </head>
             <body>
                 <div class="logo">Ern-OS</div>
                 <div class="spinner"></div>
                 <div class="status" id="status">Starting engine<span class="dots"></span></div>
+                <div class="progress-bar" id="progress" style="display:none">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="sub" id="sub"></div>
                 <script>
+                    let phase = 'engine'; // 'engine' → 'provider'
                     let attempts = 0;
-                    function checkEngine() {
+                    const status = document.getElementById('status');
+                    const progress = document.getElementById('progress');
+                    const progressFill = document.getElementById('progress-fill');
+                    const sub = document.getElementById('sub');
+
+                    function poll() {
                         attempts++;
-                        const status = document.getElementById('status');
-                        fetch('http://127.0.0.1:3000/api/health')
-                            .then(r => {
-                                if (r.ok) {
-                                    status.innerHTML = 'Connected!';
-                                    setTimeout(() => {
-                                        window.location.href = 'http://127.0.0.1:3000';
-                                    }, 300);
-                                } else {
-                                    scheduleRetry();
-                                }
-                            })
-                            .catch(() => {
-                                if (attempts < 10) {
-                                    status.innerHTML = 'Starting engine<span class="dots"></span>';
-                                } else if (attempts < 30) {
-                                    status.innerHTML = 'Loading model<span class="dots"></span>';
-                                } else {
-                                    status.innerHTML = 'Still loading — this can take a minute on first launch<span class="dots"></span>';
-                                }
-                                scheduleRetry();
-                            });
+                        if (phase === 'engine') {
+                            // Phase 1: wait for Axum web server
+                            fetch('http://127.0.0.1:3000/api/health')
+                                .then(r => {
+                                    if (r.ok) {
+                                        phase = 'provider';
+                                        attempts = 0;
+                                        status.innerHTML = 'Checking inference provider<span class="dots"></span>';
+                                        sub.textContent = '';
+                                        setTimeout(poll, 500);
+                                    } else { retry(); }
+                                })
+                                .catch(() => {
+                                    if (attempts < 10) status.innerHTML = 'Starting engine<span class="dots"></span>';
+                                    else status.innerHTML = 'Initializing<span class="dots"></span>';
+                                    retry();
+                                });
+                        } else {
+                            // Phase 2: wait for provider (model download)
+                            fetch('http://127.0.0.1:3000/api/status')
+                                .then(r => r.json())
+                                .then(data => {
+                                    if (data.provider_healthy) {
+                                        status.innerHTML = '✓ Ready!';
+                                        sub.textContent = data.model?.name || 'Connected';
+                                        progress.style.display = 'none';
+                                        setTimeout(() => {
+                                            window.location.href = 'http://127.0.0.1:3000';
+                                        }, 400);
+                                    } else {
+                                        // Provider not ready — show download status
+                                        progress.style.display = 'block';
+                                        let pct = Math.min(attempts * 2, 95);
+                                        progressFill.style.width = pct + '%';
+                                        if (attempts < 15) {
+                                            status.innerHTML = 'Downloading model<span class="dots"></span>';
+                                            sub.textContent = 'Gemma 4B — this may take a few minutes on first launch';
+                                        } else {
+                                            status.innerHTML = 'Waiting for inference server<span class="dots"></span>';
+                                            sub.textContent = 'Model may still be downloading in background';
+                                        }
+                                        retry();
+                                    }
+                                })
+                                .catch(() => {
+                                    status.innerHTML = 'Connecting<span class="dots"></span>';
+                                    retry();
+                                });
+                        }
                     }
-                    function scheduleRetry() {
-                        setTimeout(checkEngine, 1000);
-                    }
-                    setTimeout(checkEngine, 1500);
+                    function retry() { setTimeout(poll, 1500); }
+                    setTimeout(poll, 1000);
                 </script>
             </body>
             </html>

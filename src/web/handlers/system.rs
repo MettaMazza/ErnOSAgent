@@ -13,6 +13,7 @@ pub async fn health_check() -> impl IntoResponse {
 pub async fn system_status(State(state): State<AppState>) -> impl IntoResponse {
     let memory = state.memory.read().await;
     let sessions = state.sessions.read().await;
+    let provider_healthy = state.provider.health().await;
 
     Json(serde_json::json!({
         "model": {
@@ -26,6 +27,7 @@ pub async fn system_status(State(state): State<AppState>) -> impl IntoResponse {
         },
         "memory": memory.status_summary(),
         "provider": state.config.general.active_provider,
+        "provider_healthy": provider_healthy,
         "observer": { "enabled": state.config.observer.enabled },
         "sessions": sessions.list().len(),
     }))
