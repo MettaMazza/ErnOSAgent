@@ -11,6 +11,7 @@
 //! - Session history (per-agent conversations)
 
 pub mod teams;
+pub mod parallel;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};

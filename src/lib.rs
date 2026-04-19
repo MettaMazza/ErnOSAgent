@@ -17,5 +17,8 @@ pub mod scheduler;
 pub mod session;
 pub mod steering;
 pub mod tools;
+pub mod verification;
+pub mod planning;
+pub mod checkpoint;
 pub mod platform;
 pub mod web;

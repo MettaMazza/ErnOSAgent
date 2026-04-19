@@ -15,6 +15,7 @@ pub struct SubAgentConfig {
 }
 
 /// Result returned to the parent context.
+#[derive(Debug)]
 pub struct SubAgentResult {
     pub summary: String,
     pub success: bool,
