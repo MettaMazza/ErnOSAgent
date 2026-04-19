@@ -278,11 +278,45 @@ async fn maybe_start_flux(config: &ern_os::config::AppConfig) {
         .stderr(std::process::Stdio::piped())
         .spawn()
     {
-        Ok(child) => {
-            tracing::info!(pid = child.id().unwrap_or(0), "Flux image server spawned");
+        Ok(mut child) => {
+            let pid = child.id().unwrap_or(0);
+            tracing::info!(pid, python = %python, "Flux image server spawned — waiting for health check");
+
+            // Wait up to 60s for the server to become healthy (model loading takes time)
+            let mut ready = false;
+            for i in 0..60 {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                // Check if process died
+                if let Ok(Some(status)) = child.try_wait() {
+                    let stderr = if let Some(mut err) = child.stderr.take() {
+                        let mut buf = String::new();
+                        let _ = tokio::io::AsyncReadExt::read_to_string(&mut err, &mut buf).await;
+                        buf
+                    } else {
+                        String::new()
+                    };
+                    tracing::error!(
+                        pid, exit = %status, stderr = %stderr.trim(),
+                        "Flux server crashed during startup"
+                    );
+                    return;
+                }
+
+                // Health check
+                if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
+                    tracing::info!(pid, seconds = i + 1, "Flux image server ready");
+                    ready = true;
+                    break;
+                }
+            }
+
+            if !ready {
+                tracing::warn!(pid, "Flux server spawned but not healthy after 60s — may still be loading");
+            }
         }
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to start Flux — image generation disabled");
+            tracing::warn!(error = %e, python = %python, "Failed to start Flux — image generation disabled");
         }
     }
 }
