@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.9"
 # dependencies = [
 #     "fastapi>=0.115.0",
 #     "uvicorn>=0.30.0",
@@ -28,6 +28,7 @@ import io
 import os
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import torch
 import uvicorn
@@ -102,7 +103,7 @@ class GenerateRequest(BaseModel):
     height: int = 1024
     steps: int = 30
     guidance: float = 3.5
-    seed: int | None = None
+    seed: Optional[int] = None
 
 
 class GenerateResponse(BaseModel):
