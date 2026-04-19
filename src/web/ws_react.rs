@@ -30,6 +30,8 @@ pub async fn run_react_loop(
     // Spiral detection: track consecutive identical failures
     let mut last_fail_signature: Option<String> = None;
     let mut consecutive_fails: usize = 0;
+    // Empty reply recovery: track consecutive empty ImplicitReply retries
+    let mut empty_reply_retries: usize = 0;
 
     loop {
         // ─── User Stop Check ───
@@ -275,8 +277,24 @@ pub async fn run_react_loop(
                     text_preview = %text.chars().take(200).collect::<String>(),
                     "ReAct: ImplicitReply (no tool calls — model returned raw text)"
                 );
+                // Empty reply recovery: retry up to 2 times before giving up
                 if text.trim().is_empty() {
-                    tracing::warn!(iteration = total_iterations, "ReAct: ImplicitReply text is EMPTY — model produced no output");
+                    empty_reply_retries += 1;
+                    tracing::warn!(
+                        iteration = total_iterations,
+                        retry = empty_reply_retries,
+                        "ReAct: ImplicitReply text is EMPTY — model produced no output"
+                    );
+                    if empty_reply_retries <= 2 {
+                        ctx.messages.push(Message::text("system",
+                            "[EMPTY RESPONSE DETECTED] You returned no text and no tool calls. \
+                             You MUST either call `reply_request` with your response, or call a tool. \
+                             Do NOT return empty. Deliver your report now via `reply_request`."
+                        ));
+                        continue;
+                    }
+                    // After 2 retries, fall through and deliver whatever we have
+                    tracing::error!(iteration = total_iterations, "ReAct: Empty reply after 2 retries — forcing completion");
                 }
                 if let Some(ref t) = thinking {
                     send_ws(sender, "thinking_delta", &serde_json::json!({"content": t})).await;
