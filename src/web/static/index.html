@@ -404,18 +404,14 @@
                     <!-- System Snapshots -->
                     <div class="settings-card">
                         <div class="card-title"><span class="title-icon">📸</span> System Snapshots</div>
-                        <div class="setting-row" style="border:none;padding:0">
-                            <div class="setting-label">
-                                <span class="label-text">Create Checkpoint</span>
-                                <span class="label-desc">Atomic snapshot of code, memory, sessions, and config</span>
+                        <div class="setting-row">
+                            <div class="setting-label" style="flex:0 0 auto">
+                                <input type="text" id="snapshot-label" placeholder="Snapshot label..." class="setting-select" style="min-width:220px;padding:8px 14px">
                             </div>
+                            <button class="save-prompt-btn" style="margin:0;padding:8px 20px;font-size:12px" onclick="ErnOS.createSnapshot()">📸 Create Snapshot</button>
                         </div>
-                        <div class="snapshot-row">
-                            <input type="text" id="snapshot-label" placeholder="Label (optional)" class="snapshot-input">
-                            <button class="snapshot-create-btn" onclick="ErnOS.createSnapshot()">📸 Create</button>
-                        </div>
-                        <div id="snapshots-container">
-                            <p class="empty-state" style="font-size:12px;padding:12px 0">Loading snapshots...</p>
+                        <div id="snapshots-container" style="margin-top:6px">
+                            <p class="empty-state" style="font-size:11px;padding:8px 0;margin:0">Loading snapshots...</p>
                         </div>
                     </div>
                 </div>
