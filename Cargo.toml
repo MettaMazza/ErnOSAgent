@@ -90,7 +90,7 @@ rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
 quick-xml = { version = "0.37", optional = true }
 
 # Headless browser (desktop only — gated behind "desktop" feature)
-chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false, optional = true }
+chromiumoxide = { version = "0.9", default-features = false, optional = true }
 
 # Android JNI bridge (android only)
 jni = { version = "0.21", features = ["invocation"], optional = true }
