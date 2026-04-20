@@ -223,9 +223,11 @@ pub async fn maybe_start_code_server(config: &ern_os::config::AppConfig) {
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
 
     install_bundled_extensions();
+    install_code_server_settings();
 
     tracing::info!(binary = %binary_path, port, workspace = %workspace.display(), "Starting code-server");
     let ext_dir = bundled_extensions_dir();
+    let user_data_dir = code_server_user_data_dir();
     match tokio::process::Command::new(&binary_path)
         .args([
             "--port", &port.to_string(),
@@ -233,6 +235,7 @@ pub async fn maybe_start_code_server(config: &ern_os::config::AppConfig) {
             "--disable-telemetry",
             "--disable-update-check",
             "--extensions-dir", &ext_dir,
+            "--user-data-dir", &user_data_dir,
             &workspace.to_string_lossy(),
         ])
         .stdout(std::process::Stdio::null())
@@ -278,6 +281,48 @@ fn find_code_server_binary() -> Option<String> {
 fn bundled_extensions_dir() -> String {
     let home = std::env::var("HOME").unwrap_or_default();
     format!("{home}/.ernos/code-server-extensions")
+}
+
+/// User data directory for code-server (settings, keybindings, etc.)
+fn code_server_user_data_dir() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    format!("{home}/.ernos/code-server-data")
+}
+
+/// Install settings.json that disables built-in Copilot Chat and configures Ern-OS defaults.
+fn install_code_server_settings() {
+    let data_dir = code_server_user_data_dir();
+    let user_dir = format!("{data_dir}/User");
+    if let Err(e) = std::fs::create_dir_all(&user_dir) {
+        tracing::warn!(error = %e, "Failed to create code-server User dir");
+        return;
+    }
+
+    let settings_path = format!("{user_dir}/settings.json");
+    let settings = serde_json::json!({
+        // Disable built-in GitHub Copilot Chat features
+        "github.copilot.enable": { "*": false },
+        "github.copilot.editor.enableAutoCompletions": false,
+        "chat.experimental.enabled": false,
+        "inlineChat.enabled": false,
+        // Hide the built-in Chat panel
+        "workbench.panel.chat.hidden": true,
+        // Ern-OS panel visible by default
+        "workbench.panel.defaultViewContainerVisibility": "visible",
+        // Theme and font defaults
+        "editor.fontFamily": "'SF Mono', 'Fira Code', Menlo, monospace",
+        "editor.fontSize": 13,
+        "editor.fontLigatures": true,
+        "editor.minimap.enabled": false,
+        "workbench.colorTheme": "Default Dark Modern",
+        "workbench.startupEditor": "none",
+        "telemetry.telemetryLevel": "off",
+    });
+
+    match std::fs::write(&settings_path, serde_json::to_string_pretty(&settings).unwrap_or_default()) {
+        Ok(_) => tracing::debug!("code-server settings installed"),
+        Err(e) => tracing::warn!(error = %e, "Failed to write code-server settings"),
+    }
 }
 
 /// Copy bundled extensions from the project into the code-server extensions dir.
