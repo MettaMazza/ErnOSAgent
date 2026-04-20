@@ -92,9 +92,15 @@ class EngineService : Service() {
 
     private fun startLlamaServer() {
         try {
-            val llamaBinary = extractLlamaServer()
-            if (llamaBinary == null) {
-                Log.w(TAG, "llama-server binary not found in assets")
+            val binDir = extractLlamaBinaries()
+            if (binDir == null) {
+                Log.w(TAG, "llama-server binaries not found in assets")
+                return
+            }
+
+            val llamaBinary = File(binDir, "llama-server")
+            if (!llamaBinary.exists() || !llamaBinary.canExecute()) {
+                Log.w(TAG, "llama-server binary missing or not executable")
                 return
             }
 
@@ -108,38 +114,75 @@ class EngineService : Service() {
             }
 
             Log.i(TAG, "Starting llama-server with model: ${modelFile.name}")
-            llamaProcess = ProcessBuilder(
-                llamaBinary.absolutePath,
-                "-m", modelFile.absolutePath,
-                "--host", "127.0.0.1",
-                "--port", "8080",
-                "-ngl", "99",
-            ).redirectErrorStream(true).start()
+            val env = arrayOf("LD_LIBRARY_PATH=${binDir.absolutePath}")
+            llamaProcess = Runtime.getRuntime().exec(
+                arrayOf(
+                    llamaBinary.absolutePath,
+                    "-m", modelFile.absolutePath,
+                    "--host", "127.0.0.1",
+                    "--port", "8080",
+                    "-ngl", "99",
+                ),
+                env
+            )
 
-            Log.i(TAG, "llama-server started")
+            // Log llama-server output in background
+            Thread {
+                llamaProcess?.inputStream?.bufferedReader()?.use { reader ->
+                    reader.forEachLine { line ->
+                        Log.i("$TAG.llama", line)
+                        if (line.contains("listening on")) {
+                            updateNotification("Inference engine ready")
+                        }
+                    }
+                }
+            }.apply { isDaemon = true; start() }
+
+            Log.i(TAG, "llama-server started (pid=${llamaProcess?.toString()})")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start llama-server: ${e.message}", e)
         }
     }
 
-    private fun extractLlamaServer(): File? {
-        val targetFile = File(filesDir, "bin/llama-server")
-        if (targetFile.exists() && targetFile.canExecute()) {
-            return targetFile
+    /**
+     * Extract all files from assets/bin/ (llama-server + shared libs).
+     * Returns the directory containing the extracted binaries, or null if not bundled.
+     */
+    private fun extractLlamaBinaries(): File? {
+        val targetDir = File(filesDir, "bin")
+        val marker = File(targetDir, ".extracted")
+
+        // Skip if already extracted (same app version)
+        if (marker.exists() && File(targetDir, "llama-server").canExecute()) {
+            Log.i(TAG, "llama-server binaries already extracted")
+            return targetDir
         }
 
         return try {
-            targetFile.parentFile?.mkdirs()
-            assets.open("bin/llama-server").use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+            targetDir.mkdirs()
+            val assetFiles = assets.list("bin") ?: emptyArray()
+            if (assetFiles.isEmpty()) {
+                Log.w(TAG, "No files in assets/bin/")
+                return null
             }
-            targetFile.setExecutable(true)
-            Log.i(TAG, "Extracted llama-server to ${targetFile.absolutePath}")
-            targetFile
+
+            for (filename in assetFiles) {
+                val targetFile = File(targetDir, filename)
+                assets.open("bin/$filename").use { input ->
+                    targetFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                targetFile.setExecutable(true)
+                Log.i(TAG, "Extracted: $filename (${targetFile.length()} bytes)")
+            }
+
+            // Write marker so we don't re-extract next time
+            marker.writeText(System.currentTimeMillis().toString())
+            Log.i(TAG, "All llama binaries extracted to ${targetDir.absolutePath}")
+            targetDir
         } catch (e: Exception) {
-            Log.w(TAG, "llama-server not bundled: ${e.message}")
+            Log.w(TAG, "Failed to extract llama binaries: ${e.message}")
             null
         }
     }

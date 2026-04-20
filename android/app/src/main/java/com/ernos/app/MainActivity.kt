@@ -212,15 +212,18 @@ class MainActivity : AppCompatActivity() {
                                     sub.textContent = dlData.downloaded_mb + ' MB / ' + dlData.total_mb + ' MB';
                                     retry();
                                 } else {
-                                    // Not downloading yet, provider not ready
+                                    // llama-server starting up, provider not ready yet
                                     progress.style.display = 'block';
-                                    progressFill.style.width = '5%';
-                                    if (attempts < 10) {
-                                        status.innerHTML = 'Preparing model download<span class="dots"></span>';
-                                        sub.textContent = 'Gemma 4B Q4_K_M — first launch setup';
+                                    progressFill.style.width = (5 + Math.min(attempts * 2, 90)) + '%';
+                                    if (attempts < 5) {
+                                        status.innerHTML = 'Extracting inference engine<span class="dots"></span>';
+                                        sub.textContent = 'Preparing llama-server for local AI';
+                                    } else if (attempts < 30) {
+                                        status.innerHTML = 'Starting inference engine<span class="dots"></span>';
+                                        sub.textContent = 'Loading model into memory — this may take a moment';
                                     } else {
-                                        status.innerHTML = 'Waiting for inference<span class="dots"></span>';
-                                        sub.textContent = 'Check notification tray for download status';
+                                        status.innerHTML = 'Still loading model<span class="dots"></span>';
+                                        sub.textContent = 'Large models take time on mobile — please wait';
                                     }
                                     retry();
                                 }
