@@ -70,29 +70,39 @@ pub extern "C" fn Java_com_ernos_app_EngineService_startEngine(
             None => return,
         };
 
-        let model_spec = provider.get_model_spec().await.unwrap_or_default();
+        // Wait for provider health before querying model spec (auto-derived, per governance §2.1/§5)
+        tracing::info!("Waiting for provider health before querying model spec...");
+        let mut retries = 0;
+        while !provider.health().await {
+            retries += 1;
+            if retries > 120 {
+                tracing::error!("Provider not healthy after 120s — cannot start without inference");
+                return;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+        tracing::info!(retries, "Provider healthy — querying model spec");
+
+        let model_spec = match provider.get_model_spec().await {
+            Ok(spec) => {
+                tracing::info!(
+                    name = %spec.name,
+                    context_length = spec.context_length,
+                    supports_thinking = spec.supports_thinking,
+                    "Model spec derived from provider"
+                );
+                spec
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to get model spec from provider");
+                return;
+            }
+        };
 
         let state = match build_app_state(&config, provider.clone(), model_spec) {
             Some(s) => s,
             None => return,
         };
-
-        // Start provider health check in background (non-blocking)
-        tokio::spawn(async move {
-            tracing::info!("Background: waiting for provider health...");
-            let mut retries = 0;
-            while !provider.health().await {
-                retries += 1;
-                if retries > 120 {
-                    tracing::warn!("Provider not healthy after 120s — running without inference");
-                    break;
-                }
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-            if retries <= 120 {
-                tracing::info!(retries, "Provider healthy");
-            }
-        });
 
         // Start web server IMMEDIATELY — UI is responsive while provider connects
         let addr = "0.0.0.0:3000";

@@ -19,6 +19,7 @@ pub async fn execute_tool_with_state(
     );
 
     // Browser tool: screenshot images are returned separately for multimodal context.
+    #[cfg(feature = "desktop")]
     if tc.name == "browser" {
         let mut images = Vec::new();
         let mut result = match tc.name.as_str() {
