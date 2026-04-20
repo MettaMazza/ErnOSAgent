@@ -10,6 +10,20 @@ pub async fn health_check() -> impl IntoResponse {
     }))
 }
 
+/// Reads model download progress from file written by Android ModelManager.
+pub async fn model_download_progress(State(state): State<AppState>) -> impl IntoResponse {
+    let progress_path = state.config.general.data_dir.join("model_download_progress.json");
+    match tokio::fs::read_to_string(&progress_path).await {
+        Ok(content) => {
+            ([("content-type", "application/json")], content).into_response()
+        }
+        Err(_) => {
+            // No progress file = not downloading
+            Json(serde_json::json!({"downloading": false})).into_response()
+        }
+    }
+}
+
 pub async fn system_status(State(state): State<AppState>) -> impl IntoResponse {
     let memory = state.memory.read().await;
     let sessions = state.sessions.read().await;

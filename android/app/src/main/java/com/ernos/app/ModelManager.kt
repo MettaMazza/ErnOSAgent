@@ -14,8 +14,8 @@ class ModelManager(private val context: Context) {
 
     companion object {
         private const val TAG = "ErnOS.Model"
-        private const val MODEL_FILENAME = "gemma-4b.gguf"
-        private const val MODEL_URL = "https://huggingface.co/google/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it.gguf"
+        private const val MODEL_FILENAME = "gemma-3-4b-it-Q4_K_M.gguf"
+        private const val MODEL_URL = "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
         private const val EXPECTED_SHA256 = "" // Set when URL is finalized
     }
 
@@ -61,14 +61,23 @@ class ModelManager(private val context: Context) {
                     val buffer = ByteArray(8192)
                     var bytesRead: Long = 0
                     var count: Int
+                    var lastProgressWrite: Long = 0
 
                     while (input.read(buffer).also { count = it } != -1) {
                         output.write(buffer, 0, count)
                         bytesRead += count
                         listener.onProgress(bytesRead, totalBytes)
+
+                        // Write progress file every 500KB for WebUI polling
+                        if (bytesRead - lastProgressWrite > 512_000) {
+                            lastProgressWrite = bytesRead
+                            writeProgressFile(bytesRead, totalBytes)
+                        }
                     }
                 }
             }
+            // Clear progress file on completion
+            progressFile().delete()
 
             // Verify SHA256 if configured
             if (EXPECTED_SHA256.isNotEmpty()) {
@@ -91,6 +100,19 @@ class ModelManager(private val context: Context) {
             Log.e(TAG, "Download failed: ${e.message}", e)
             listener.onError("Download failed: ${e.message}")
         }
+    }
+
+    private fun progressFile(): File {
+        return File(context.filesDir, "model_download_progress.json")
+    }
+
+    private fun writeProgressFile(bytesDownloaded: Long, totalBytes: Long) {
+        try {
+            val pct = if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt() else 0
+            val dlMb = bytesDownloaded / (1024 * 1024)
+            val totalMb = if (totalBytes > 0) totalBytes / (1024 * 1024) else 0
+            progressFile().writeText("""{"downloading":true,"progress":$pct,"downloaded_mb":$dlMb,"total_mb":$totalMb}""")
+        } catch (_: Exception) {}
     }
 
     private fun sha256(file: File): String {

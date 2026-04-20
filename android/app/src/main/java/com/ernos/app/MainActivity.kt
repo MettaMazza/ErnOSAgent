@@ -192,36 +192,39 @@ class MainActivity : AppCompatActivity() {
                                     retry();
                                 });
                         } else {
-                            // Phase 2: wait for provider (model download)
-                            fetch('http://127.0.0.1:3000/api/status')
-                                .then(r => r.json())
-                                .then(data => {
-                                    if (data.provider_healthy) {
-                                        status.innerHTML = '✓ Ready!';
-                                        sub.textContent = data.model?.name || 'Connected';
-                                        progress.style.display = 'none';
-                                        setTimeout(() => {
-                                            window.location.href = 'http://127.0.0.1:3000';
-                                        }, 400);
-                                    } else {
-                                        // Provider not ready — show download status
-                                        progress.style.display = 'block';
-                                        let pct = Math.min(attempts * 2, 95);
-                                        progressFill.style.width = pct + '%';
-                                        if (attempts < 15) {
-                                            status.innerHTML = 'Downloading model<span class="dots"></span>';
-                                            sub.textContent = 'Gemma 4B — this may take a few minutes on first launch';
-                                        } else {
-                                            status.innerHTML = 'Waiting for inference server<span class="dots"></span>';
-                                            sub.textContent = 'Model may still be downloading in background';
-                                        }
-                                        retry();
-                                    }
-                                })
-                                .catch(() => {
-                                    status.innerHTML = 'Connecting<span class="dots"></span>';
+                            // Phase 2: wait for provider + show real download progress
+                            Promise.all([
+                                fetch('http://127.0.0.1:3000/api/status').then(r => r.json()).catch(() => null),
+                                fetch('http://127.0.0.1:3000/api/model/download-progress').then(r => r.json()).catch(() => null)
+                            ]).then(([statusData, dlData]) => {
+                                if (statusData && statusData.provider_healthy) {
+                                    status.innerHTML = '✓ Ready!';
+                                    sub.textContent = statusData.model?.name || 'Connected';
+                                    progress.style.display = 'none';
+                                    setTimeout(() => {
+                                        window.location.href = 'http://127.0.0.1:3000';
+                                    }, 400);
+                                } else if (dlData && dlData.downloading) {
+                                    // Real download progress from ModelManager
+                                    progress.style.display = 'block';
+                                    progressFill.style.width = dlData.progress + '%';
+                                    status.innerHTML = 'Downloading model — ' + dlData.progress + '%';
+                                    sub.textContent = dlData.downloaded_mb + ' MB / ' + dlData.total_mb + ' MB';
                                     retry();
-                                });
+                                } else {
+                                    // Not downloading yet, provider not ready
+                                    progress.style.display = 'block';
+                                    progressFill.style.width = '5%';
+                                    if (attempts < 10) {
+                                        status.innerHTML = 'Preparing model download<span class="dots"></span>';
+                                        sub.textContent = 'Gemma 4B Q4_K_M — first launch setup';
+                                    } else {
+                                        status.innerHTML = 'Waiting for inference<span class="dots"></span>';
+                                        sub.textContent = 'Check notification tray for download status';
+                                    }
+                                    retry();
+                                }
+                            });
                         }
                     }
                     function retry() { setTimeout(poll, 1500); }

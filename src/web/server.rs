@@ -54,6 +54,7 @@ pub async fn run(state: AppState, addr: &str) -> Result<()> {
         .route("/api/chat/platform", post(platforms::platform_ingest))
         // REST API — System
         .route("/api/health", get(system::health_check))
+        .route("/api/model/download-progress", get(system::model_download_progress))
         .route("/api/status", get(system::system_status))
         .route("/api/models", get(system::list_models))
         .route("/api/factory-reset", post(system::factory_reset))
