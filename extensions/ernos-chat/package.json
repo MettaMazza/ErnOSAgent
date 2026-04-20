@@ -2,44 +2,39 @@
   "name": "ernos-chat",
   "displayName": "Ern-OS",
   "description": "AI assistant — connects to your local Ern-OS agent engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "ernos",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["AI", "Chat"],
   "activationEvents": ["onStartupFinished"],
   "main": "./extension.js",
   "contributes": {
-    "chatParticipants": [
-      {
-        "id": "ernos",
-        "name": "ernos",
-        "fullName": "Ern-OS Agent",
-        "description": "Local AI assistant — powered by your Ern-OS engine",
-        "isDefault": true
-      }
-    ],
     "viewsContainers": {
       "activitybar": [
-        {
-          "id": "ernos",
-          "title": "Ern-OS",
-          "icon": "icon.svg"
-        }
+        { "id": "ernos", "title": "Ern-OS", "icon": "icon.svg" }
+      ],
+      "panel": [
+        { "id": "ernos-panel", "title": "Ern-OS Chat", "icon": "icon.svg" }
       ]
     },
     "views": {
       "ernos": [
-        {
-          "type": "webview",
-          "id": "ernos-chat",
-          "name": "Chat"
-        }
+        { "type": "webview", "id": "ernos-chat", "name": "Chat" }
+      ],
+      "ernos-panel": [
+        { "type": "webview", "id": "ernos-chat-panel", "name": "Ern-OS Chat" }
       ]
     },
     "commands": [
+      { "command": "ernos.openChat", "title": "Ern-OS: Open Chat" },
       { "command": "ernos.sendSelection", "title": "Ern-OS: Send Selection" },
       { "command": "ernos.explainSelection", "title": "Ern-OS: Explain Selection" },
-      { "command": "ernos.fixSelection", "title": "Ern-OS: Fix Selection" }
+      { "command": "ernos.fixSelection", "title": "Ern-OS: Fix Selection" },
+      { "command": "ernos.inlineChat", "title": "Ern-OS: Inline Chat" }
+    ],
+    "keybindings": [
+      { "command": "ernos.openChat", "key": "ctrl+l", "mac": "cmd+l" },
+      { "command": "ernos.inlineChat", "key": "ctrl+i", "mac": "cmd+i", "when": "editorHasSelection" }
     ],
     "menus": {
       "editor/context": [
