@@ -63,6 +63,8 @@ impl Default for GeneralConfig {
     }
 }
 
+fn default_sae_embed_port() -> u16 { 8082 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlamaCppConfig {
     /// Path to llama-server binary
@@ -79,6 +81,11 @@ pub struct LlamaCppConfig {
     pub embedding_port: u16,
     /// Embedding model path
     pub embedding_model: Option<String>,
+    /// SAE activation extraction port — runs the MAIN model in embedding-only
+    /// mode for live SAE feature extraction. Separate from the embedding_port
+    /// which runs a dedicated embedding model.
+    #[serde(default = "default_sae_embed_port")]
+    pub sae_embed_port: u16,
     /// Visual token budget (70, 140, 280, 560, 1120)
     pub visual_token_budget: usize,
     /// Optional LoRA adapter to load at inference time
@@ -97,6 +104,7 @@ impl Default for LlamaCppConfig {
             n_gpu_layers: 999,
             embedding_port: 8081,
             embedding_model: None,
+            sae_embed_port: 8082,
             visual_token_budget: 560,
             lora_adapter: None,
         }

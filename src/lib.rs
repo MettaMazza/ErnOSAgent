@@ -21,4 +21,5 @@ pub mod verification;
 pub mod planning;
 pub mod checkpoint;
 pub mod platform;
+pub mod startup;
 pub mod web;

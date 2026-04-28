@@ -30,46 +30,53 @@ async fn main() -> Result<()> {
 
     let _scheduler = ern_os::scheduler::start(state.clone());
 
-    // Auto-start Kokoro TTS server if configured and not already running
-    maybe_start_kokoro(&config).await;
+    start_optional_services(&config, &state).await;
+    auto_connect_platforms(&config, &state).await;
+    start_platform_router(&state, config.web.port);
 
-    // Auto-start Flux image generation server
-    maybe_start_flux(&config).await;
+    launch_webui(state, &config).await
+}
 
-    // Auto-start code-server (VS Code IDE) if enabled
-    maybe_start_code_server(&config).await;
+/// Start optional services (Kokoro TTS, Flux image gen, code server, SAE sidecar).
+async fn start_optional_services(config: &ern_os::config::AppConfig, state: &ern_os::web::state::AppState) {
+    ern_os::startup::maybe_start_kokoro(config).await;
+    ern_os::startup::maybe_start_flux(config).await;
+    ern_os::startup::maybe_start_code_server(config).await;
 
-    // Check for post-recompile resume state — store in AppState for WebSocket delivery
-    let resume_msg = check_recompile_resume(&config);
+    // Start SAE embedding sidecar if SAE weights are loaded
+    if state.sae.read().await.is_some() {
+        start_sae_sidecar(config).await;
+    }
+
+    let resume_msg = ern_os::startup::check_recompile_resume(config);
     if resume_msg.is_some() {
         *state.resume_message.write().await = resume_msg;
     }
+}
 
-    // Auto-connect platforms that have tokens configured
-    {
-        let mut reg = state.platforms.write().await;
-        if config.discord.resolve_token().is_some() {
-            match reg.connect_by_name("Discord").await {
-                Ok(_) => tracing::info!("Discord auto-connected at startup"),
-                Err(e) => tracing::error!(error = %e, "Discord startup connect failed"),
-            }
-        }
-        if config.telegram.resolve_token().is_some() {
-            match reg.connect_by_name("Telegram").await {
-                Ok(_) => tracing::info!("Telegram auto-connected at startup"),
-                Err(e) => tracing::error!(error = %e, "Telegram startup connect failed"),
-            }
+/// Auto-connect platforms that have tokens configured.
+async fn auto_connect_platforms(config: &ern_os::config::AppConfig, state: &ern_os::web::state::AppState) {
+    let mut reg = state.platforms.write().await;
+    if config.discord.resolve_token().is_some() {
+        match reg.connect_by_name("Discord").await {
+            Ok(_) => tracing::info!("Discord auto-connected at startup"),
+            Err(e) => tracing::error!(error = %e, "Discord startup connect failed"),
         }
     }
+    if config.telegram.resolve_token().is_some() {
+        match reg.connect_by_name("Telegram").await {
+            Ok(_) => tracing::info!("Telegram auto-connected at startup"),
+            Err(e) => tracing::error!(error = %e, "Telegram startup connect failed"),
+        }
+    }
+}
 
-    // Start platform router (forwards platform messages to hub)
-    let router_registry = state.platforms.clone();
-    let hub_port = config.web.port;
+/// Start the platform router in a background task.
+fn start_platform_router(state: &ern_os::web::state::AppState, hub_port: u16) {
+    let registry = state.platforms.clone();
     tokio::spawn(async move {
-        ern_os::platform::router::start_platform_router(router_registry, hub_port).await;
+        ern_os::platform::router::start_platform_router(registry, hub_port).await;
     });
-
-    launch_webui(state, &config).await
 }
 
 /// Conditionally start llama-server subprocess.
@@ -118,6 +125,50 @@ async fn maybe_start_llama_server(
 
     tracing::info!(pid = child.id().unwrap_or(0), "llama-server started");
     Ok(Some(child))
+}
+
+/// Start a lightweight SAE embedding sidecar — same model in --embeddings mode.
+/// This provides the residual stream activations the SAE was trained on.
+async fn start_sae_sidecar(config: &ern_os::config::AppConfig) {
+    let llama_config = &config.llamacpp;
+    let port = llama_config.sae_embed_port;
+
+    // Check if something is already running on the port
+    if reqwest::Client::new()
+        .get(format!("http://localhost:{}/health", port))
+        .send().await
+        .is_ok()
+    {
+        tracing::info!(port, "SAE embed sidecar already running");
+        return;
+    }
+
+    tracing::info!(
+        port, model = %llama_config.model_path,
+        "Starting SAE embedding sidecar"
+    );
+
+    match tokio::process::Command::new(&llama_config.server_binary)
+        .args([
+            "--model", &llama_config.model_path,
+            "--port", &port.to_string(),
+            "--n-gpu-layers", &llama_config.n_gpu_layers.to_string(),
+            "--embeddings",
+            "--pooling", "mean",
+            "--batch-size", "2048",
+            "--ubatch-size", "2048",
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            tracing::info!(pid = child.id().unwrap_or(0), port, "SAE embed sidecar started");
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to start SAE embed sidecar — live interpretability disabled");
+        }
+    }
 }
 
 /// Create provider and verify health with retries.
@@ -211,7 +262,7 @@ fn build_app_state(
         platforms: {
             let mut registry = ern_os::platform::registry::PlatformRegistry::new();
             registry.register(Box::new(
-                ern_os::platform::discord::DiscordAdapter::new(config.discord.clone()),
+                ern_os::platform::discord::DiscordAdapter::new(config.discord.clone(), config.web.port),
             ));
             registry.register(Box::new(
                 ern_os::platform::telegram::TelegramAdapter::new(config.telegram.clone()),
@@ -221,6 +272,20 @@ fn build_app_state(
         mutable_config: Arc::new(RwLock::new(config.clone())),
         resume_message: Arc::new(RwLock::new(None)),
         sae: Arc::new(RwLock::new(load_sae_weights())),
+        live_monitor: Arc::new(RwLock::new(
+            ern_os::interpretability::live::LiveMonitor::new(50),
+        )),
+        snapshot_store: Arc::new(RwLock::new(
+            ern_os::interpretability::snapshot::SnapshotStore::new(
+                &data_dir.join("snapshots"),
+            ).unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to init snapshot store — creating empty");
+                ern_os::interpretability::snapshot::SnapshotStore::new(
+                    &std::path::Path::new("/tmp/ern-os-snapshots"),
+                ).expect("fallback snapshot store")
+            }),
+        )),
+        cancel_flag: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
 }
 
@@ -279,7 +344,7 @@ async fn launch_webui(
         let url = format!("http://localhost:{}", config.web.port);
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let _ = open_browser(&url);
+            let _ = ern_os::startup::open_browser(&url);
         });
     }
 
@@ -287,328 +352,5 @@ async fn launch_webui(
         .context("WebUI server failed")
 }
 
-/// Auto-start Kokoro TTS server if not already running.
-async fn maybe_start_kokoro(config: &ern_os::config::AppConfig) {
-    let port = config.general.kokoro_port.unwrap_or(8880);
-    let url = format!("http://127.0.0.1:{}/v1/models", port);
 
-    // Check if already running
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .unwrap_or_default();
-    if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
-        tracing::info!(port, "Kokoro TTS already running");
-        return;
-    }
 
-    // Find the startup script
-    let script = find_kokoro_script();
-    let script_path = match script {
-        Some(p) => p,
-        None => {
-            tracing::debug!("Kokoro TTS script not found — TTS disabled");
-            return;
-        }
-    };
-
-    tracing::info!(script = %script_path.display(), port, "Starting Kokoro TTS server");
-
-    let python = find_python312();
-    match tokio::process::Command::new(&python)
-        .arg(&script_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(child) => {
-            tracing::info!(pid = child.id().unwrap_or(0), python = %python, "Kokoro TTS server spawned");
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to start Kokoro TTS — TTS disabled");
-        }
-    }
-}
-
-/// Auto-start Flux image generation server if not already running.
-async fn maybe_start_flux(config: &ern_os::config::AppConfig) {
-    let port = config.general.flux_port.unwrap_or(8890);
-    let url = format!("http://127.0.0.1:{}/health", port);
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .unwrap_or_default();
-    if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
-        tracing::info!(port, "Flux image server already running");
-        return;
-    }
-
-    let script = find_flux_script();
-    let script_path = match script {
-        Some(p) => p,
-        None => {
-            tracing::debug!("Flux server script not found — image generation disabled");
-            return;
-        }
-    };
-
-    tracing::info!(script = %script_path.display(), port, "Starting Flux image server");
-
-    // Prefer `uv run` which manages its own venv with correct torch/diffusers deps.
-    // Falling back to raw python binary risks using system Python without deps.
-    let (cmd_bin, cmd_args) = find_flux_launch_command(&script_path);
-    tracing::info!(cmd = %cmd_bin, "Flux launch command");
-
-    match tokio::process::Command::new(&cmd_bin)
-        .args(&cmd_args)
-        .env("FLUX_PORT", port.to_string())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(mut child) => {
-            let pid = child.id().unwrap_or(0);
-            tracing::info!(pid, cmd = %cmd_bin, "Flux image server spawned — waiting for health check");
-
-            // Wait up to 60s for the server to become healthy (model loading takes time)
-            let mut ready = false;
-            for i in 0..60 {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-                // Check if process died
-                if let Ok(Some(status)) = child.try_wait() {
-                    let stderr = if let Some(mut err) = child.stderr.take() {
-                        let mut buf = String::new();
-                        let _ = tokio::io::AsyncReadExt::read_to_string(&mut err, &mut buf).await;
-                        buf
-                    } else {
-                        String::new()
-                    };
-                    tracing::error!(
-                        pid, exit = %status, stderr = %stderr.trim(),
-                        "Flux server crashed during startup"
-                    );
-                    return;
-                }
-
-                // Health check
-                if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
-                    tracing::info!(pid, seconds = i + 1, "Flux image server ready");
-                    ready = true;
-                    break;
-                }
-            }
-
-            if !ready {
-                tracing::warn!(pid, "Flux server spawned but not healthy after 60s — may still be loading");
-            }
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, cmd = %cmd_bin, "Failed to start Flux — image generation disabled");
-        }
-    }
-}
-
-/// Search for the Flux server script.
-fn find_flux_script() -> Option<std::path::PathBuf> {
-    let home = dirs::home_dir();
-    let candidates = [
-        Some(std::path::PathBuf::from("scripts/flux_server.py")),
-        home.as_ref().map(|h| h.join(".ernos/sandbox/scripts/flux_server.py")),
-    ];
-    candidates.into_iter().flatten().find(|p| p.exists())
-}
-
-/// Determine how to launch the Flux server script.
-/// Prefers `uv run` (manages its own venv with correct deps) over raw python.
-fn find_flux_launch_command(script: &std::path::Path) -> (String, Vec<String>) {
-    let home = std::env::var("HOME").unwrap_or_default();
-
-    // 1. Try `uv` — it reads the script's inline metadata and creates a venv with correct deps
-    let uv_candidates = [
-        format!("{home}/.local/bin/uv"),
-        format!("{home}/.cargo/bin/uv"),
-        "/opt/homebrew/bin/uv".to_string(),
-        "uv".to_string(),
-    ];
-    for uv in &uv_candidates {
-        if std::path::Path::new(uv).exists() || uv == "uv" {
-            // Check if uv is actually available
-            if std::process::Command::new(uv).arg("--version").output().is_ok() {
-                return (uv.clone(), vec!["run".to_string(), script.display().to_string()]);
-            }
-        }
-    }
-
-    // 2. Fallback to python binary (may not have correct deps)
-    let python = find_flux_python();
-    tracing::warn!(python = %python, "uv not found — falling back to raw python (may lack deps)");
-    (python, vec![script.display().to_string()])
-}
-
-/// Find Python binary — fallback only, prefer uv run.
-fn find_flux_python() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let candidates = [
-        format!("{home}/.ernos/flux-venv/bin/python"),
-        format!("{home}/.ernos/python/bin/python3.12"),
-        "/opt/homebrew/bin/python3.12".to_string(),
-        "/opt/homebrew/bin/python3.11".to_string(),
-        "python3".to_string(),
-    ];
-    for c in &candidates {
-        if std::path::Path::new(c).exists() { return c.clone(); }
-    }
-    "python3".to_string()
-}
-
-/// Find Python 3.10+ binary — prefers the kokoro venv (has all deps), then standalone, then homebrew.
-fn find_python312() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let candidates = [
-        format!("{home}/.ernos/kokoro-venv/bin/python"),
-        format!("{home}/.ernos/python/bin/python3.12"),
-        "/opt/homebrew/bin/python3.12".to_string(),
-        "/opt/homebrew/bin/python3.11".to_string(),
-        "python3".to_string(),
-    ];
-    for c in &candidates {
-        if std::path::Path::new(c).exists() { return c.clone(); }
-    }
-    "python3".to_string()
-}
-
-/// Auto-start code-server (VS Code IDE) if enabled and not already running.
-async fn maybe_start_code_server(config: &ern_os::config::AppConfig) {
-    if !config.codes.enabled { return; }
-    let port = config.codes.port;
-    let url = format!("http://127.0.0.1:{}/healthz", port);
-
-    // Check if already running
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .unwrap_or_default();
-    if client.get(&url).send().await.is_ok() {
-        tracing::info!(port, "code-server already running");
-        return;
-    }
-
-    let binary = find_code_server_binary();
-    let binary_path = match binary {
-        Some(p) => p,
-        None => {
-            tracing::debug!("code-server binary not found — Codes IDE disabled");
-            return;
-        }
-    };
-
-    let workspace = std::path::PathBuf::from(&config.codes.workspace)
-        .canonicalize()
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-
-    tracing::info!(binary = %binary_path, port, workspace = %workspace.display(), "Starting code-server");
-    match tokio::process::Command::new(&binary_path)
-        .args([
-            "--port", &port.to_string(),
-            "--auth", "none",
-            "--disable-telemetry",
-            "--disable-update-check",
-            &workspace.to_string_lossy(),
-        ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
-        Ok(child) => {
-            tracing::info!(pid = child.id().unwrap_or(0), "code-server started");
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to start code-server");
-        }
-    }
-}
-
-/// Find code-server binary in known locations.
-fn find_code_server_binary() -> Option<String> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let candidates = [
-        format!("{home}/.ernos/code-server-4.116.0-macos-arm64/bin/code-server"),
-        "code-server".to_string(), // PATH lookup
-    ];
-    for c in &candidates {
-        if c.contains('/') {
-            if std::path::Path::new(c).exists() { return Some(c.clone()); }
-        } else {
-            // Check PATH
-            if std::process::Command::new(c).arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status().is_ok()
-            { return Some(c.clone()); }
-        }
-    }
-    None
-}
-
-/// Search for the Kokoro startup script in known locations.
-fn find_kokoro_script() -> Option<std::path::PathBuf> {
-    let home = std::env::var("HOME").ok().map(std::path::PathBuf::from);
-    let candidates = [
-        home.as_ref().map(|h| h.join(".ernos/sandbox/scripts/start-kokoro.py")),
-        Some(std::path::PathBuf::from("scripts/start-kokoro.py")),
-    ];
-    for candidate in candidates.into_iter().flatten() {
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-/// Open the default browser — platform-neutral.
-fn open_browser(url: &str) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    { std::process::Command::new("open").arg(url).spawn()?; }
-    #[cfg(target_os = "linux")]
-    { std::process::Command::new("xdg-open").arg(url).spawn()?; }
-    #[cfg(target_os = "windows")]
-    { std::process::Command::new("cmd").args(["/C", "start", url]).spawn()?; }
-    Ok(())
-}
-
-/// Check for post-recompile resume state. Returns the resume message if found.
-fn check_recompile_resume(config: &ern_os::config::AppConfig) -> Option<String> {
-    let resume_path = config.general.data_dir.join("resume.json");
-    if !resume_path.exists() {
-        return None;
-    }
-
-    let result = match std::fs::read_to_string(&resume_path) {
-        Ok(content) => {
-            if let Ok(resume) = serde_json::from_str::<serde_json::Value>(&content) {
-                let msg = resume["message"].as_str().unwrap_or("Recompile complete").to_string();
-                let at = resume["compiled_at"].as_str().unwrap_or("unknown");
-                tracing::info!(
-                    compiled_at = %at,
-                    "POST-RECOMPILE RESUME: {}",
-                    msg
-                );
-                Some(msg)
-            } else {
-                None
-            }
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to read resume state");
-            None
-        }
-    };
-
-    let _ = std::fs::remove_file(&resume_path);
-    if result.is_some() {
-        tracing::info!("Resume state consumed and deleted — will deliver to first WebSocket client");
-    }
-    result
-}

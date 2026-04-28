@@ -174,23 +174,57 @@ async fn run_prompt_job(prompt: &str, state: &AppState) -> (bool, String) {
         thinking,
     ).await {
         Ok((_initial, rx)) => {
-            match crate::inference::fast_reply::consume_stream(rx, None).await {
-                Ok(result) => {
-                    let text = match result {
-                        crate::inference::fast_reply::FastReplyResult::Reply { text, .. } => text,
-                        crate::inference::fast_reply::FastReplyResult::Escalate { objective, .. } => {
-                            format!("[Escalated] {}", objective)
-                        }
-                        crate::inference::fast_reply::FastReplyResult::ToolCall { name, arguments, .. } => {
-                            format!("[Tool: {}] {}", name, &arguments[..arguments.len().min(200)])
-                        }
-                    };
-                    (true, text)
+            use crate::inference::stream_consumer::{self as sc, NullSink};
+            let mut sink = NullSink;
+            let result = sc::consume_stream(rx, &mut sink).await;
+            let text = match result {
+                sc::ConsumeResult::Reply { text, .. } => text,
+                sc::ConsumeResult::Escalate { objective, .. } => {
+                    format!("[Escalated] {}", objective)
                 }
-                Err(e) => (false, format!("Stream error: {}", e)),
-            }
+                sc::ConsumeResult::ToolCall { name, arguments, .. } => {
+                    format!("[Tool: {}] {}", name, &arguments[..arguments.len().min(200)])
+                }
+                sc::ConsumeResult::ToolCalls(calls) => {
+                    calls.iter().map(|(_, name, args)| {
+                        format!("[Tool: {}] {}", name, &args[..args.len().min(200)])
+                    }).collect::<Vec<_>>().join("\n")
+                }
+                sc::ConsumeResult::Spiral { .. } => {
+                    "[Thinking spiral — skipping]".to_string()
+                }
+                sc::ConsumeResult::Error(e) => {
+                    return (false, format!("Stream error: {}", e));
+                }
+                _ => "[Unknown result]".to_string(),
+            };
+
+            // Deliver to connected platforms via send_to_platform
+            deliver_to_connected_platforms(state, prompt, &text).await;
+
+            (true, text)
         }
         Err(e) => (false, format!("Inference error: {}", e)),
+    }
+}
+
+/// Deliver scheduled job output to all connected platforms.
+async fn deliver_to_connected_platforms(state: &AppState, prompt: &str, result: &str) {
+    let reg = state.platforms.read().await;
+    let connected = reg.list_connected();
+    if connected.is_empty() {
+        return;
+    }
+    let summary = format!(
+        "📋 **Scheduled Job Complete**\n**Task**: {}\n**Result**: {}",
+        &prompt[..prompt.len().min(100)],
+        &result[..result.len().min(500)]
+    );
+    for name in &connected {
+        // Use a default channel — the adapter determines routing
+        if let Err(e) = reg.send_to_platform(name, "default", "", &summary).await {
+            tracing::debug!(platform = %name, error = %e, "Scheduled job delivery skipped");
+        }
     }
 }
 

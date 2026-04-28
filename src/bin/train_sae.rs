@@ -6,7 +6,6 @@ use anyhow::{Context, Result};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Init logging
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -17,16 +16,17 @@ async fn main() -> Result<()> {
     let config = ern_os::config::AppConfig::load()
         .context("Failed to load ern-os.toml")?;
 
-    let model_path = config.llamacpp.model_path.clone();
-    let server_binary = config.llamacpp.server_binary.clone();
-    let data_dir = config.general.data_dir.clone();
+    let run_config = build_run_config(&config);
+    log_training_plan(&run_config);
 
-    tracing::info!(
-        model = %model_path,
-        "Starting SAE training pipeline for Gemma 4 31B"
-    );
+    let output = ern_os::interpretability::train_runner::run_sae_training(run_config).await?;
+    tracing::info!(output = %output.display(), "SAE training complete — weights saved");
 
-    let train_config = ern_os::interpretability::trainer::TrainConfig {
+    Ok(())
+}
+
+fn build_train_config(data_dir: &std::path::Path) -> ern_os::interpretability::trainer::TrainConfig {
+    ern_os::interpretability::trainer::TrainConfig {
         num_features: 131_072,  // 128K features — Gemma Scope standard
         model_dim: 0,          // auto-detected from activations (5376 for 31B dense)
         l1_coefficient: 5e-3,
@@ -39,35 +39,31 @@ async fn main() -> Result<()> {
         dead_feature_resample_interval: 25_000,
         jump_threshold: 0.001,
         checkpoint_dir: data_dir.join("sae_training/checkpoints"),
-    };
+    }
+}
 
-    let run_config = ern_os::interpretability::train_runner::TrainingRunConfig {
-        model_path,
-        server_binary,
+fn build_run_config(config: &ern_os::config::AppConfig) -> ern_os::interpretability::train_runner::TrainingRunConfig {
+    let data_dir = config.general.data_dir.clone();
+    ern_os::interpretability::train_runner::TrainingRunConfig {
+        model_path: config.llamacpp.model_path.clone(),
+        server_binary: config.llamacpp.server_binary.clone(),
         embed_port: 8082,
-        n_gpu_layers: -1,  // All layers on GPU (if available)
+        n_gpu_layers: -1,
+        train_config: build_train_config(&data_dir),
         data_dir,
-        train_config,
-        min_samples: 50,  // 95+ diversity prompts should exceed this easily
+        min_samples: 50,
         resume_collection: true,
-    };
+    }
+}
 
-    // Estimate training time
+fn log_training_plan(run_config: &ern_os::interpretability::train_runner::TrainingRunConfig) {
     let eta = ern_os::interpretability::trainer_persist::estimate_training_time(&run_config.train_config);
     tracing::info!(
+        model = %run_config.model_path,
         features = run_config.train_config.num_features,
         steps = run_config.train_config.num_steps,
         batch_size = run_config.train_config.batch_size,
         estimated_time = format!("{:.0}m", eta.as_secs_f64() / 60.0),
-        "Training plan"
+        "Starting SAE training pipeline for Gemma 4 31B"
     );
-
-    let output = ern_os::interpretability::train_runner::run_sae_training(run_config).await?;
-
-    tracing::info!(
-        output = %output.display(),
-        "SAE training complete — weights saved"
-    );
-
-    Ok(())
 }

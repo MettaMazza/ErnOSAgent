@@ -166,6 +166,9 @@ impl SessionManager {
         self.persist(session)?;
         if let Some(s) = self.sessions.iter_mut().find(|s| s.id == session.id) {
             *s = session.clone();
+        } else {
+            // New session — insert into the in-memory vec
+            self.sessions.insert(0, session.clone());
         }
         Ok(())
     }

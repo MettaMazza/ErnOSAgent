@@ -224,5 +224,18 @@ fn build_app_state(
         mutable_config: std::sync::Arc::new(tokio::sync::RwLock::new(config.clone())),
         resume_message: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         sae: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        live_monitor: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::interpretability::live::LiveMonitor::new(50),
+        )),
+        snapshot_store: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::interpretability::snapshot::SnapshotStore::new(
+                &data_dir.join("snapshots"),
+            ).unwrap_or_else(|_| {
+                crate::interpretability::snapshot::SnapshotStore::new(
+                    &std::path::Path::new("/tmp/ern-os-snapshots"),
+                ).expect("fallback snapshot store")
+            }),
+        )),
+        cancel_flag: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
 }
