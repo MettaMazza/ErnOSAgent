@@ -339,6 +339,46 @@ async fn reinfer_and_dispatch(
                 _ => LoopAction::Error("Spiral recovery: unexpected result".to_string()),
             }
         }
+        ConsumeResult::Reply { text, .. } if text.trim().is_empty() => {
+            // The model returned finish_reason=stop with ZERO tokens generated.
+            // This is NOT a model decision — it's context overflow. The prompt
+            // filled the entire context window, leaving no room for decode.
+            // Trim the heaviest tool results and retry once.
+            let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
+            tracing::error!(
+                total_chars,
+                msg_count = messages.len(),
+                estimated_tokens = total_chars / 4 + 2000,
+                context_length = state.model_spec.context_length,
+                "Model returned empty response — context overflow detected, trimming and retrying"
+            );
+            enforce_context_budget(messages, state.model_spec.context_length / 2);
+
+            // Retry once with trimmed context
+            let retry_rx = match provider.chat(messages, Some(tools), false).await {
+                Ok(rx) => rx,
+                Err(e) => return LoopAction::Error(format!("Retry after empty response failed: {}", e)),
+            };
+            let mut retry_sink = NullSink;
+            match stream_consumer::consume_stream(retry_rx, &mut retry_sink).await {
+                ConsumeResult::Reply { text, .. } if !text.trim().is_empty() => {
+                    let (audited, audit) = audit_and_capture(
+                        state, provider, messages, tools, user_query, &text, session_id,
+                    ).await;
+                    LoopAction::Reply(audited, audit)
+                }
+                ConsumeResult::ToolCall { id, name, arguments } => {
+                    LoopAction::NextTool(crate::tools::schema::ToolCall { id, name, arguments })
+                }
+                _ => {
+                    // Retry also empty — return a diagnostic message instead of silence
+                    let reply = "The tool results were too large for the context window. \
+                                 Please ask me to continue in a new message — I'll use \
+                                 the tool results I've already collected.".to_string();
+                    LoopAction::Error(reply)
+                }
+            }
+        }
         ConsumeResult::Reply { text, .. } => {
             let (audited, audit) = audit_and_capture(
                 state, provider, messages, tools, user_query, &text, session_id,

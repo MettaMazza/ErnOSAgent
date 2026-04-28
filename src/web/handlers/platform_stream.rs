@@ -108,11 +108,24 @@ async fn run_streaming_pipeline(
 
     // Dispatch result
     match result {
-        ConsumeResult::Reply { text, thinking } => {
+        ConsumeResult::Reply { ref text, ref thinking } => {
             if let Some(ref t) = thinking {
                 let _ = emit(&tx, "thinking_complete", &serde_json::json!({"length": t.len()})).await;
             }
-            emit_reply(&state, provider, &mut messages, &tools, &msg, &session_id, &text, &tx).await;
+            if text.trim().is_empty() {
+                // Empty reply = context overflow. Deliver a diagnostic instead of silence.
+                tracing::error!(
+                    msg_count = messages.len(),
+                    "Platform stream: model returned empty response — context overflow"
+                );
+                let diagnostic = "The context window is full. Please start a new conversation \
+                                  or ask a shorter question to continue.";
+                let _ = emit(&tx, "response", &serde_json::json!({
+                    "text": diagnostic, "session_id": session_id, "has_plan": false,
+                })).await;
+            } else {
+                emit_reply(&state, provider, &mut messages, &tools, &msg, &session_id, text, &tx).await;
+            }
         }
         ConsumeResult::PlanProposal { title, plan_markdown, estimated_turns } => {
             emit_plan(&session_id, &title, &plan_markdown, estimated_turns, &tx).await;
