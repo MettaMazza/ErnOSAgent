@@ -1082,3 +1082,274 @@ mod session_crud_e2e {
         assert!(mgr.get(&id).is_none());
     }
 }
+
+// ============================================================
+// CURRICULUM LEARNING E2E
+// ============================================================
+#[cfg(test)]
+mod curriculum_e2e {
+    use super::MockProvider;
+    use ern_os::learning::curriculum::*;
+    use ern_os::learning::student::{self, StudentSession};
+    use ern_os::learning::verification::{QuarantineBuffer, VerificationResult};
+    use ern_os::learning::buffers::GoldenBuffer;
+    use ern_os::learning::buffers_rejection::RejectionBuffer;
+    use ern_os::learning::review::{ReviewDeck, self};
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    fn make_quiz_scene(question: &str, expected: &str) -> Scene {
+        Scene {
+            scene_type: SceneType::Quiz,
+            content: question.to_string(),
+            interaction: InteractionType::AnswerQuestion,
+            expected_output: Some(expected.to_string()),
+            difficulty: 0.5,
+            time_estimate_secs: 60,
+        }
+    }
+
+    fn make_essay_scene(topic: &str) -> Scene {
+        Scene {
+            scene_type: SceneType::Essay,
+            content: topic.to_string(),
+            interaction: InteractionType::WriteEssay,
+            expected_output: None,
+            difficulty: 0.7,
+            time_estimate_secs: 300,
+        }
+    }
+
+    fn sample_course_with_scenes() -> Course {
+        Course {
+            id: "math-101".into(),
+            title: "Basic Mathematics".into(),
+            description: "Primary school maths".into(),
+            level: EducationLevel::Primary,
+            subject: Subject::Mathematics,
+            lessons: vec![
+                Lesson {
+                    id: "lesson-1".into(),
+                    title: "Addition".into(),
+                    order: 0,
+                    scenes: vec![
+                        make_quiz_scene("What is 2+2?", "The answer is 4"),
+                        make_essay_scene("Why is addition important?"),
+                    ],
+                    objectives: vec!["Learn addition".into()],
+                    prerequisites: vec![],
+                },
+                Lesson {
+                    id: "lesson-2".into(),
+                    title: "Subtraction".into(),
+                    order: 1,
+                    scenes: vec![
+                        make_quiz_scene("What is 5-3?", "The answer is 2"),
+                    ],
+                    objectives: vec!["Learn subtraction".into()],
+                    prerequisites: vec![],
+                },
+            ],
+            prerequisites: vec![],
+            completion_criteria: CompletionCriteria {
+                min_lessons_completed: 2,
+                min_quiz_score: 0.5,
+                min_essay_score: 0.0,
+                requires_original_work: false,
+                requires_defense: false,
+            },
+            source: CurriculumSource::CustomJsonl { path: "test.jsonl".into() },
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    /// Test 1: Full attend_class pipeline — process scenes → verify → route to buffers.
+    /// Uses MockProvider that returns "The answer is 4" (matches expected output).
+    #[tokio::test]
+    async fn test_attend_class_full_pipeline() {
+        let provider = MockProvider::with_response("The answer is 4");
+        let course = sample_course_with_scenes();
+        let lesson = &course.lessons[0]; // Addition: 1 quiz + 1 essay
+
+        let mut session = StudentSession::new();
+        for (i, scene) in lesson.scenes.iter().enumerate() {
+            let result = student::process_scene(
+                &provider, scene, &course.id, &lesson.id,
+                i, course.level, &mut session,
+            ).await.unwrap();
+
+            match i {
+                0 => {
+                    // Quiz with matching expected_output → Confirmed → Golden
+                    assert!(result.is_confirmed(),
+                        "Scene 0 should be confirmed, got: {:?}", result);
+                }
+                1 => {
+                    // Essay with no expected_output → Unverifiable → Quarantine
+                    assert!(matches!(result, VerificationResult::Unverifiable { .. }),
+                        "Scene 1 should be unverifiable, got: {:?}", result);
+                }
+                _ => panic!("Unexpected scene index"),
+            }
+        }
+
+        assert_eq!(session.scenes_processed, 2);
+        assert_eq!(session.pending_golden.len(), 1, "Quiz match should go to golden");
+        assert_eq!(session.pending_quarantine.len(), 1, "Essay should go to quarantine");
+        assert!(session.pending_rejections.is_empty(), "No rejections expected");
+    }
+
+    /// Test 2: All lessons complete → CurriculumStore reports course as done.
+    #[tokio::test]
+    async fn test_attend_class_all_complete() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = CurriculumStore::open(&tmp.path().join("curriculum")).unwrap();
+        let course = sample_course_with_scenes();
+        store.add_course(course.clone()).unwrap();
+
+        // Complete both lessons
+        store.complete_lesson(&course.id, "lesson-1", Some(0.9)).unwrap();
+        store.complete_lesson(&course.id, "lesson-2", Some(0.8)).unwrap();
+
+        assert!(store.is_course_complete(&course));
+        assert!(store.next_lesson(&course).is_none());
+        let avg = store.course_average_score(&course);
+        assert!(avg.is_some());
+        let avg = avg.unwrap();
+        assert!((avg - 0.85).abs() < 0.01, "Expected ~0.85, got {}", avg);
+    }
+
+    /// Test 3: Flush session buffers to shared state (simulates scheduler flush).
+    #[tokio::test]
+    async fn test_flush_session_to_shared_state() {
+        let golden_buf = Arc::new(RwLock::new(GoldenBuffer::new(100)));
+        let rejection_buf = Arc::new(RwLock::new(RejectionBuffer::new()));
+        let quarantine_buf = Arc::new(RwLock::new(QuarantineBuffer::new()));
+
+        // Build a session with samples in each buffer
+        let mut session = StudentSession::new();
+        session.pending_golden.push(ern_os::learning::TrainingSample {
+            id: "g1".into(), input: "Q".into(), output: "A".into(),
+            method: ern_os::learning::TrainingMethod::Sft,
+            quality_score: 0.9, timestamp: chrono::Utc::now(),
+        });
+        session.pending_rejections.push(student::PendingRejection {
+            input: "Q2".into(), chosen: "correct".into(),
+            rejected: "wrong".into(), reason: "test".into(),
+        });
+        session.pending_quarantine.push(ern_os::learning::verification::QuarantineEntry {
+            id: "q1".into(), course_id: "c".into(), lesson_id: "l".into(),
+            scene_index: 0, student_answer: "maybe".into(),
+            teacher_grade: 0.0,
+            verification_attempts: vec![],
+            timestamp: chrono::Utc::now(),
+        });
+
+        // Simulate flush (mirrors scheduler::learning_tasks::flush_session)
+        {
+            let mut buf = golden_buf.write().await;
+            for sample in &session.pending_golden {
+                buf.add(sample.clone()).unwrap();
+            }
+        }
+        {
+            let mut buf = rejection_buf.write().await;
+            for rej in &session.pending_rejections {
+                buf.add_pair(&rej.input, &rej.chosen, &rej.rejected, &rej.reason).unwrap();
+            }
+        }
+        {
+            let mut buf = quarantine_buf.write().await;
+            for entry in &session.pending_quarantine {
+                buf.add(entry.clone()).unwrap();
+            }
+        }
+
+        assert_eq!(golden_buf.read().await.count(), 1);
+        assert_eq!(rejection_buf.read().await.count(), 1);
+        assert_eq!(quarantine_buf.read().await.count(), 1);
+    }
+
+    /// Test 4: Spaced review card generation from completed courses.
+    #[test]
+    fn test_spaced_review_generates_cards() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = CurriculumStore::open(&tmp.path().join("curriculum")).unwrap();
+        let course = sample_course_with_scenes();
+        store.add_course(course.clone()).unwrap();
+
+        // Before completion: no cards
+        let cards_before = review::generate_review_cards(&store);
+        assert!(cards_before.is_empty(), "No cards before course completion");
+
+        // Complete lessons
+        store.complete_lesson(&course.id, "lesson-1", Some(0.9)).unwrap();
+        store.complete_lesson(&course.id, "lesson-2", Some(0.8)).unwrap();
+
+        let cards = review::generate_review_cards(&store);
+        // Should generate cards from quiz scenes with expected_output
+        assert!(!cards.is_empty(), "Should generate review cards from completed quiz scenes");
+        // Each quiz scene with expected_output should produce a card
+        assert!(cards.iter().any(|c| c.question.contains("2+2")),
+            "Should have a card for the 2+2 question");
+    }
+
+    /// Test 5: Curriculum API roundtrip — add, list, remove.
+    #[test]
+    fn test_curriculum_store_roundtrip() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = CurriculumStore::open(&tmp.path().join("curriculum")).unwrap();
+
+        assert_eq!(store.course_count(), 0);
+
+        let course = sample_course_with_scenes();
+        store.add_course(course.clone()).unwrap();
+        assert_eq!(store.course_count(), 1);
+        assert!(store.get_course("math-101").is_some());
+
+        // Verify progress tracking
+        let next = store.next_lesson(&course);
+        assert!(next.is_some());
+        assert_eq!(next.unwrap().id, "lesson-1");
+
+        store.complete_lesson("math-101", "lesson-1", Some(0.95)).unwrap();
+        let next = store.next_lesson(&course);
+        assert_eq!(next.unwrap().id, "lesson-2");
+
+        // Remove and verify
+        store.remove_course("math-101").unwrap();
+        assert_eq!(store.course_count(), 0);
+
+        // Persistence: reopen and verify empty
+        let store2 = CurriculumStore::open(&tmp.path().join("curriculum")).unwrap();
+        assert_eq!(store2.course_count(), 0);
+    }
+
+    /// Test 6: Review deck stats shape and behavior.
+    #[test]
+    fn test_review_deck_stats() {
+        let mut deck = ReviewDeck::new();
+        let stats = deck.retention_stats();
+        assert_eq!(stats.total_cards, 0);
+        assert_eq!(stats.cards_due, 0);
+
+        // Add a card
+        let card = ern_os::learning::review::ReviewCard::new(
+            "math-101", "lesson-1", 0,
+            "What is 2+2?", "4",
+        );
+        let card_id = card.id.clone();
+        deck.add_card(card).unwrap();
+
+        let stats = deck.retention_stats();
+        assert_eq!(stats.total_cards, 1);
+        assert_eq!(stats.cards_due, 1); // New cards are immediately due
+
+        // Record a correct answer → card advances to box 2
+        deck.record_result(&card_id, true).unwrap();
+        let stats = deck.retention_stats();
+        assert_eq!(stats.total_cards, 1);
+        // After answering correctly, card should no longer be due (next review in future)
+        assert_eq!(stats.cards_due, 0);
+    }
+}
