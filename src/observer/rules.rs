@@ -96,6 +96,7 @@ pub const RULE_NAMES: &[&str] = &[
     "explicit_tool_ignorance",
     "corporate_deference",
     "tool_narration",
+    "fiction_reality_collapse",
 ];
 
 #[cfg(test)]
@@ -104,6 +105,7 @@ mod tests {
 
     #[test]
     fn test_audit_rules_contains_all_19() {
+        // Note: hardcoded fallback only has 19 rules — rule 20 is in observer.md
         for i in 1..=19 {
             assert!(
                 OBSERVER_SYSTEM_PROMPT.contains(&format!("{}.", i)),
@@ -124,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_rule_names_count() {
-        assert_eq!(RULE_NAMES.len(), 19);
+        assert_eq!(RULE_NAMES.len(), 20);
     }
 
     #[test]
