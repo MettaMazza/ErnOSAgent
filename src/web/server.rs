@@ -4,7 +4,7 @@
 //! Axum web server — thin router orchestrator. Handlers live in `handlers/`.
 
 use crate::web::state::AppState;
-use crate::web::handlers::{system, sessions, memory, scheduler, onboarding, api_keys, agents, content, tts, codes, platforms, platform_ingest, platform_stream, voice, video, upload, version, checkpoint, planning, models_hub};
+use crate::web::handlers::{system, sessions, memory, scheduler, onboarding, api_keys, agents, content, tts, codes, platforms, platform_ingest, platform_stream, voice, video, upload, version, checkpoint, planning, models_hub, curriculum};
 use anyhow::Result;
 use axum::{Router, routing::{get, post, put, delete}};
 use tower_http::cors::CorsLayer;
@@ -107,6 +107,11 @@ fn system_routes() -> Router<AppState> {
         .route("/api/learning/status", get(system::learning_status))
         .route("/api/learning/adapters", get(system::learning_adapters))
         .route("/api/learning/sleep-history", get(system::learning_sleep_history))
+        .route("/api/curriculum", get(curriculum::list_courses))
+        .route("/api/curriculum", post(curriculum::add_course))
+        .route("/api/curriculum/{id}/progress", get(curriculum::course_progress))
+        .route("/api/curriculum/review", get(curriculum::review_stats))
+        .route("/api/curriculum/{id}", delete(curriculum::remove_course))
         .route("/api/observer/history", get(system::observer_history))
         .route("/api/logs", get(system::logs_recent))
         .route("/api/self-edits", get(system::self_edits))

@@ -183,8 +183,14 @@
         <div class="view" id="view-training">
             <div class="panel-content">
                 <div class="panel-header">
-                    <h2>📊 Training Data</h2>
-                    <p class="subtitle">Golden buffer and rejection pairs for preference learning</p>
+                    <h2>📊 Training & Curriculum</h2>
+                    <p class="subtitle">Training buffers, curriculum courses, spaced review, and LoRA adapters</p>
+                </div>
+                <div class="tier-tabs">
+                    <button class="tier-tab active" onclick="ErnOS.loadTrainingTab('buffers', this)">Buffers</button>
+                    <button class="tier-tab" onclick="ErnOS.loadTrainingTab('curriculum', this)">Curriculum</button>
+                    <button class="tier-tab" onclick="ErnOS.loadTrainingTab('review', this)">Review</button>
+                    <button class="tier-tab" onclick="ErnOS.loadTrainingTab('adapters', this)">Adapters</button>
                 </div>
                 <div class="training-sections" id="training-sections">
                     <p class="empty-state">Loading training data...</p>

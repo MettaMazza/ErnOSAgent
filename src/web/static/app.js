@@ -1592,11 +1592,26 @@ const ErnOS = (() => {
 
     // ─── Training View ───
     async function loadTrainingView() {
+        loadTrainingTab('buffers');
+    }
+
+    ErnOS.loadTrainingTab = function(tab, btn) {
+        if (btn) {
+            btn.closest('.tier-tabs').querySelectorAll('.tier-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        const container = document.getElementById('training-sections');
+        container.innerHTML = '<p class="empty-state">Loading...</p>';
+        if (tab === 'buffers') loadBuffersTab(container);
+        else if (tab === 'curriculum') loadCurriculumTab(container);
+        else if (tab === 'review') loadReviewTab(container);
+        else if (tab === 'adapters') loadAdaptersTab(container);
+    };
+
+    async function loadBuffersTab(container) {
         try {
             const resp = await fetch('/api/training');
             const data = await resp.json();
-            const container = document.getElementById('training-sections');
-
             const goldenHtml = (data.golden.entries || []).slice(0, 30).map(e => {
                 const input = e.input || e.user_query || e.query || '';
                 const output = e.output || e.response || '';
@@ -1604,121 +1619,142 @@ const ErnOS = (() => {
                 const method = e.method || '';
                 const ts = e.timestamp || '';
                 return `<div class="training-pair">
-                    <div class="training-col">
-                        <div class="col-label">Input</div>
-                        <div class="col-text">${escapeHtml(input)}</div>
-                    </div>
-                    <div class="training-col">
-                        <div class="col-label">Output</div>
-                        <div class="col-text">${escapeHtml(output)}</div>
+                    <div class="training-col"><div class="col-label">Input</div><div class="col-text">${escapeHtml(input)}</div></div>
+                    <div class="training-col"><div class="col-label">Output</div><div class="col-text">${escapeHtml(output)}</div>
                         ${score || method || ts ? `<div class="training-meta">${score ? `Score: ${score}` : ''} ${method ? `· ${method}` : ''} ${ts ? `· ${ts.substring(0, 16)}` : ''}</div>` : ''}
                     </div>
                 </div>`;
             }).join('') || '<div class="training-entry"><em style="color:var(--text-muted)">No golden entries yet</em></div>';
-
             const rejectionHtml = (data.rejections.entries || []).slice(0, 30).map(e => {
                 const input = e.input || e.user_query || e.query || '';
                 const reason = e.reason || e.rejected_response || '';
                 return `<div class="training-pair">
-                    <div class="training-col">
-                        <div class="col-label">Input</div>
-                        <div class="col-text">${escapeHtml(input)}</div>
-                    </div>
-                    <div class="training-col">
-                        <div class="col-label">Reason</div>
-                        <div class="col-text">${escapeHtml(reason)}</div>
-                    </div>
+                    <div class="training-col"><div class="col-label">Input</div><div class="col-text">${escapeHtml(input)}</div></div>
+                    <div class="training-col"><div class="col-label">Reason</div><div class="col-text">${escapeHtml(reason)}</div></div>
                 </div>`;
             }).join('') || '<div class="training-entry"><em style="color:var(--text-muted)">No rejections yet</em></div>';
-
             container.innerHTML = `
-                <div class="training-section">
-                    <div class="training-section-header">
-                        <span>✅ Golden Buffer</span>
-                        <span class="training-count">${data.golden.count}</span>
-                    </div>
-                    ${goldenHtml}
-                </div>
-                <div class="training-section">
-                    <div class="training-section-header">
-                        <span>❌ Rejection Pairs</span>
-                        <span class="training-count">${data.rejections.count}</span>
-                    </div>
-                    ${rejectionHtml}
-                </div>
+                <div class="training-section"><div class="training-section-header"><span>✅ Golden Buffer</span><span class="training-count">${data.golden.count}</span></div>${goldenHtml}</div>
+                <div class="training-section"><div class="training-section-header"><span>❌ Rejection Pairs</span><span class="training-count">${data.rejections.count}</span></div>${rejectionHtml}</div>
             `;
-
-            // Load learning subsystem data
-            loadLearningDashboard();
+            // Append learning engine stats
+            try {
+                const ls = await (await fetch('/api/learning/status')).json();
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="training-section" style="margin-top:16px"><div class="training-section-header"><span>🧬 Learning Engine</span></div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:8px 0">
+                        <div class="data-card" style="padding:10px"><div style="font-size:20px;font-weight:700;color:var(--accent)">${ls.adapter_count ?? 0}</div><div style="font-size:10px;color:var(--text-muted)">LoRA Adapters</div></div>
+                        <div class="data-card" style="padding:10px"><div style="font-size:20px;font-weight:700;color:var(--accent)">${ls.sleep_cycles ?? 0}</div><div style="font-size:10px;color:var(--text-muted)">Sleep Cycles</div></div>
+                    </div></div>
+                `);
+            } catch (_) {}
         } catch (e) {
-            document.getElementById('training-sections').innerHTML = '<p class="empty-state">Failed to load training data</p>';
+            container.innerHTML = '<p class="empty-state">Failed to load training data</p>';
         }
     }
 
-    async function loadLearningDashboard() {
-        const container = document.getElementById('training-sections');
-
-        // Learning Status
+    async function loadCurriculumTab(container) {
         try {
-            const resp = await fetch('/api/learning/status');
-            const ls = await resp.json();
-            container.insertAdjacentHTML('beforeend', `
-                <div class="training-section" style="margin-top:16px">
-                    <div class="training-section-header">
-                        <span>🧬 Learning Engine</span>
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:8px 0">
-                        <div class="data-card" style="padding:10px"><div style="font-size:20px;font-weight:700;color:var(--accent)">${ls.adapter_count ?? 0}</div><div style="font-size:10px;color:var(--text-muted)">LoRA Adapters</div></div>
-                        <div class="data-card" style="padding:10px"><div style="font-size:20px;font-weight:700;color:var(--accent)">${ls.total_sleep_cycles ?? 0}</div><div style="font-size:10px;color:var(--text-muted)">Sleep Cycles</div></div>
-                        <div class="data-card" style="padding:10px"><div style="font-size:20px;font-weight:700;color:var(--accent)">${ls.total_training_steps ?? 0}</div><div style="font-size:10px;color:var(--text-muted)">Training Steps</div></div>
-                        <div class="data-card" style="padding:10px"><div style="font-size:14px;font-weight:600;color:var(--text-secondary)">${ls.last_sleep ? new Date(ls.last_sleep).toLocaleString() : 'Never'}</div><div style="font-size:10px;color:var(--text-muted)">Last Sleep</div></div>
-                    </div>
-                </div>
-            `);
-        } catch (e) { /* learning status not available — skip */ }
-
-        // Sleep History
-        try {
-            const resp = await fetch('/api/learning/sleep-history');
-            const sh = await resp.json();
-            if (sh.entries && sh.entries.length > 0) {
-                const rows = sh.entries.slice(0, 15).map(e => {
-                    const t = new Date(e.timestamp || e.completed_at);
-                    return `<tr>
-                        <td style="font-size:11px;white-space:nowrap">${t.toLocaleString()}</td>
-                        <td>${e.samples ?? '—'}</td>
-                        <td>${e.loss !== undefined ? e.loss.toFixed(4) : '—'}</td>
-                        <td>${e.duration_ms ? (e.duration_ms / 1000).toFixed(1) + 's' : '—'}</td>
-                    </tr>`;
-                }).join('');
-                container.insertAdjacentHTML('beforeend', `
-                    <div class="training-section" style="margin-top:12px">
-                        <div class="training-section-header"><span>😴 Sleep History</span><span class="training-count">${sh.entries.length}</span></div>
-                        <table class="data-table"><thead><tr><th>Time</th><th>Samples</th><th>Loss</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table>
-                    </div>
-                `);
+            const resp = await fetch('/api/curriculum');
+            const data = await resp.json();
+            if (!data.courses || data.courses.length === 0) {
+                container.innerHTML = `
+                    <div class="training-section">
+                        <div class="training-section-header"><span>📚 Courses</span><span class="training-count">0</span></div>
+                        <div style="padding:20px;text-align:center;color:var(--text-muted)">
+                            <p>No courses enrolled yet.</p>
+                            <p style="font-size:12px;margin-top:8px">Add courses via the scheduler <strong>attend_class</strong> job or the learning tool.</p>
+                        </div>
+                    </div>`;
+                return;
             }
-        } catch (e) { /* sleep history not available */ }
+            const cards = data.courses.map(c => {
+                const pct = c.total_lessons > 0 ? Math.round((c.completed_lessons / c.total_lessons) * 100) : 0;
+                const levelColor = {'Primary':'#4ade80','Secondary':'#38bdf8','Undergraduate':'#a78bfa','Masters':'#f472b6','Doctoral':'#fbbf24'}[c.level] || 'var(--accent)';
+                return `<div class="course-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <div style="font-weight:600;font-size:14px">${escapeHtml(c.title)}</div>
+                        <span class="level-badge" style="background:${levelColor}">${c.level}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${escapeHtml(c.subject)} · ${c.completed_lessons}/${c.total_lessons} lessons${c.is_complete ? ' · ✅ Complete' : ''}</div>
+                    <div class="course-progress-track"><div class="course-progress-fill" style="width:${pct}%"></div></div>
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:4px">
+                        <span>${pct}% complete</span>
+                        <span>Avg: ${(c.average_score * 100).toFixed(0)}%</span>
+                    </div>
+                </div>`;
+            }).join('');
+            container.innerHTML = `
+                <div class="training-section">
+                    <div class="training-section-header"><span>📚 Courses</span><span class="training-count">${data.count}</span></div>
+                    <div class="course-grid">${cards}</div>
+                </div>`;
+        } catch (e) {
+            container.innerHTML = '<p class="empty-state">Failed to load curriculum</p>';
+        }
+    }
 
-        // Adapters
+    async function loadReviewTab(container) {
+        try {
+            const resp = await fetch('/api/curriculum/review');
+            const stats = await resp.json();
+            container.innerHTML = `
+                <div class="training-section">
+                    <div class="training-section-header"><span>🔁 Spaced Review</span><span class="training-count">${stats.total_cards} cards</span></div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:12px 0">
+                        <div class="data-card" style="padding:12px">
+                            <div style="font-size:24px;font-weight:700;color:${stats.cards_due > 0 ? '#f97316' : 'var(--accent)'}">${stats.cards_due}</div>
+                            <div style="font-size:10px;color:var(--text-muted)">Cards Due Now</div>
+                        </div>
+                        <div class="data-card" style="padding:12px">
+                            <div style="font-size:24px;font-weight:700;color:var(--accent)">${stats.total_cards}</div>
+                            <div style="font-size:10px;color:var(--text-muted)">Total Cards</div>
+                        </div>
+                        <div class="data-card" style="padding:12px">
+                            <div style="font-size:24px;font-weight:700;color:var(--accent)">${stats.avg_box_level.toFixed(1)}</div>
+                            <div style="font-size:10px;color:var(--text-muted)">Avg Box Level</div>
+                        </div>
+                        <div class="data-card" style="padding:12px">
+                            <div style="font-size:24px;font-weight:700;color:var(--accent)">${(stats.retention_rate * 100).toFixed(0)}%</div>
+                            <div style="font-size:10px;color:var(--text-muted)">Retention Rate</div>
+                        </div>
+                    </div>
+                    ${stats.total_cards === 0 ? '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px">Complete courses to generate review cards via Leitner spaced repetition.</div>' : ''}
+                </div>`;
+        } catch (e) {
+            container.innerHTML = '<p class="empty-state">Failed to load review stats</p>';
+        }
+    }
+
+    async function loadAdaptersTab(container) {
         try {
             const resp = await fetch('/api/learning/adapters');
             const ad = await resp.json();
-            if (ad.adapters && ad.adapters.length > 0) {
-                const cards = ad.adapters.map(a => `
-                    <div class="data-card" style="margin-bottom:8px">
-                        <div class="card-title">${escapeHtml(a.name || a.id)}</div>
-                        <div class="card-meta">${a.layers ? a.layers + ' layers' : ''} ${a.rank ? '· rank ' + a.rank : ''} ${a.created_at ? '· ' + new Date(a.created_at).toLocaleDateString() : ''}</div>
-                    </div>
-                `).join('');
-                container.insertAdjacentHTML('beforeend', `
-                    <div class="training-section" style="margin-top:12px">
-                        <div class="training-section-header"><span>🔌 LoRA Adapters</span><span class="training-count">${ad.adapters.length}</span></div>
-                        ${cards}
-                    </div>
-                `);
+            if (!ad.adapters || ad.adapters.length === 0) {
+                container.innerHTML = `
+                    <div class="training-section">
+                        <div class="training-section-header"><span>🔌 LoRA Adapters</span><span class="training-count">0</span></div>
+                        <div style="padding:20px;text-align:center;color:var(--text-muted)">
+                            <p>No adapters trained yet.</p>
+                            <p style="font-size:12px;margin-top:8px">Adapters are created automatically during sleep cycles when training buffers have sufficient data.</p>
+                        </div>
+                    </div>`;
+                return;
             }
-        } catch (e) { /* adapters not available */ }
+            const cards = ad.adapters.map(a => `
+                <div class="data-card" style="margin-bottom:8px">
+                    <div class="card-title">${escapeHtml(a.name || a.id)}</div>
+                    <div class="card-meta">${a.method || ''} ${a.param_count ? '· ' + a.param_count + ' params' : ''} ${a.created_at ? '· ' + new Date(a.created_at).toLocaleDateString() : ''}</div>
+                </div>
+            `).join('');
+            container.innerHTML = `
+                <div class="training-section">
+                    <div class="training-section-header"><span>🔌 LoRA Adapters</span><span class="training-count">${ad.adapters.length}</span></div>
+                    ${cards}
+                </div>`;
+        } catch (e) {
+            container.innerHTML = '<p class="empty-state">Failed to load adapters</p>';
+        }
     }
 
     // ─── Scheduler View ───

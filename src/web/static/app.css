@@ -1040,6 +1040,33 @@ body {
     padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.03);
 }
 
+/* ─── Curriculum Cards ─── */
+.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 12px; }
+.course-card {
+    padding: 16px 20px; border-radius: var(--radius-sm);
+    background: var(--surface); border: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+.course-card:hover {
+    border-color: rgba(0, 255, 136, 0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 255, 136, 0.04);
+}
+.level-badge {
+    padding: 2px 10px; border-radius: 10px; font-size: 10px;
+    font-weight: 700; color: var(--bg-primary); text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.course-progress-track {
+    height: 4px; border-radius: 2px; background: var(--bg-tertiary);
+    overflow: hidden;
+}
+.course-progress-fill {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), #38bdf8);
+    transition: width 0.5s ease;
+}
+
 /* ─── Tool Cards Premium ─── */
 .tool-card {
     padding: 20px 24px; border-radius: var(--radius);

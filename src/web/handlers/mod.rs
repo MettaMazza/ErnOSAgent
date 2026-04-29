@@ -24,3 +24,4 @@ pub mod planning;
 pub mod models_hub;
 pub mod platform_stream;
 pub mod sae_capture;
+pub mod curriculum;
