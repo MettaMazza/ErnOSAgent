@@ -68,17 +68,55 @@ fn search_file(
     for (i, line) in content.lines().enumerate() {
         if results.len() >= max { break; }
         if line.to_lowercase().contains(&query_lower) {
-            results.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
+            let snippet = extract_match_context(line, &query_lower, 200);
+            results.push(format!("{}:{}: {}", path.display(), i + 1, snippet));
         }
     }
     Ok(())
 }
 
+/// Extract a context snippet around the first match occurrence.
+/// Shows up to `context_chars` before and after the match.
+/// Search tools show context, not full line dumps — full content is available via file_read.
+fn extract_match_context(line: &str, query_lower: &str, context_chars: usize) -> String {
+    let trimmed = line.trim();
+    if trimmed.len() <= context_chars * 2 + query_lower.len() {
+        return trimmed.to_string();
+    }
+    let line_lower = trimmed.to_lowercase();
+    let match_pos = line_lower.find(query_lower).unwrap_or(0);
+    let start = match_pos.saturating_sub(context_chars);
+    let end = (match_pos + query_lower.len() + context_chars).min(trimmed.len());
+
+    // Align to char boundaries
+    let start = trimmed.floor_char_boundary(start);
+    let end = trimmed.ceil_char_boundary(end);
+
+    let prefix = if start > 0 { "…" } else { "" };
+    let suffix = if end < trimmed.len() { "…" } else { "" };
+    format!("{}{}{}", prefix, &trimmed[start..end], suffix)
+}
+
 fn is_searchable(path: &Path) -> bool {
+    // Skip runtime data artifacts — not source code.
+    if is_data_artifact(path) {
+        return false;
+    }
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     matches!(ext,
         "rs" | "toml" | "md" | "txt" | "json" | "yaml" | "yml" |
         "js" | "ts" | "css" | "html" | "py" | "sh" | "cfg" | "conf"
+    )
+}
+
+/// Returns true for files that are runtime data artifacts (not source code).
+/// These are large binary-equivalent files (embeddings, training buffers, etc.)
+/// that should not appear in code search results.
+fn is_data_artifact(path: &Path) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    matches!(name,
+        "embeddings.json" | "golden_buffer.jsonl" | "rejection_buffer.jsonl" |
+        "quarantine.json" | "review_deck.json" | "training_manifest.json"
     )
 }
 
@@ -103,5 +141,46 @@ mod tests {
         });
         let result = execute(&args).await.unwrap();
         assert!(result.contains("No matches"));
+    }
+
+    #[test]
+    fn test_extract_match_context_short_line() {
+        let result = extract_match_context("fn hello_world() {}", "hello", 200);
+        assert_eq!(result, "fn hello_world() {}");
+    }
+
+    #[test]
+    fn test_extract_match_context_long_line() {
+        let long = "a".repeat(1000) + "NEEDLE" + &"b".repeat(1000);
+        let result = extract_match_context(&long, "needle", 200);
+        assert!(result.starts_with('…'));
+        assert!(result.ends_with('…'));
+        assert!(result.contains("NEEDLE"));
+        assert!(result.len() < 600); // 200 + 6 + 200 + ellipsis overhead
+    }
+
+    #[test]
+    fn test_search_file_caps_long_lines() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let big_line = "x".repeat(500_000) + "TARGET_MATCH" + &"y".repeat(500_000);
+        std::fs::write(tmp.path().join("big.rs"), &big_line).unwrap();
+        let mut results = Vec::new();
+        search_file(&tmp.path().join("big.rs"), "target_match", &mut results, 5).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].len() < 1000, "Result should be bounded, got {} bytes", results[0].len());
+        assert!(results[0].contains("TARGET_MATCH"));
+    }
+
+    #[test]
+    fn test_is_data_artifact_embeddings() {
+        assert!(is_data_artifact(Path::new("data/embeddings.json")));
+        assert!(is_data_artifact(Path::new("golden_buffer.jsonl")));
+    }
+
+    #[test]
+    fn test_is_data_artifact_source_code() {
+        assert!(!is_data_artifact(Path::new("src/main.rs")));
+        assert!(!is_data_artifact(Path::new("Cargo.toml")));
+        assert!(!is_data_artifact(Path::new("package.json")));
     }
 }

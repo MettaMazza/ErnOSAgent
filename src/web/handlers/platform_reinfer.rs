@@ -128,6 +128,14 @@ async fn handle_empty_response(
     );
     enforce_context_budget(messages, state.model_spec.context_length / 2);
 
+    // Inject recovery prompt to escape KV cache collision.
+    // Without this, the retry hits the same cached state and produces
+    // the same empty response (observed: prompt_n=1 on retry = full cache hit).
+    messages.push(crate::provider::Message::text("system",
+        "[RECOVERY] Your previous response was empty. The tool results above \
+         are valid and available. Process them and respond to the user's query."
+    ));
+
     let retry_rx = match provider.chat(messages, Some(tools), false).await {
         Ok(rx) => rx,
         Err(e) => return LoopAction::Error(format!("Retry after empty response failed: {}", e)),
