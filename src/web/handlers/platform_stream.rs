@@ -45,17 +45,52 @@ async fn run_streaming_pipeline(
     let (images, attachment_text) = crate::web::attachment_ingest::split_processed(
         &processed, state.model_spec.context_length,
     );
-    let content_with_attachments = if attachment_text.is_empty() {
-        msg.content.clone()
+
+    // Deep-read: if admin attachment exceeds inline budget, summarise page-by-page.
+    // Track which attachments get deep-read so we can REPLACE their inline text with the digest.
+    let mut deep_read_digests: Vec<(String, String)> = Vec::new();
+    if msg.is_admin {
+        for att in &processed {
+            if let (Some(ref path), true) = (&att.saved_path, att.exceeds_budget(state.model_spec.context_length)) {
+                let config = crate::web::attachment_reader::DeepReadConfig {
+                    path: path.clone(),
+                    filename: att.filename.clone(),
+                    context_length: state.model_spec.context_length,
+                };
+                let digest = crate::web::attachment_reader::deep_read(
+                    config, state.provider.as_ref(), &state.memory, Some(&tx),
+                ).await;
+                deep_read_digests.push((att.filename.clone(), digest));
+            }
+        }
+    }
+
+    // Build the final content: user message + attachments.
+    // For deep-read files, the digest REPLACES inline text (not stacked on top).
+    let content_with_attachments = if deep_read_digests.is_empty() {
+        // No deep-read — include inline attachment text as before
+        if attachment_text.is_empty() {
+            msg.content.clone()
+        } else {
+            format!("{}\n\n[ATTACHED FILES]\n{}", msg.content, attachment_text)
+        }
     } else {
-        format!("{}\n\n[ATTACHED FILES]\n{}", msg.content, attachment_text)
+        // Deep-read triggered — use digests instead of raw inline text
+        let mut content = msg.content.clone();
+        for (filename, digest) in &deep_read_digests {
+            content.push_str(&format!("\n\n[FILE: {} — processed via deep-read]\n{}", filename, digest));
+        }
+        content
     };
 
+    // Select tools BEFORE building context so consolidation can account for tool overhead
+    let tools = super::platform_ingest::select_tools(msg.is_admin);
+    let tools_chars = tools.to_string().len();
+
     let ctx = crate::web::ws_context::build_chat_context(
-        &state, &content_with_attachments, &session_id, None, images, &msg.platform,
+        &state, &content_with_attachments, &session_id, None, images, &msg.platform, tools_chars,
     ).await;
     let mut messages = ctx.messages;
-    let tools = super::platform_ingest::select_tools(msg.is_admin);
     let provider = state.provider.as_ref();
 
     // Start inference
@@ -136,15 +171,23 @@ async fn run_streaming_pipeline(
                 let _ = emit(&tx, "thinking_complete", &serde_json::json!({"length": t.len()})).await;
             }
             if text.trim().is_empty() {
-                // Empty reply = context overflow. Deliver a diagnostic instead of silence.
+                // Empty reply = consolidation failed to prevent context overflow.
+                // Report as a clean error with full diagnostics (§2.4, §2.6).
+                let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
+                let estimated_tokens = total_chars / 4;
                 tracing::error!(
+                    total_chars,
+                    estimated_tokens,
                     msg_count = messages.len(),
-                    "Platform stream: model returned empty response — context overflow"
+                    context_length = state.model_spec.context_length,
+                    "Model returned empty response — consolidation failed to prevent overflow"
                 );
-                let diagnostic = "The context window is full. Please start a new conversation \
-                                  or ask a shorter question to continue.";
-                let _ = emit(&tx, "response", &serde_json::json!({
-                    "text": diagnostic, "session_id": session_id, "has_plan": false,
+                let _ = emit(&tx, "error", &serde_json::json!({
+                    "error": format!(
+                        "Context overflow: {} estimated tokens vs {} token limit ({} messages). \
+                         This is a consolidation bug — please report.",
+                        estimated_tokens, state.model_spec.context_length, messages.len()
+                    ),
                 })).await;
             } else {
                 emit_reply(&state, provider, &mut messages, &tools, &msg, &session_id, text, &tx).await;

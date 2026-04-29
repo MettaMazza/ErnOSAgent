@@ -14,7 +14,7 @@ pub struct PendingToolChain {
 /// Ingest an assistant turn into memory and session persistence.
 pub async fn ingest_assistant_turn(state: &AppState, text: &str, session_id: &str) {
     let mut memory = state.memory.write().await;
-    memory.ingest_turn("assistant", text, session_id);
+    memory.ingest_turn("assistant", text, session_id, None);
     drop(memory);
 
     let mut sessions = state.sessions.write().await;

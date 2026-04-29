@@ -87,6 +87,18 @@ pub async fn parse_sse_stream(
     let mut parsed_lines: Vec<String> = Vec::new(); // Track raw lines for empty response diagnostics
 
     while let Some(chunk_result) = stream.next().await {
+        // If the consumer dropped the receiver (e.g. spiral detection killed the stream),
+        // abort immediately. This drops the HTTP response, freeing the llama-server slot
+        // so the recovery request can proceed without blocking.
+        if tx.is_closed() {
+            tracing::info!(
+                chunks = chunk_count,
+                elapsed_ms = start.elapsed().as_millis() as u64,
+                "SSE stream: consumer disconnected — aborting to free server slot"
+            );
+            return Ok(());
+        }
+
         let chunk = match chunk_result {
             Ok(c) => c,
             Err(e) => {

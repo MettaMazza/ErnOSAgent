@@ -37,7 +37,7 @@ pub async fn dispatch_memory(state: &AppState, args: &serde_json::Value) -> anyh
     match action {
         "recall" => {
             let memory = state.memory.read().await;
-            Ok(memory.recall_context(query.unwrap_or("general"), 2000))
+            Ok(memory.recall_context(query.unwrap_or("general"), 2000, None))
         }
         "status" => {
             let memory = state.memory.read().await;
@@ -45,7 +45,7 @@ pub async fn dispatch_memory(state: &AppState, args: &serde_json::Value) -> anyh
         }
         "search" => {
             let memory = state.memory.read().await;
-            Ok(memory.recall_context(query.unwrap_or(""), 1000))
+            Ok(memory.recall_context(query.unwrap_or(""), 1000, None))
         }
         "reset" => {
             let mut memory = state.memory.write().await;

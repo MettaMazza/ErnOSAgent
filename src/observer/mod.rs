@@ -223,8 +223,12 @@ fn build_observer_messages(
 
     let messages = match last_user_idx {
         Some(idx) => {
-            // Keep all messages up to last user (exclusive), then the audit instruction
-            let mut msgs: Vec<Message> = conversation[..idx].to_vec();
+            // Keep all messages up to last user (exclusive), then the audit instruction.
+            // Trim heavy document content from context to keep observer fast.
+            let mut msgs: Vec<Message> = conversation[..idx]
+                .iter()
+                .map(|m| trim_observer_message(m))
+                .collect();
             msgs.push(Message::text("user", &audit_instruction));
             msgs
         }
@@ -239,6 +243,50 @@ fn build_observer_messages(
     };
 
     (messages, audit_instruction)
+}
+
+/// Trim large document sections from a message to keep observer context lean.
+/// Strips: [DOCUMENT DIGEST: ...], [Memory — Document Knowledge], [ATTACHED FILES],
+/// and large inline file content that the observer doesn't need for auditing.
+fn trim_observer_message(msg: &Message) -> Message {
+    let text = match msg.content.as_str() {
+        Some(t) => t,
+        None => return msg.clone(),
+    };
+
+    // Only trim system and user messages (the ones that contain injected context)
+    if msg.role != "system" && msg.role != "user" {
+        return msg.clone();
+    }
+
+    let mut trimmed = String::with_capacity(text.len());
+    let mut skipping = false;
+
+    for line in text.lines() {
+        // Start skipping at document-heavy section markers
+        if line.starts_with("[DOCUMENT DIGEST:")
+            || line.starts_with("[YOU HAVE READ:")
+            || line.starts_with("[FILE:") && line.contains("deep-read")
+            || line.starts_with("[Memory — Document Knowledge]")
+            || line.starts_with("[ATTACHED FILES]")
+        {
+            skipping = true;
+            trimmed.push_str(&format!("{} [trimmed for observer audit]\n", line.split(']').next().unwrap_or(line)));
+            continue;
+        }
+
+        // Stop skipping at next top-level section marker
+        if skipping && (line.starts_with("## ") || line.starts_with("# ") || line.starts_with("[Memory —") && !line.contains("Document Knowledge")) {
+            skipping = false;
+        }
+
+        if !skipping {
+            trimmed.push_str(line);
+            trimmed.push('\n');
+        }
+    }
+
+    Message::text(&msg.role, trimmed.trim_end())
 }
 
 /// Format rejection feedback for injection into the agent's context.
@@ -423,5 +471,32 @@ mod tests {
         assert!(msg.contains("CRITICAL"));
         assert!(msg.contains("BLOCKED 2 TIMES"));
         assert!(msg.contains("respond to the user NOW"));
+    }
+
+    #[test]
+    fn test_trim_observer_message_strips_digests() {
+        let system = Message::text("system",
+            "You are Ernos.\n\
+             ## Memory\nScratchpad data here\n\
+             [DOCUMENT DIGEST: book.md — 5 pages read]\n\
+             --- Page 1 ---\nLong summary here...\n\
+             --- Page 2 ---\nMore summary...\n\
+             ## Session\nSession data"
+        );
+        let trimmed = trim_observer_message(&system);
+        let text = trimmed.content.as_str().unwrap();
+        assert!(text.contains("You are Ernos"));
+        assert!(text.contains("Scratchpad data"));
+        assert!(!text.contains("Long summary here"));
+        assert!(!text.contains("More summary"));
+        assert!(text.contains("[trimmed for observer audit]"));
+        assert!(text.contains("Session data"));
+    }
+
+    #[test]
+    fn test_trim_observer_message_preserves_assistant() {
+        let assistant = Message::text("assistant", "[DOCUMENT DIGEST: x]\nShould not trim");
+        let trimmed = trim_observer_message(&assistant);
+        assert_eq!(trimmed.content.as_str().unwrap(), "[DOCUMENT DIGEST: x]\nShould not trim");
     }
 }

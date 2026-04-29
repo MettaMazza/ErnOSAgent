@@ -181,6 +181,15 @@ async fn handle_sse_event(
         "keepalive" | "done" | "thinking_complete" | "spiral_detected" | "spiral_reprompt" => {
             // Informational — no action needed
         }
+        "status" => {
+            // Deep-read progress — post to thinking thread
+            if let Some(tid) = tid {
+                if let Some(status) = val.get("status").and_then(|v| v.as_str()) {
+                    let reg = registry.read().await;
+                    let _ = reg.send_to_thread(platform, tid, status).await;
+                }
+            }
+        }
         "" => {
             // Legacy: no event: line — use heuristic field-matching
             handle_legacy_event(val, response, thinking, tool_events,

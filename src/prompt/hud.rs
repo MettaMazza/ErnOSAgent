@@ -15,6 +15,7 @@ pub struct HudContext {
     pub lesson_count: usize,
     pub procedure_count: usize,
     pub scratchpad_count: usize,
+    pub document_count: usize,
     pub golden_count: usize,
     pub rejection_count: usize,
     pub observer_enabled: bool,
@@ -62,7 +63,8 @@ fn format_hud_template(
          - Timeline: {} entries\n\
          - Lessons: {} rules\n\
          - Procedures: {} skills\n\
-         - Scratchpad: {} notes\n\n\
+         - Scratchpad: {} notes\n\
+         - Documents: {} chunks\n\n\
          ## Learning Buffers\n\
          - Golden (SFT): {} samples\n\
          - Rejection (DPO): {} pairs\n\n\
@@ -71,7 +73,7 @@ fn format_hud_template(
         local_now.format("%A, %B %d, %Y at %H:%M:%S %Z"),
         ctx.model_name, ctx.provider, ctx.context_length,
         ctx.session_id, ctx.turn_count, ctx.platform,
-        ctx.timeline_count, ctx.lesson_count, ctx.procedure_count, ctx.scratchpad_count,
+        ctx.timeline_count, ctx.lesson_count, ctx.procedure_count, ctx.scratchpad_count, ctx.document_count,
         ctx.golden_count, ctx.rejection_count,
         if ctx.observer_enabled { "Enabled" } else { "Disabled" },
     )
@@ -94,6 +96,7 @@ mod tests {
             lesson_count: 8,
             procedure_count: 3,
             scratchpad_count: 12,
+            document_count: 5,
             golden_count: 2,
             rejection_count: 0,
             observer_enabled: true,
@@ -123,6 +126,7 @@ mod tests {
             lesson_count: 0,
             procedure_count: 0,
             scratchpad_count: 0,
+            document_count: 0,
             golden_count: 0,
             rejection_count: 0,
             observer_enabled: false,

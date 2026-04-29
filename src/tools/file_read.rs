@@ -6,11 +6,12 @@ use anyhow::{Context, Result};
 use tracing;
 
 /// Derive page size (in characters) from the model's context_length (in tokens).
-/// At ~4 chars per token, `context_length` chars ≈ `context_length / 4` tokens ≈ 25%
-/// of the model's token budget. This ensures a single file_read never consumes
-/// more than ~25% of available context.
+/// At ~4 chars per token, `context_length / 8` chars ≈ ~12.5% of the model's
+/// token budget. This keeps each deep-read summarisation call fast (~8s)
+/// and focused, producing higher-quality per-page summaries.
+/// For 262K context: 262144 / 8 = 32768 chars per page ≈ 8K tokens.
 fn page_size_chars(context_length: usize) -> usize {
-    context_length
+    context_length / 8
 }
 
 pub async fn execute(args: &serde_json::Value, context_length: usize) -> Result<String> {
@@ -293,8 +294,8 @@ mod tests {
 
     #[test]
     fn test_page_size_is_context_length() {
-        assert_eq!(page_size_chars(262144), 262144);
-        assert_eq!(page_size_chars(32768), 32768);
+        assert_eq!(page_size_chars(262144), 32768);  // 262144 / 8
+        assert_eq!(page_size_chars(32768), 4096);    // 32768 / 8
     }
 
     #[test]

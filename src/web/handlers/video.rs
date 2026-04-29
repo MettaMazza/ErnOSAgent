@@ -124,7 +124,7 @@ async fn ingest_video_session(state: &AppState, conversation: &[Message], sessio
     let turns = conversation.len().saturating_sub(1);
     if turns > 0 {
         let mut mem = state.memory.write().await;
-        mem.ingest_turn("system", &format!("[Video call: {} turns]", turns), session_id);
+        mem.ingest_turn("system", &format!("[Video call: {} turns]", turns), session_id, None);
     }
 }
 

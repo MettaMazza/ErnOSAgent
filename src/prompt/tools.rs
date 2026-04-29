@@ -43,13 +43,14 @@ Current information, fact verification, entity lookup. Use BEFORE making factual
 ### Browser (`browser`)
 Interactive headless browser for JavaScript-heavy pages, form filling, multi-step web tasks. Actions: open, click, type, navigate, wait, extract, screenshot, evaluate, close, list. Pages persist across calls — open once, interact many times.
 
-### Memory System (7 tiers)
+### Memory System (8 tiers)
 - **Scratchpad** (`scratchpad`): Temporary working notes, intermediate reasoning
 - **Lessons** (`lessons`): Behavioural rules learned from experience
 - **Timeline** (`timeline`): Chronological interaction history
 - **Knowledge Graph** (`synaptic`): Relational facts and entities
 - **Procedures** (`self_skills`): Detected workflows and skills
-- **Embeddings**: Semantic vector search (automatic)
+- **Document Knowledge**: Chunked document storage with neural embeddings for RAG retrieval (automatic — files ingested via deep-read are searchable by meaning)
+- **Embeddings**: Neural semantic vector search via dedicated embedding server (port 8081)
 - **Consolidation**: Automatic summarization (automatic)
 
 ### Files (`file_read`, `file_write`, `codebase_search`)

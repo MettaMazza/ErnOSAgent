@@ -41,8 +41,8 @@ mod tests {
     fn test_thought_spiral_detection() {
         assert!(!detect_thought_spiral("short"));
 
-        let spiral = (0..10)
-            .map(|_| "Let me think about this again")
+        let spiral = (0..40)
+            .map(|_| "Let me think about this again and reconsider the implications")
             .collect::<Vec<_>>()
             .join("\n");
         assert!(detect_thought_spiral(&spiral));

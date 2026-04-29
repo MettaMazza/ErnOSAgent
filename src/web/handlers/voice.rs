@@ -111,7 +111,7 @@ async fn ingest_voice_session(state: &AppState, conversation: &[Message], sessio
     let turns = conversation.len().saturating_sub(1);
     if turns > 0 {
         let mut mem = state.memory.write().await;
-        mem.ingest_turn("system", &format!("[Voice call: {} turns]", turns), session_id);
+        mem.ingest_turn("system", &format!("[Voice call: {} turns]", turns), session_id, None);
     }
 }
 
@@ -148,7 +148,7 @@ async fn process_voice_turn(
     // Ingest into memory
     {
         let mut mem = state.memory.write().await;
-        mem.ingest_turn("assistant", &response_text, session_id);
+        mem.ingest_turn("assistant", &response_text, session_id, None);
     }
 
     // Generate TTS audio from response
@@ -168,12 +168,17 @@ async fn generate_tts(state: &AppState, text: &str) -> anyhow::Result<Vec<u8>> {
 
 /// Public TTS generator — used by both voice and video handlers.
 pub async fn generate_tts_from_state(state: &AppState, text: &str) -> anyhow::Result<Vec<u8>> {
+    let clean_text = super::tts::sanitise_for_tts(text);
+    if clean_text.is_empty() {
+        anyhow::bail!("Text empty after TTS sanitisation");
+    }
+
     let port = state.config.general.kokoro_port.unwrap_or(8880);
     let url = format!("http://127.0.0.1:{}/v1/audio/speech", port);
 
     let payload = serde_json::json!({
         "model": "kokoro",
-        "input": text,
+        "input": clean_text,
         "voice": "am_michael",
         "response_format": "wav",
         "speed": 1.0,

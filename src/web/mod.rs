@@ -14,5 +14,6 @@ pub mod dispatch_planning;
 pub mod dispatch_memory;
 pub mod training_capture;
 pub mod attachment_ingest;
+pub mod attachment_reader;
 pub mod output_sanitizer;
 pub mod handlers;

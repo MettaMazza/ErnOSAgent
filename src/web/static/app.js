@@ -846,7 +846,14 @@ const ErnOS = (() => {
             return;
         }
 
-        const text = contentEl.textContent.substring(0, 4000);
+        // Pre-clean text for TTS (belt-and-braces — backend sanitiser is authoritative)
+        const text = contentEl.textContent
+            .substring(0, 4000)
+            .replace(/```[\s\S]*?```/g, ' (code block omitted) ')
+            .replace(/https?:\/\/\S+/g, '')
+            .replace(/[#*_~`|]/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
         btn.textContent = '⏳';
 
         try {

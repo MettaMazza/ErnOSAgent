@@ -12,7 +12,7 @@
 /// 1. Exact consecutive duplicate lines (3+ = spiral)
 /// 2. Sliding window n-gram overlap (catches rephrased repetition)
 pub fn detect_thought_spiral(thinking: &str) -> bool {
-    if thinking.len() < 200 {
+    if thinking.len() < 800 {
         return false;
     }
 
@@ -42,7 +42,7 @@ fn has_chunk_repetition(text: &str) -> bool {
     use std::collections::HashMap;
 
     // Only check once we have enough text
-    if text.len() < 400 {
+    if text.len() < 800 {
         return false;
     }
 
@@ -108,12 +108,12 @@ fn has_ngram_repetition(text: &str) -> bool {
     for (i, a) in windows.iter().enumerate() {
         for b in windows.iter().skip(i + 2) {
             let overlap = jaccard_similarity(a, b);
-            if overlap > 0.6 { high_overlap_pairs += 1; }
+            if overlap > 0.7 { high_overlap_pairs += 1; }
         }
     }
 
-    // 3+ high-overlap pairs = spiral
-    high_overlap_pairs >= 3
+    // 4+ high-overlap pairs = spiral
+    high_overlap_pairs >= 4
 }
 
 /// Build word trigrams from a slice.

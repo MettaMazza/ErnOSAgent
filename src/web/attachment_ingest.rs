@@ -25,6 +25,17 @@ pub struct ProcessedAttachment {
     pub content_text: Option<String>,
     /// Base64 data URL for images (for multimodal message).
     pub image_data_url: Option<String>,
+    /// Disk path where admin attachments are saved (None for non-admin).
+    pub saved_path: Option<String>,
+    /// Raw byte count of the original file before any truncation.
+    pub original_size: usize,
+}
+
+impl ProcessedAttachment {
+    /// Whether this attachment exceeds the inline character budget.
+    pub fn exceeds_budget(&self, context_length: usize) -> bool {
+        self.original_size > inline_char_budget(context_length)
+    }
 }
 
 /// Download and process all attachment URLs from a platform message.
@@ -46,6 +57,8 @@ pub async fn process_attachments(
                     filename: filename_from_url(url),
                     content_text: Some(format!("[Failed to process attachment: {}]", e)),
                     image_data_url: None,
+                    saved_path: None,
+                    original_size: 0,
                 });
             }
         }
@@ -120,23 +133,27 @@ fn process_image_attachment(filename: String, ext: &str, bytes: &[u8], saved_pat
     let mime = image_mime(ext);
     let b64 = base64_encode(bytes);
     let data_url = format!("data:{};base64,{}", mime, b64);
+    let size = bytes.len();
     ProcessedAttachment {
         filename,
-        content_text: saved_path.map(|p| format!("[Image saved to {}]", p)),
+        content_text: saved_path.as_ref().map(|p| format!("[Image saved to {}]", p)),
         image_data_url: Some(data_url),
+        saved_path,
+        original_size: size,
     }
 }
 
 /// Process a non-image attachment: extract text and build reference.
 fn process_text_attachment(filename: String, ext: &str, bytes: &[u8], saved_path: Option<String>) -> Result<ProcessedAttachment> {
     let content = extract_text_from_bytes(bytes, &filename, ext)?;
+    let original_size = content.len();
 
+    // Admin path: save to disk AND inline the content.
+    // The budget_text_content() call in split_processed() handles truncation.
     let content_with_ref = match saved_path {
         Some(ref path) => format!(
-            "[FILE SAVED: {} — saved to {}]\n\
-             [READING PROTOCOL: Use file_read with path=\"{}\" and start_line for pagination. \
-             Pin key observations to scratchpad as you read.]",
-            filename, path, path
+            "[FILE SAVED: {} — full file at {}]\n\n{}",
+            filename, path, content
         ),
         None => content,
     };
@@ -145,6 +162,8 @@ fn process_text_attachment(filename: String, ext: &str, bytes: &[u8], saved_path
         filename,
         content_text: Some(content_with_ref),
         image_data_url: None,
+        saved_path,
+        original_size,
     })
 }
 
@@ -346,11 +365,15 @@ mod tests {
                 filename: "photo.png".into(),
                 content_text: None,
                 image_data_url: Some("data:image/png;base64,abc".into()),
+                saved_path: None,
+                original_size: 0,
             },
             ProcessedAttachment {
                 filename: "notes.md".into(),
                 content_text: Some("# Hello".into()),
                 image_data_url: None,
+                saved_path: None,
+                original_size: 7,
             },
         ];
         let (images, text) = split_processed(&atts, 32768);
@@ -406,5 +429,49 @@ mod tests {
         let large = inline_char_budget(131072);
         assert!(large > small);
         assert!(small > 0);
+    }
+
+    #[test]
+    fn test_admin_attachment_inlines_content() {
+        // Phase 1 fix: admin attachments must inline actual content, not just save instructions
+        let content = b"# Chapter 1\n\nDan walked into the room.";
+        let result = process_text_attachment(
+            "book.md".into(), "md", content,
+            Some("data/uploads/20260429_book.md".into()),
+        ).unwrap();
+
+        let text = result.content_text.unwrap();
+        // Must contain the actual file content
+        assert!(text.contains("Dan walked into the room"), "Admin attachment must inline content");
+        // Must also contain the save path reference
+        assert!(text.contains("FILE SAVED"), "Must reference saved path");
+        assert!(text.contains("data/uploads/"), "Must include saved path");
+        // Must NOT contain the old reading protocol instruction
+        assert!(!text.contains("READING PROTOCOL"), "Must not have old redirect instruction");
+        // Must have saved_path set
+        assert!(result.saved_path.is_some());
+        assert_eq!(result.original_size, 38);
+    }
+
+    #[test]
+    fn test_exceeds_budget_threshold() {
+        let small = ProcessedAttachment {
+            filename: "small.md".into(),
+            content_text: Some("hello".into()),
+            image_data_url: None,
+            saved_path: None,
+            original_size: 100,
+        };
+        assert!(!small.exceeds_budget(32768)); // 100 < budget
+
+        let large = ProcessedAttachment {
+            filename: "big.md".into(),
+            content_text: None,
+            image_data_url: None,
+            saved_path: Some("data/uploads/big.md".into()),
+            original_size: 2_000_000,
+        };
+        assert!(large.exceeds_budget(262144)); // 2MB > budget
+        assert!(large.exceeds_budget(32768));  // 2MB > smaller budget too
     }
 }

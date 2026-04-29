@@ -211,13 +211,14 @@ async fn handle_chat_message(
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
+    // Select tools BEFORE building context so consolidation can account for tool overhead
+    let tools = schema::layer1_tools();
+    let tools_chars = tools.to_string().len();
+
     let ctx = crate::web::ws_context::build_chat_context(
-        state, content, session_id, agent_id, images, "web",
+        state, content, session_id, agent_id, images, "web", tools_chars,
     ).await;
     let mut messages = ctx.messages;
-
-    // Layer 1: Fast Reply — buffer silently, audit, then deliver
-    let tools = schema::layer1_tools();
     let provider = state.provider.as_ref();
 
     tracing::info!(session = %session_id, content_len = content.len(), "L1 inference START");
@@ -421,8 +422,10 @@ async fn handle_plan_decision(
         crate::web::ws_plans::delete_pending_plan(session_id);
 
         // Build context with the plan as the objective
+        let plan_tools = schema::layer1_tools();
+        let plan_tools_chars = plan_tools.to_string().len();
         let ctx = crate::web::ws_context::build_chat_context(
-            state, &plan.title, session_id, None, Vec::new(), "web",
+            state, &plan.title, session_id, None, Vec::new(), "web", plan_tools_chars,
         ).await;
 
         stop_flag.store(false, std::sync::atomic::Ordering::Relaxed);

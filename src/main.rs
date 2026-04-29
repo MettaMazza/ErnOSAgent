@@ -37,11 +37,12 @@ async fn main() -> Result<()> {
     launch_webui(state, &config).await
 }
 
-/// Start optional services (Kokoro TTS, Flux image gen, code server, SAE sidecar).
+/// Start optional services (Kokoro TTS, Flux image gen, code server, embedding server, SAE sidecar).
 async fn start_optional_services(config: &ern_os::config::AppConfig, state: &ern_os::web::state::AppState) {
     ern_os::startup::maybe_start_kokoro(config).await;
     ern_os::startup::maybe_start_flux(config).await;
     ern_os::startup::maybe_start_code_server(config).await;
+    ern_os::startup::maybe_start_embedding_server(config).await;
 
     // Start SAE embedding sidecar if SAE weights are loaded
     if state.sae.read().await.is_some() {

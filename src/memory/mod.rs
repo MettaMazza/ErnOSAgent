@@ -19,11 +19,12 @@ pub mod lessons;
 pub mod procedures;
 pub mod synaptic;
 pub mod skills;
+pub mod document_store;
 
 use anyhow::{Context, Result};
 use std::path::Path;
 
-/// Orchestrates all 7 memory tiers with full disk persistence.
+/// Orchestrates all 8 memory tiers with full disk persistence.
 pub struct MemoryManager {
     pub consolidation: consolidation::ConsolidationEngine,
     pub timeline: timeline::TimelineStore,
@@ -32,6 +33,8 @@ pub struct MemoryManager {
     pub lessons: lessons::LessonStore,
     pub procedures: procedures::ProcedureStore,
     pub synaptic: synaptic::SynapticGraph,
+    /// Tier 8: Document Knowledge — chunked documents with neural embeddings.
+    pub documents: document_store::DocumentStore,
 }
 
 impl MemoryManager {
@@ -47,6 +50,7 @@ impl MemoryManager {
         let scratchpad_path = data_dir.join("scratchpad.json");
         let embeddings_path = data_dir.join("embeddings.json");
         let synaptic_dir = data_dir.join("synaptic");
+        let documents_path = data_dir.join("documents.json");
 
         let consolidation = consolidation::ConsolidationEngine::open(&consolidation_path)
             .with_context(|| "Failed to open consolidation store")?;
@@ -60,6 +64,8 @@ impl MemoryManager {
         let embeddings = embeddings::EmbeddingStore::open(&embeddings_path)
             .with_context(|| "Failed to open embedding store")?;
         let synaptic = synaptic::SynapticGraph::new(Some(synaptic_dir));
+        let documents = document_store::DocumentStore::open(&documents_path)
+            .with_context(|| "Failed to open document store")?;
 
         tracing::info!(
             timeline = timeline.entry_count(),
@@ -67,6 +73,7 @@ impl MemoryManager {
             procedures = procedures.count(),
             scratchpad = scratchpad.count(),
             embeddings = embeddings.count(),
+            documents = documents.count(),
             "Memory manager initialised — all persistent tiers loaded"
         );
 
@@ -78,18 +85,21 @@ impl MemoryManager {
             lessons,
             procedures,
             synaptic,
+            documents,
         })
     }
 
     /// Recall context as a formatted string for system prompt injection.
-    /// Allocation: Scratchpad (35%) → Lessons (25%) → Skills (15%) → Timeline (15%) → KG (10%).
-    pub fn recall_context(&self, _query: &str, budget_tokens: usize) -> String {
+    /// Allocation: Scratchpad (30%) → Lessons (20%) → Documents (15%) → Skills (15%) → Timeline (10%) → KG (10%).
+    /// `query_embedding` enables RAG retrieval from the document store when available.
+    pub fn recall_context(&self, _query: &str, budget_tokens: usize, query_embedding: Option<&[f32]>) -> String {
         let total_chars = budget_tokens * 4; // ~4 chars per token
         let mut parts = Vec::new();
-        if let Some(s) = self.recall_scratchpad(total_chars * 35 / 100) { parts.push(s); }
-        if let Some(s) = self.recall_lessons(total_chars * 25 / 100) { parts.push(s); }
+        if let Some(s) = self.recall_scratchpad(total_chars * 30 / 100) { parts.push(s); }
+        if let Some(s) = self.recall_lessons(total_chars * 20 / 100) { parts.push(s); }
+        if let Some(s) = self.recall_documents(total_chars * 15 / 100, query_embedding) { parts.push(s); }
         if let Some(s) = self.recall_procedures(total_chars * 15 / 100) { parts.push(s); }
-        if let Some(s) = self.recall_timeline(total_chars * 15 / 100) { parts.push(s); }
+        if let Some(s) = self.recall_timeline(total_chars * 10 / 100) { parts.push(s); }
         if let Some(s) = self.recall_knowledge_graph() { parts.push(s); }
         parts.join("\n")
     }
@@ -141,6 +151,33 @@ impl MemoryManager {
         Some(section)
     }
 
+    fn recall_documents(&self, budget: usize, query_embedding: Option<&[f32]>) -> Option<String> {
+        if self.documents.count() == 0 { return None; }
+
+        let mut section = String::from("[Memory — Document Knowledge]\n");
+
+        // If we have a query embedding, do real RAG retrieval
+        if let Some(qvec) = query_embedding {
+            let results = self.documents.search_by_vector(qvec, 8);
+            if results.is_empty() {
+                return None;
+            }
+            for (chunk, score) in results {
+                let line = format!("• [{}:p{}] ({:.2}) {}\n",
+                    chunk.document_name, chunk.page, score,
+                    &chunk.content.chars().take(500).collect::<String>());
+                if section.len() + line.len() > budget { break; }
+                section.push_str(&line);
+            }
+        } else {
+            // No embedding available — show document index as fallback
+            let names = self.documents.document_names();
+            section.push_str(&format!("Indexed documents: {}\n", names.join(", ")));
+        }
+
+        Some(section)
+    }
+
     fn recall_procedures(&self, budget: usize) -> Option<String> {
         let procs = self.procedures.all();
         if procs.is_empty() { return None; }
@@ -157,15 +194,15 @@ impl MemoryManager {
 
 
     /// Ingest a single message into timeline.
-    pub fn ingest_turn(&mut self, role: &str, content: &str, session_id: &str) {
+    /// Accepts an optional pre-computed embedding vector from `provider.embed()`.
+    pub fn ingest_turn(&mut self, role: &str, content: &str, session_id: &str, embedding: Option<Vec<f32>>) {
         let transcript = format!("{}: {}", role, content);
         if let Err(e) = self.timeline.archive(session_id, &transcript) {
             tracing::warn!(error = %e, "Failed to archive turn");
         }
 
-        // Also ingest into embeddings for semantic search
-        if content.len() > 20 { // Skip trivial messages
-            let vector = text_to_vector(content);
+        // Ingest embedding for semantic search (when provided by caller)
+        if let Some(vector) = embedding {
             if let Err(e) = self.embeddings.insert(content, role, vector) {
                 tracing::warn!(error = %e, "Failed to insert embedding");
             }
@@ -175,13 +212,14 @@ impl MemoryManager {
     /// Memory system status summary.
     pub fn status_summary(&self) -> String {
         format!(
-            "Consolidations: {} | Timeline: {} | Lessons: {} | Procedures: {} | Scratchpad: {} | Embeddings: {}",
+            "Consolidations: {} | Timeline: {} | Lessons: {} | Procedures: {} | Scratchpad: {} | Embeddings: {} | Documents: {}",
             self.consolidation.consolidation_count(),
             self.timeline.entry_count(),
             self.lessons.count(),
             self.procedures.count(),
             self.scratchpad.count(),
             self.embeddings.count(),
+            self.documents.count(),
         )
     }
 
@@ -193,27 +231,9 @@ impl MemoryManager {
         self.scratchpad = scratchpad::ScratchpadStore::new();
         self.embeddings = embeddings::EmbeddingStore::new();
         self.consolidation = consolidation::ConsolidationEngine::new();
+        self.documents = document_store::DocumentStore::new();
         tracing::info!("MemoryManager cleared — all tiers wiped");
     }
 }
 
-/// Lightweight text-to-vector using hash projection.
-/// Not a neural embedding — this is a deterministic hash into a fixed-dimension
-/// vector that enables basic similarity search without an embedding model.
-/// When a proper embedding endpoint is available, replace this with real embeddings.
-fn text_to_vector(text: &str) -> Vec<f32> {
-    const DIMS: usize = 64;
-    let mut vec = vec![0.0f32; DIMS];
-    for word in text.split_whitespace() {
-        let w = word.to_lowercase();
-        let hash = w.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
-        let idx = (hash % DIMS as u64) as usize;
-        vec[idx] += 1.0;
-    }
-    // Normalize
-    let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm > 0.0 {
-        for v in &mut vec { *v /= norm; }
-    }
-    vec
-}
+

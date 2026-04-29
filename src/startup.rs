@@ -6,6 +6,61 @@
 
 use anyhow::Result;
 
+/// Auto-start the dedicated embedding server on the configured embedding_port.
+/// Uses `embedding_model` if configured, otherwise re-uses the main model in
+/// `--embeddings` mode (lightweight: no mmproj, no jinja, single slot).
+pub async fn maybe_start_embedding_server(config: &crate::config::AppConfig) {
+    let llama_config = &config.llamacpp;
+    let port = llama_config.embedding_port;
+    let url = format!("http://127.0.0.1:{}/v1/models", port);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap_or_default();
+    if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
+        tracing::info!(port, "Embedding server already running");
+        return;
+    }
+
+    let model = llama_config.embedding_model.as_deref()
+        .unwrap_or(&llama_config.model_path);
+
+    tracing::info!(port, model, "Starting embedding server");
+
+    match tokio::process::Command::new(&llama_config.server_binary)
+        .args([
+            "--model", model,
+            "--port", &port.to_string(),
+            "--embeddings",
+            "--pooling", "mean",
+            "-c", "0",        // Auto-detect context from GGUF — §2.1
+            "-np", "1",       // Single slot
+            "-ngl", "999",    // Full GPU offload
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            let pid = child.id().unwrap_or(0);
+            tracing::info!(pid, port, model, "Embedding server spawned — waiting for health");
+            // Wait up to 30s for health
+            for i in 0..30 {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if client.get(&url).send().await.map_or(false, |r| r.status().is_success()) {
+                    tracing::info!(pid, port, seconds = i + 1, "Embedding server ready");
+                    return;
+                }
+            }
+            tracing::warn!(pid, port, "Embedding server spawned but not healthy after 30s");
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, port, "Failed to start embedding server — RAG disabled");
+        }
+    }
+}
+
 /// Auto-start Kokoro TTS server if not already running.
 pub async fn maybe_start_kokoro(config: &crate::config::AppConfig) {
     let port = config.general.kokoro_port.unwrap_or(8880);

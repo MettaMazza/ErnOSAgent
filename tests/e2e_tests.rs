@@ -99,7 +99,7 @@ mod memory_manager_tests {
     fn test_recall_context_empty() {
         let tmp = TempDir::new().unwrap();
         let mm = MemoryManager::new(tmp.path()).unwrap();
-        let ctx = mm.recall_context("test", 1000);
+        let ctx = mm.recall_context("test", 1000, None);
         assert!(ctx.is_empty());
     }
 
@@ -108,7 +108,7 @@ mod memory_manager_tests {
         let tmp = TempDir::new().unwrap();
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
         mm.scratchpad.pin("lang", "Rust").unwrap();
-        let ctx = mm.recall_context("test", 1000);
+        let ctx = mm.recall_context("test", 1000, None);
         assert!(ctx.contains("Rust"));
     }
 
@@ -117,7 +117,7 @@ mod memory_manager_tests {
         let tmp = TempDir::new().unwrap();
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
         mm.lessons.add("Handle errors", "test", 0.95).unwrap();
-        let ctx = mm.recall_context("test", 1000);
+        let ctx = mm.recall_context("test", 1000, None);
         assert!(ctx.contains("Handle errors"));
     }
 
@@ -125,8 +125,8 @@ mod memory_manager_tests {
     fn test_recall_with_timeline() {
         let tmp = TempDir::new().unwrap();
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
-        mm.ingest_turn("user", "Hello world", "s1");
-        let ctx = mm.recall_context("test", 1000);
+        mm.ingest_turn("user", "Hello world", "s1", None);
+        let ctx = mm.recall_context("test", 1000, None);
         assert!(ctx.contains("Hello world"));
     }
 
@@ -134,8 +134,8 @@ mod memory_manager_tests {
     fn test_ingest_turn() {
         let tmp = TempDir::new().unwrap();
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
-        mm.ingest_turn("user", "Test", "s1");
-        mm.ingest_turn("assistant", "Response", "s1");
+        mm.ingest_turn("user", "Test", "s1", None);
+        mm.ingest_turn("assistant", "Response", "s1", None);
         assert_eq!(mm.timeline.entry_count(), 2);
     }
 
@@ -145,7 +145,7 @@ mod memory_manager_tests {
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
         mm.scratchpad.pin("k", "v").unwrap();
         mm.lessons.add("rule", "test", 0.9).unwrap();
-        mm.ingest_turn("user", "Hello", "s1");
+        mm.ingest_turn("user", "Hello", "s1", None);
         mm.clear();
         assert_eq!(mm.scratchpad.count(), 0);
         assert_eq!(mm.lessons.count(), 0);
@@ -167,9 +167,9 @@ mod memory_manager_tests {
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
         mm.scratchpad.pin("project", "Ern-OS").unwrap();
         mm.lessons.add("Use Rust", "test", 0.9).unwrap();
-        mm.ingest_turn("user", "What?", "s1");
-        mm.ingest_turn("assistant", "Ern-OS agent", "s1");
-        let ctx = mm.recall_context("Ern-OS", 5000);
+        mm.ingest_turn("user", "What?", "s1", None);
+        mm.ingest_turn("assistant", "Ern-OS agent", "s1", None);
+        let ctx = mm.recall_context("Ern-OS", 5000, None);
         assert!(ctx.contains("Ern-OS"));
         let status = mm.status_summary();
         assert!(status.contains("Scratchpad: 1"));
@@ -556,9 +556,9 @@ mod memory_tools_e2e {
     fn test_timeline_lifecycle() {
         let tmp = TempDir::new().unwrap();
         let mut mm = MemoryManager::new(tmp.path()).unwrap();
-        mm.ingest_turn("user", "Hello", "s1");
-        mm.ingest_turn("assistant", "Hi!", "s1");
-        mm.ingest_turn("user", "What is Rust?", "s2");
+        mm.ingest_turn("user", "Hello", "s1", None);
+        mm.ingest_turn("assistant", "Hi!", "s1", None);
+        mm.ingest_turn("user", "What is Rust?", "s2", None);
         assert_eq!(mm.timeline.entry_count(), 3);
         assert_eq!(mm.timeline.search("Rust", 10).len(), 1);
         assert!(mm.timeline.recent(2).len() <= 2);
@@ -848,7 +848,7 @@ mod full_pipeline_e2e {
         let user_msg = "What is Rust?";
 
         // 2. Recall (empty)
-        let ctx = memory.recall_context(user_msg, 1000);
+        let ctx = memory.recall_context(user_msg, 1000, None);
         assert!(ctx.is_empty());
 
         // 3. Inference
@@ -865,12 +865,12 @@ mod full_pipeline_e2e {
         assert!(output.result.verdict.is_allowed()); // Mock returns non-JSON → fail-open
 
         // 5. Archive
-        memory.ingest_turn("user", user_msg, "test_sess");
-        memory.ingest_turn("assistant", &response, "test_sess");
+        memory.ingest_turn("user", user_msg, "test_sess", None);
+        memory.ingest_turn("assistant", &response, "test_sess", None);
         assert_eq!(memory.timeline.entry_count(), 2);
 
         // 6. Recall should now contain data
-        let ctx_after = memory.recall_context("Rust", 1000);
+        let ctx_after = memory.recall_context("Rust", 1000, None);
         assert!(!ctx_after.is_empty());
     }
 
@@ -882,7 +882,7 @@ mod full_pipeline_e2e {
             let mut mm = MemoryManager::new(&p).unwrap();
             mm.scratchpad.pin("project", "Ern-OS").unwrap();
             mm.lessons.add("Use Rust", "test", 0.9).unwrap();
-            mm.ingest_turn("user", "Hello", "s1");
+            mm.ingest_turn("user", "Hello", "s1", None);
         }
         {
             let mm = MemoryManager::new(&p).unwrap();
@@ -907,7 +907,7 @@ mod full_pipeline_e2e {
             let mem = shared.clone();
             handles.push(tokio::spawn(async move {
                 let m = mem.read().await;
-                let ctx = m.recall_context("test", 100);
+                let ctx = m.recall_context("test", 100, None);
                 assert!(ctx.contains("shared"));
             }));
         }
