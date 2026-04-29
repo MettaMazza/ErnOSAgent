@@ -25,7 +25,11 @@ pub(crate) async fn reinfer_and_dispatch(
     user_query: &str,
     session_id: &str,
 ) -> LoopAction {
-    let rx = match provider.chat(messages, Some(tools), true).await {
+    // thinking=false: the model already reasoned during initial inference.
+    // Re-enabling thinking for tool result processing causes Gemma 4 to emit
+    // stop with no content (verified via llama-server timings: cache_n=48933,
+    // prompt_n=88, elapsed=327ms — immediate stop after processing tool result).
+    let rx = match provider.chat(messages, Some(tools), false).await {
         Ok(rx) => rx,
         Err(e) => {
             tracing::error!(error = %e, "Platform L1 re-inference failed");
@@ -120,7 +124,7 @@ async fn handle_empty_response(
         msg_count = messages.len(),
         estimated_tokens = total_chars / 4 + 2000,
         context_length = state.model_spec.context_length,
-        "Model returned empty response — context overflow detected, trimming and retrying"
+        "Model returned empty response after tool execution — trimming and retrying"
     );
     enforce_context_budget(messages, state.model_spec.context_length / 2);
 
