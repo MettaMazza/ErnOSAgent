@@ -64,6 +64,7 @@ pub async fn execute_tool_with_state(
         "plan_and_execute" => crate::web::dispatch_planning::dispatch_plan_and_execute(state, &args).await,
         "session_recall" => crate::tools::session_recall_tool::execute(&args, state).await,
         "introspect" => crate::tools::introspect_tool::execute(&args, state).await,
+        "spawn_sub_agent" => dispatch_spawn_sub_agent(state, &args).await,
         other => Ok(format!("Unknown tool: {}", other)),
     };
 
@@ -221,6 +222,33 @@ async fn dispatch_codebase_edit(state: &AppState, args: &serde_json::Value) -> a
         "delete" => crate::tools::codebase_edit::delete_file(data_dir, path),
         other => Ok(format!("Unknown codebase_edit action: {}", other)),
     }
+}
+
+/// Execute a sub-agent spawn through the unified dispatch.
+/// Parses config from args and delegates to `sub_agent::run_sub_agent`.
+async fn dispatch_spawn_sub_agent(state: &AppState, args: &serde_json::Value) -> anyhow::Result<String> {
+    let task = args["task"].as_str().unwrap_or("").to_string();
+    let tools: Vec<String> = args["tools"].as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    let max_turns = args["max_turns"].as_u64().unwrap_or(5) as usize;
+
+    if task.is_empty() || tools.is_empty() {
+        anyhow::bail!("spawn_sub_agent requires non-empty 'task' and 'tools' array");
+    }
+
+    let config = crate::inference::sub_agent::SubAgentConfig {
+        task: task.clone(), allowed_tools: tools, max_turns,
+    };
+    let result = crate::inference::sub_agent::run_sub_agent(
+        state.provider.as_ref(), config, state,
+    ).await?;
+
+    Ok(format!(
+        "[Sub-Agent Result]\nSuccess: {}\nTurns: {}\nTools: {}\n\n{}",
+        result.success, result.turns_used,
+        result.tool_calls_made.join(", "), result.summary,
+    ))
 }
 
 async fn dispatch_system_recompile(state: &AppState) -> anyhow::Result<String> {

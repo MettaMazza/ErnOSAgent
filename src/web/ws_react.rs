@@ -79,7 +79,7 @@ pub async fn run_react_loop(
                 handle_extend_turns(&mut ctx, &mut ls, additional, &progress, &remaining_work, sender).await;
             }
             Ok(IterationResult::ToolCall(tc)) => {
-                handle_single_tool(&mut ctx, &mut ls, state, &tc, provider, sender).await;
+                handle_single_tool(&mut ctx, &mut ls, state, &tc, sender).await;
             }
             Ok(IterationResult::ToolCalls(tcs)) => {
                 handle_parallel_tools(&mut ctx, &mut ls, state, &tcs, sender).await;
@@ -291,18 +291,13 @@ async fn handle_single_tool(
     ls: &mut LoopState,
     state: &AppState,
     tc: &schema::ToolCall,
-    provider: &dyn crate::provider::Provider,
     sender: &mut futures_util::stream::SplitSink<WebSocket, WsMessage>,
 ) {
     tracing::info!(iteration = ls.total_iterations, tool = %tc.name, remaining = ls.remaining_turns, "ReAct: ToolCall");
     if reject_if_budget_exhausted(ctx, ls, tc) { return; }
 
     send_ws(sender, "tool_executing", &serde_json::json!({"name": &tc.name, "id": &tc.id})).await;
-    let result = if tc.name == "spawn_sub_agent" {
-        execute_sub_agent(state, provider, tc, sender).await
-    } else {
-        execute_tool_with_state(state, tc).await
-    };
+    let result = execute_tool_with_state(state, tc).await;
     send_ws(sender, "tool_completed", &serde_json::json!({
         "id": &tc.id, "name": &tc.name,
         "result": &result.output, "success": result.success,
@@ -487,15 +482,6 @@ async fn execute_tool_with_state(
     crate::web::tool_dispatch::execute_tool_with_state(state, tc).await
 }
 
-/// Execute a spawn_sub_agent tool call — delegated to ws_react_helpers.
-async fn execute_sub_agent(
-    state: &AppState,
-    provider: &dyn crate::provider::Provider,
-    tc: &schema::ToolCall,
-    sender: &mut futures_util::stream::SplitSink<axum::extract::ws::WebSocket, axum::extract::ws::Message>,
-) -> schema::ToolResult {
-    super::ws_react_helpers::execute_sub_agent(state, provider, tc, sender).await
-}
 
 /// Build tool context from message history — delegated to ws_react_helpers.
 fn build_tool_context(messages: &[Message]) -> String {
