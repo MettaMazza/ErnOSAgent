@@ -18,31 +18,39 @@ pub fn append_tool_messages(
 /// Ensure total context fits within the model's context window.
 /// Trims tool result messages oldest-first until the total fits.
 /// Old tool results are dead weight — the model already processed them.
+///
+/// Uses a 60% safety margin: the `chars / 2` heuristic can underestimate
+/// by 1.5x for short-line content (directory listings, line-per-entry output).
+/// Trimming to 60% of context_length guarantees actual tokens stay within
+/// budget even with worst-case estimation error.
 pub fn enforce_context_budget(
     messages: &mut Vec<crate::provider::Message>,
     context_length: usize,
 ) {
     let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-    let estimated_tokens = total_chars / 4 + 2000;
+    let estimated_tokens = total_chars / 2 + 2000;
+    let budget = (context_length as f64 * 0.60) as usize;
 
-    if estimated_tokens <= context_length {
+    if estimated_tokens <= budget {
         return;
     }
 
     tracing::warn!(
         estimated_tokens,
+        budget,
         context_length,
-        overshoot = estimated_tokens - context_length,
-        "Context budget exceeded — trimming tool results"
+        overshoot = estimated_tokens - budget,
+        "Context budget exceeded (60% margin) — trimming tool results"
     );
 
     let tool_indices = find_trim_candidates(messages);
-    let trimmed_total = trim_tool_messages(messages, &tool_indices, context_length);
+    let trimmed_total = trim_tool_messages(messages, &tool_indices, budget);
 
     let final_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
     tracing::warn!(
         trimmed_total,
-        final_estimated_tokens = final_chars / 4 + 2000,
+        final_estimated_tokens = final_chars / 2 + 2000,
+        budget,
         context_length,
         "Context budget enforcement complete"
     );
@@ -66,7 +74,7 @@ fn trim_tool_messages(
 
     for &idx in tool_indices {
         let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-        let estimated = total_chars / 4 + 2000;
+        let estimated = total_chars / 2 + 2000;
         if estimated <= context_length {
             break;
         }

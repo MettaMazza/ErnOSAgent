@@ -337,7 +337,7 @@ pub async fn audit_and_capture(
                     "Observer BLOCKED — re-inferring with feedback"
                 );
                 current_text = retry_after_rejection(
-                    state, provider, messages, tools, user_query, &rejected, &output.result,
+                    state, provider, messages, tools, user_query, session_id, &rejected, &output.result,
                 ).await;
             }
             Err(e) => {
@@ -373,32 +373,74 @@ fn handle_approved(
 
 
 /// Retry inference after observer rejection.
-async fn retry_after_rejection(
-    state: &AppState,
-    provider: &dyn crate::provider::Provider,
-    messages: &mut Vec<crate::provider::Message>,
-    tools: &serde_json::Value,
-    user_query: &str,
-    rejected_text: &str,
-    result: &crate::observer::AuditResult,
-) -> String {
-    let feedback = crate::observer::format_rejection_feedback(result);
-    messages.push(crate::provider::Message::text("assistant", rejected_text));
-    messages.push(crate::provider::Message::text("system", &feedback));
-    super::platform_exec::enforce_context_budget(messages, state.model_spec.context_length);
+/// Handles tool calls in the retry response — the model may follow observer
+/// guidance by calling file_read/codebase_search instead of generating text.
+///
+/// Uses Box::pin indirection because this is part of a recursive async cycle:
+/// retry_after_rejection → run_platform_tool_chain → audit_and_capture → retry_after_rejection
+fn retry_after_rejection<'a>(
+    state: &'a AppState,
+    provider: &'a dyn crate::provider::Provider,
+    messages: &'a mut Vec<crate::provider::Message>,
+    tools: &'a serde_json::Value,
+    user_query: &'a str,
+    session_id: &'a str,
+    rejected_text: &'a str,
+    result: &'a crate::observer::AuditResult,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = String> + Send + 'a>> {
+    Box::pin(async move {
+        let feedback = crate::observer::format_rejection_feedback(result);
+        messages.push(crate::provider::Message::text("assistant", rejected_text));
+        messages.push(crate::provider::Message::text("system", &feedback));
+        super::platform_exec::enforce_context_budget(messages, state.model_spec.context_length);
 
-    if let Ok(rx) = provider.chat(messages, Some(tools), true).await {
-        use crate::inference::stream_consumer::{self as sc, NullSink};
-        let mut sink = NullSink;
-        if let sc::ConsumeResult::Reply { text, .. } = sc::consume_stream(rx, &mut sink).await {
-            crate::web::training_capture::capture_rejection(
-                state, user_query, rejected_text, &text, &result.what_went_wrong,
-            );
-            return text;
+        if let Ok(rx) = provider.chat(messages, Some(tools), true).await {
+            use crate::inference::stream_consumer::{self as sc, NullSink};
+            let mut sink = NullSink;
+            match sc::consume_stream(rx, &mut sink).await {
+                sc::ConsumeResult::Reply { text, .. } => {
+                    crate::web::training_capture::capture_rejection(
+                        state, user_query, rejected_text, &text, &result.what_went_wrong,
+                    );
+                    return text;
+                }
+                sc::ConsumeResult::ToolCall { id, name, arguments } => {
+                    // Model is following observer guidance — execute the tool chain
+                    tracing::info!(
+                        tool = %name, retries = ?result.failure_category,
+                        "Observer retry: model called tool (following feedback) — executing"
+                    );
+                    let tc = crate::tools::schema::ToolCall { id, name, arguments };
+                    let (reply, _events, _audit) = super::platform_exec::run_platform_tool_chain(
+                        state, provider, messages, tools, user_query, session_id, tc, None,
+                    ).await;
+                    return reply;
+                }
+                sc::ConsumeResult::ToolCalls(calls) => {
+                    tracing::info!(
+                        count = calls.len(),
+                        "Observer retry: model called multiple tools (following feedback) — executing"
+                    );
+                    let mut tcs: Vec<crate::tools::schema::ToolCall> = calls.into_iter()
+                        .map(|(id, name, arguments)| crate::tools::schema::ToolCall { id, name, arguments })
+                        .collect();
+                    if let Some(last_tc) = tcs.pop() {
+                        for tc in &tcs {
+                            let (result, _event) = super::platform_exec::execute_and_capture(state, tc).await;
+                            super::platform_exec::append_tool_messages(messages, tc, &result);
+                        }
+                        let (reply, _events, _audit) = super::platform_exec::run_platform_tool_chain(
+                            state, provider, messages, tools, user_query, session_id, last_tc, None,
+                        ).await;
+                        return reply;
+                    }
+                }
+                _ => {} // Empty/Error — fall through to rejected_text
+            }
         }
-    }
 
-    rejected_text.to_string()
+        rejected_text.to_string()
+    })
 }
 
 #[cfg(test)]

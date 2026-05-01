@@ -120,7 +120,7 @@ pub async fn run_platform_tool_chain(
             msg_count = messages.len(),
             tool_msgs = tool_msg_count,
             total_chars,
-            estimated_tokens = total_chars / 4,
+            estimated_tokens = total_chars / 2 + 2000,
             context_length = state.model_spec.context_length,
             "Tool chain: context state before budget enforcement"
         );
@@ -128,7 +128,7 @@ pub async fn run_platform_tool_chain(
 
         // Pre-infer budget check
         let post_trim_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-        let post_trim_tokens = post_trim_chars / 4 + 2000;
+        let post_trim_tokens = post_trim_chars / 2 + 2000;
         let budget_ratio = post_trim_tokens as f64 / state.model_spec.context_length as f64;
         if budget_ratio > 0.90 {
             tracing::warn!(

@@ -93,6 +93,14 @@ pub struct WebSocketSink<'a> {
 }
 
 impl<'a> StreamSink for WebSocketSink<'a> {
+    async fn on_text(&mut self, delta: &str) {
+        let msg = serde_json::json!({"type": "text_delta", "content": delta});
+        let _ = futures_util::SinkExt::send(
+            self.sender,
+            axum::extract::ws::Message::Text(msg.to_string().into()),
+        ).await;
+    }
+
     async fn on_thinking(&mut self, delta: &str) {
         let msg = serde_json::json!({"type": "thinking_delta", "content": delta});
         let _ = futures_util::SinkExt::send(

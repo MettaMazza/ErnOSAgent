@@ -28,6 +28,17 @@ pub async fn execute_tool_with_state(
         return format_tool_result_with_images(&tc.id, &tc.name, result, start.elapsed(), images);
     }
 
+    // Image generation: feed the generated image back to the vision model.
+    if tc.name == "generate_image" {
+        let result = dispatch_desktop_tool(state, &tc.name, &args).await;
+        let images = if state.model_spec.supports_vision {
+            extract_generated_image_data(&result)
+        } else {
+            Vec::new()
+        };
+        return format_tool_result_with_images(&tc.id, &tc.name, result, start.elapsed(), images);
+    }
+
     let result = match tc.name.as_str() {
         "run_bash_command" => dispatch_shell(&args).await,
         "web_search" => dispatch_web_search(&args).await,
@@ -43,7 +54,7 @@ pub async fn execute_tool_with_state(
         "codebase_search" => crate::tools::codebase_search::execute(&args).await,
         "file_read" => crate::tools::file_read::execute(&args, state.model_spec.context_length).await,
         "file_write" => crate::tools::file_write::execute(&args).await,
-        "browse_url" | "screenshot_url" | "generate_image" | "system_recompile" =>
+        "browse_url" | "screenshot_url" | "system_recompile" =>
             dispatch_desktop_tool(state, &tc.name, &args).await,
         "create_artifact" => crate::tools::artifact_tool::execute(&args).await,
         "codebase_edit" => dispatch_codebase_edit(state, &args).await,
@@ -212,8 +223,22 @@ async fn dispatch_codebase_edit(state: &AppState, args: &serde_json::Value) -> a
     }
 }
 
-async fn dispatch_system_recompile() -> anyhow::Result<String> {
-    crate::tools::compiler::run_recompile()
+async fn dispatch_system_recompile(state: &AppState) -> anyhow::Result<String> {
+    // Read the most recently active session to thread into resume state.
+    let session_id = {
+        let sessions = state.sessions.read().await;
+        sessions.list().first().map(|s| s.id.clone()).unwrap_or_default()
+    };
+    // Infer platform from session_id format: "discord_uid_chid" or "telegram_uid_chid" → platform name.
+    // Web sessions use UUIDs so they won't match.
+    let platform = if session_id.starts_with("discord_") {
+        "discord"
+    } else if session_id.starts_with("telegram_") {
+        "telegram"
+    } else {
+        "web"
+    };
+    crate::tools::compiler::run_recompile(&session_id, platform)
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))
 }
@@ -267,8 +292,11 @@ async fn dispatch_desktop_tool(
         "browser" => {
             crate::tools::browser_tool::execute_action(&state.browser, args).await
         }
-        "generate_image" => crate::tools::image_gen_tool::execute(args).await,
-        "system_recompile" => dispatch_system_recompile().await,
+        "generate_image" => {
+            let port = state.config.general.flux_port.unwrap_or(8890);
+            crate::tools::image_gen_tool::execute(args, port).await
+        }
+        "system_recompile" => dispatch_system_recompile(state).await,
         _ => Ok(format!("Unknown tool: {}", name)),
     }
 }
@@ -319,6 +347,30 @@ async fn maybe_auto_screenshot_to_images(
                     tracing::warn!(action, page_id, "Auto-screenshot timed out (3s) — continuing without");
                 }
             }
+        }
+    }
+}
+
+/// Read the generated image from disk and return its base64 data URI.
+/// Extracts the filename from the tool result text (looks for /api/images/xxx.png).
+fn extract_generated_image_data(result: &anyhow::Result<String>) -> Vec<String> {
+    let text = match result {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    let re = regex::Regex::new(r"/api/images/([^)\s]+)").unwrap();
+    let Some(cap) = re.captures(text) else { return Vec::new() };
+    let filename = &cap[1];
+    let path = format!("data/images/{}", filename);
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            vec![format!("data:image/png;base64,{}", b64)]
+        }
+        Err(e) => {
+            tracing::warn!(path = %path, error = %e, "Failed to read generated image for vision feedback");
+            Vec::new()
         }
     }
 }
