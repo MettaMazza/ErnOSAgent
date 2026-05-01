@@ -1,80 +1,8 @@
-//! ReAct loop helper utilities — sub-agent execution, tool context building,
+//! ReAct loop helper utilities — tool context building
 //! and shared helpers used by the main ReAct loop handler in `ws_react.rs`.
 
 use crate::provider::Message;
-use crate::tools::schema;
 use crate::web::state::AppState;
-use crate::web::ws_stream::send_ws;
-use axum::extract::ws::{Message as WsMessage, WebSocket};
-
-/// Execute a spawn_sub_agent tool call — runs an isolated ReAct loop.
-pub async fn execute_sub_agent(
-    state: &AppState,
-    provider: &dyn crate::provider::Provider,
-    tc: &schema::ToolCall,
-    sender: &mut futures_util::stream::SplitSink<WebSocket, WsMessage>,
-) -> schema::ToolResult {
-    let args = tc.args();
-    let task = args["task"].as_str().unwrap_or("").to_string();
-    let tools: Vec<String> = args["tools"].as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-        .unwrap_or_default();
-    let max_turns = args["max_turns"].as_u64().unwrap_or(5) as usize;
-
-    if task.is_empty() || tools.is_empty() {
-        return schema::ToolResult {
-            tool_call_id: tc.id.clone(),
-            name: tc.name.clone(),
-            output: "Error: sub-agent requires non-empty 'task' and 'tools' array".to_string(),
-            success: false,
-            images: Vec::new(),
-        };
-    }
-
-    send_ws(sender, "status", &serde_json::json!({
-        "message": format!("Sub-agent spawned: {} (tools: {}, max {} turns)", task, tools.join(", "), max_turns)
-    })).await;
-
-    let config = crate::inference::sub_agent::SubAgentConfig {
-        task: task.clone(),
-        allowed_tools: tools,
-        max_turns,
-    };
-
-    match crate::inference::sub_agent::run_sub_agent(provider, config, state).await {
-        Ok(result) => {
-            tracing::info!(
-                task = %task,
-                success = result.success,
-                turns = result.turns_used,
-                tools_called = %result.tool_calls_made.join(", "),
-                "Sub-agent completed"
-            );
-            schema::ToolResult {
-                tool_call_id: tc.id.clone(),
-                name: tc.name.clone(),
-                output: format!(
-                    "[Sub-Agent Result]\nSuccess: {}\nTurns: {}\nTools: {}\n\n{}",
-                    result.success, result.turns_used,
-                    result.tool_calls_made.join(", "),
-                    result.summary
-                ),
-                success: result.success,
-                images: Vec::new(),
-            }
-        }
-        Err(e) => {
-            tracing::error!(error = %e, task = %task, "Sub-agent failed");
-            schema::ToolResult {
-                tool_call_id: tc.id.clone(),
-                name: tc.name.clone(),
-                output: format!("Sub-agent error: {}", e),
-                success: false,
-                images: Vec::new(),
-            }
-        }
-    }
-}
 
 /// Build a concise tool context string from the message history for the observer.
 pub fn build_tool_context(messages: &[Message]) -> String {
