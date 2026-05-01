@@ -109,6 +109,19 @@ impl PlatformRegistry {
         anyhow::bail!("No adapter registered for platform '{}'", platform)
     }
 
+    /// Send a proactive message to a platform channel (no reply reference).
+    /// Used for post-recompile resume delivery and other server-initiated messages.
+    pub async fn send_message(
+        &self, platform: &str, channel_id: &str, content: &str,
+    ) -> anyhow::Result<()> {
+        for adapter in &self.adapters {
+            if adapter.name().eq_ignore_ascii_case(platform) {
+                return adapter.send_message(channel_id, content).await;
+            }
+        }
+        anyhow::bail!("No adapter registered for platform '{}'", platform)
+    }
+
     /// Send typing indicator to a platform channel.
     pub async fn start_typing(&self, platform: &str, channel_id: &str) -> anyhow::Result<()> {
         for adapter in &self.adapters {
@@ -189,6 +202,21 @@ impl PlatformRegistry {
         for adapter in &self.adapters {
             if adapter.name().eq_ignore_ascii_case(platform) {
                 return adapter.send_audio_file(channel_id, audio_bytes, filename).await;
+            }
+        }
+        Ok(())
+    }
+
+    /// Send an image file attachment to a platform channel.
+    pub async fn send_image_file(
+        &self, platform: &str, channel_id: &str, message_id: &str,
+        image_bytes: Vec<u8>, filename: &str, caption: &str,
+    ) -> anyhow::Result<()> {
+        for adapter in &self.adapters {
+            if adapter.name().eq_ignore_ascii_case(platform) {
+                return adapter.send_image_file(
+                    channel_id, message_id, image_bytes, filename, caption,
+                ).await;
             }
         }
         Ok(())

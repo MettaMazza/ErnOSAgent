@@ -115,6 +115,9 @@ pub async fn maybe_start_flux(config: &crate::config::AppConfig) {
         return;
     }
 
+    // Kill any stale process bound to this port (prevents EADDRINUSE on restart)
+    kill_stale_port_process(port).await;
+
     let script_path = match find_flux_script() {
         Some(p) => p,
         None => {
@@ -139,6 +142,23 @@ pub async fn maybe_start_flux(config: &crate::config::AppConfig) {
             let pid = child.id().unwrap_or(0);
             tracing::info!(pid, cmd = %cmd_bin, "Flux image server spawned — waiting for health check");
             wait_for_flux_health(&mut child, &client, &url, pid).await;
+            // Spawn a background task to drain stderr — prevents SIGPIPE when
+            // the Python process writes progress bars during image generation.
+            if let Some(stderr) = child.stderr.take() {
+                tokio::spawn(async move {
+                    use tokio::io::AsyncReadExt;
+                    let mut stderr = stderr;
+                    let mut buf = [0u8; 4096];
+                    loop {
+                        match stderr.read(&mut buf).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(_) => {} // drain silently
+                        }
+                    }
+                });
+            }
+            // Detach the child — it runs as a background daemon
+            std::mem::forget(child);
         }
         Err(e) => {
             tracing::warn!(error = %e, cmd = %cmd_bin, "Failed to start Flux — image generation disabled");
@@ -228,8 +248,8 @@ pub async fn maybe_start_code_server(config: &crate::config::AppConfig) {
     }
 }
 
-/// Check for post-recompile resume state. Returns the resume message if found.
-pub fn check_recompile_resume(config: &crate::config::AppConfig) -> Option<String> {
+/// Check for post-recompile resume state. Returns (message, session_id, platform) if found.
+pub fn check_recompile_resume(config: &crate::config::AppConfig) -> Option<(String, String, String)> {
     let resume_path = config.general.data_dir.join("resume.json");
     if !resume_path.exists() {
         return None;
@@ -240,12 +260,16 @@ pub fn check_recompile_resume(config: &crate::config::AppConfig) -> Option<Strin
             if let Ok(resume) = serde_json::from_str::<serde_json::Value>(&content) {
                 let msg = resume["message"].as_str().unwrap_or("Recompile complete").to_string();
                 let at = resume["compiled_at"].as_str().unwrap_or("unknown");
+                let session_id = resume["session_id"].as_str().unwrap_or("").to_string();
+                let platform = resume["platform"].as_str().unwrap_or("web").to_string();
                 tracing::info!(
                     compiled_at = %at,
+                    session_id = %session_id,
+                    platform = %platform,
                     "POST-RECOMPILE RESUME: {}",
                     msg
                 );
-                Some(msg)
+                Some((msg, session_id, platform))
             } else {
                 None
             }
@@ -258,7 +282,7 @@ pub fn check_recompile_resume(config: &crate::config::AppConfig) -> Option<Strin
 
     let _ = std::fs::remove_file(&resume_path);
     if result.is_some() {
-        tracing::info!("Resume state consumed and deleted — will deliver to first WebSocket client");
+        tracing::info!("Resume state consumed and deleted — will deliver to originating platform");
     }
     result
 }
@@ -363,4 +387,28 @@ fn find_code_server_binary() -> Option<String> {
         }
     }
     None
+}
+
+/// Kill any stale process bound to a port (macOS/Linux only).
+/// Uses SIGKILL because Python processes with Metal GPU locks ignore SIGTERM.
+async fn kill_stale_port_process(port: u16) {
+    let output = match tokio::process::Command::new("lsof")
+        .args(["-ti", &format!(":{}", port)])
+        .output()
+        .await
+    {
+        Ok(o) => o,
+        Err(_) => return, // lsof not available (Windows)
+    };
+    let pids = String::from_utf8_lossy(&output.stdout);
+    for pid_str in pids.split_whitespace() {
+        if pid_str.trim().parse::<u32>().is_ok() {
+            tracing::info!(pid = %pid_str.trim(), port, "Killing stale process on port");
+            let _ = tokio::process::Command::new("kill")
+                .args(["-9", pid_str.trim()])
+                .output()
+                .await;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
 }

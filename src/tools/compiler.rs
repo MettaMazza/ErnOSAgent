@@ -36,7 +36,7 @@ fn extract_warning_context(stderr: &str) -> String {
 }
 
 /// Run the full self-recompile pipeline.
-pub async fn run_recompile() -> Result<String, String> {
+pub async fn run_recompile(session_id: &str, platform: &str) -> Result<String, String> {
     let project_root = std::env::current_dir()
         .map_err(|e| format!("Failed to get project root: {}", e))?;
 
@@ -53,7 +53,7 @@ pub async fn run_recompile() -> Result<String, String> {
 
     // Stage 4-7: Changelog, resume, binary stage, activity log
     write_changelog(&project_root).await;
-    write_resume_state(&project_root);
+    write_resume_state(&project_root, session_id, platform);
     let staged = stage_binary(&project_root)?;
     write_activity_log(&project_root);
 
@@ -236,16 +236,18 @@ async fn write_changelog(root: &PathBuf) {
 }
 
 /// Save resume state for post-restart context.
-fn write_resume_state(root: &PathBuf) {
+fn write_resume_state(root: &PathBuf, session_id: &str, platform: &str) {
     let resume = serde_json::json!({
         "message": "System recompiled successfully. Resuming operations.",
         "compiled_at": chrono::Utc::now().to_rfc3339(),
+        "session_id": session_id,
+        "platform": platform,
     });
     let _ = std::fs::write(
         root.join("data/resume.json"),
         serde_json::to_string_pretty(&resume).unwrap_or_default(),
     );
-    tracing::info!("Resume state saved");
+    tracing::info!(session_id, platform, "Resume state saved with session context");
 }
 
 /// Append to activity log.

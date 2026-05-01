@@ -33,6 +33,7 @@ async fn main() -> Result<()> {
     start_optional_services(&config, &state).await;
     auto_connect_platforms(&config, &state).await;
     start_platform_router(&state, config.web.port);
+    deliver_platform_resume_if_pending(&state).await;
 
     launch_webui(state, &config).await
 }
@@ -69,6 +70,90 @@ async fn auto_connect_platforms(config: &ern_os::config::AppConfig, state: &ern_
             Ok(_) => tracing::info!("Telegram auto-connected at startup"),
             Err(e) => tracing::error!(error = %e, "Telegram startup connect failed"),
         }
+    }
+}
+
+/// Deliver post-recompile resume to Discord/Telegram if the recompile originated there.
+/// Web resumes are handled by the WebSocket path in ws.rs.
+async fn deliver_platform_resume_if_pending(state: &ern_os::web::state::AppState) {
+    // Check if there's a non-web resume pending
+    let resume_info = {
+        let guard = state.resume_message.read().await;
+        match guard.as_ref() {
+            Some((_, _, platform)) if platform != "web" => {
+                guard.clone()
+            }
+            _ => None,
+        }
+    };
+
+    let (msg, session_id, platform) = match resume_info {
+        Some(r) => r,
+        None => return,
+    };
+
+    // Consume it so the WebSocket path doesn't try to deliver it
+    *state.resume_message.write().await = None;
+
+    // Extract channel_id from session_id (format: platform_userId_channelId)
+    let channel_id = session_id.split('_').nth(2).unwrap_or("").to_string();
+    if channel_id.is_empty() {
+        tracing::warn!(
+            session_id = %session_id, platform = %platform,
+            "Cannot deliver platform resume — no channel_id in session_id"
+        );
+        return;
+    }
+
+    tracing::info!(
+        platform = %platform, session_id = %session_id, channel_id = %channel_id,
+        "Delivering post-recompile resume to platform"
+    );
+
+    // Load session history and re-infer
+    let session_messages = {
+        let sessions = state.sessions.read().await;
+        sessions.get(&session_id).map(|s| s.messages.clone())
+    };
+
+    let response_text = if let Some(history) = session_messages {
+        let mut messages = history;
+        messages.push(ern_os::provider::Message::text("system",
+            "[SYSTEM] You have just been recompiled successfully. \
+             Review the conversation above and greet the user, confirming the recompile \
+             succeeded and briefly summarising what you were working on before the restart."
+        ));
+
+        match state.provider.chat(&messages, None, true).await {
+            Ok(rx) => {
+                use ern_os::inference::stream_consumer::{self, NullSink};
+                let mut sink = NullSink;
+                match stream_consumer::consume_stream(rx, &mut sink).await {
+                    stream_consumer::ConsumeResult::Reply { text, .. } => text,
+                    _ => format!("✅ {}", msg),
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "Platform resume re-inference failed");
+                format!("✅ {}", msg)
+            }
+        }
+    } else {
+        format!("✅ {}", msg)
+    };
+
+    // Deliver to the platform channel
+    let reg = state.platforms.read().await;
+    if let Err(e) = reg.send_message(&platform, &channel_id, &response_text).await {
+        tracing::error!(
+            error = %e, platform = %platform, channel_id = %channel_id,
+            "Failed to deliver post-recompile resume to platform"
+        );
+    } else {
+        tracing::info!(
+            platform = %platform, channel_id = %channel_id,
+            "Post-recompile resume delivered to platform"
+        );
     }
 }
 

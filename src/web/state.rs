@@ -41,8 +41,9 @@ pub struct AppState {
     /// Mutable config — for runtime updates from the Settings UI.
     /// Platform tokens, admin IDs, etc. are updated here and persisted to ern-os.toml.
     pub mutable_config: Arc<RwLock<AppConfig>>,
-    /// Post-recompile resume message — consumed by the first WebSocket client that connects.
-    pub resume_message: Arc<RwLock<Option<String>>>,
+    /// Post-recompile resume message — (message, session_id, platform).
+    /// Consumed by the appropriate delivery path based on platform.
+    pub resume_message: Arc<RwLock<Option<(String, String, String)>>>,
     /// SAE for interpretability — loaded lazily from models/sae/
     pub sae: Arc<RwLock<Option<SparseAutoencoder>>>,
     /// Live SAE feature activation monitor — rolling window of recent activations.

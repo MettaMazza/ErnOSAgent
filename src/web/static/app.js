@@ -39,6 +39,7 @@ const ErnOS = (() => {
         switch (msg.type) {
             case 'connected':       onConnected(msg); break;
             case 'ack':             break;
+            case 'session_switch':  onSessionSwitch(msg); break;
             case 'text_delta':      onTextDelta(msg); break;
             case 'thinking_delta':  onThinkingDelta(msg); break;
             case 'tool_executing':  onToolExecuting(msg); break;
@@ -77,8 +78,21 @@ const ErnOS = (() => {
         } catch { /* not downloading or endpoint unavailable */ }
     }
 
+    function onSessionSwitch(msg) {
+        // Server is telling us to switch to a specific session (e.g. post-recompile resume)
+        if (msg.session_id) {
+            switchSession(msg.session_id);
+        }
+    }
+
     function onTextDelta(msg) {
-        if (!currentAssistantEl) return;
+        if (!currentAssistantEl) {
+            // Server-initiated message (e.g. post-recompile resume) — create bubble
+            hideWelcome();
+            currentAssistantEl = addMessage('assistant', '');
+            pendingText = '';
+            thinkingEl = null;
+        }
         pendingText += msg.content;
         scheduleRender();
     }
@@ -1595,7 +1609,7 @@ const ErnOS = (() => {
         loadTrainingTab('buffers');
     }
 
-    ErnOS.loadTrainingTab = function(tab, btn) {
+    function loadTrainingTab(tab, btn) {
         if (btn) {
             btn.closest('.tier-tabs').querySelectorAll('.tier-tab').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
@@ -1606,7 +1620,7 @@ const ErnOS = (() => {
         else if (tab === 'curriculum') loadCurriculumTab(container);
         else if (tab === 'review') loadReviewTab(container);
         else if (tab === 'adapters') loadAdaptersTab(container);
-    };
+    }
 
     async function loadBuffersTab(container) {
         try {
@@ -3904,7 +3918,7 @@ const ErnOS = (() => {
         init, sendMessage, newChat, switchSession, deleteSession, stopGeneration,
         toggleTheme, toggleSidebar, handleKeyDown, autoResize,
         copyMessage, copyCode, removeFile, handleFilesSelected,
-        switchView, loadMemoryTier, toggleTool,
+        switchView, loadMemoryTier, loadTrainingTab, toggleTool,
         factoryReset, setTheme, setFontSize, setMsgWidth, swapModel,
         saveApiKey, clearApiKey, savePlatformConfig, connectPlatform, disconnectPlatform,
         filterFeatures, toggleLogFilter,
