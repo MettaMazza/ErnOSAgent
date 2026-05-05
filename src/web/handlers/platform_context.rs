@@ -19,37 +19,50 @@ pub fn append_tool_messages(
 /// Trims tool result messages oldest-first until the total fits.
 /// Old tool results are dead weight — the model already processed them.
 ///
-/// Uses chars/3 estimation: the old chars/2 heuristic underestimated by ~2x
-/// for structured content (JSON tool results, code). Combined with a 60%
-/// safety margin, this prevents context overflow even with tool schema
-/// overhead (~13K chars) not counted in message chars.
-pub fn enforce_context_budget(
+/// Uses `provider.count_tokens()` to measure actual token usage via the
+/// server's tokenizer. Falls back to disabled (no trimming) if the
+/// tokenizer is unreachable — per §2.4, failure falls back to off.
+/// `thinking` MUST match the subsequent `chat()` call for KV cache reuse.
+pub async fn enforce_context_budget(
+    provider: &dyn crate::provider::Provider,
     messages: &mut Vec<crate::provider::Message>,
+    tools: Option<&serde_json::Value>,
     context_length: usize,
+    thinking: bool,
 ) {
-    let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-    let estimated_tokens = total_chars / 3;
+    let token_count = match provider.count_tokens(messages, tools, thinking).await {
+        Ok(count) => count,
+        Err(e) => {
+            tracing::error!(error = %e, "count_tokens failed — context budget enforcement disabled for this turn");
+            return;
+        }
+    };
+
+    // HEURISTIC: 60% safety margin reserves 40% of context for generation tokens.
+    // The model needs room to produce output. There is no API to predict generation
+    // length, so this margin is the minimum viable reservation. Error margin: if the
+    // model generates less than 40% of context, some budget is wasted (harmless).
     let budget = (context_length as f64 * 0.60) as usize;
 
-    if estimated_tokens <= budget {
+    if token_count <= budget {
         return;
     }
 
     tracing::warn!(
-        estimated_tokens,
+        token_count,
         budget,
         context_length,
-        overshoot = estimated_tokens - budget,
+        overshoot = token_count - budget,
         "Context budget exceeded (60% margin) — trimming tool results"
     );
 
     let tool_indices = find_trim_candidates(messages);
-    let trimmed_total = trim_tool_messages(messages, &tool_indices, budget);
+    let trimmed_total = trim_tool_messages(provider, messages, tools, &tool_indices, budget, thinking).await;
 
-    let final_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
+    let final_tokens = provider.count_tokens(messages, tools, thinking).await.unwrap_or(0);
     tracing::warn!(
         trimmed_total,
-        final_estimated_tokens = final_chars / 3 + 2000,
+        final_tokens,
         budget,
         context_length,
         "Context budget enforcement complete"
@@ -65,22 +78,29 @@ fn find_trim_candidates(messages: &[crate::provider::Message]) -> Vec<usize> {
 }
 
 /// Trim tool messages from oldest to newest until context fits.
-fn trim_tool_messages(
+/// Uses `provider.count_tokens()` after each compression to measure real impact.
+async fn trim_tool_messages(
+    provider: &dyn crate::provider::Provider,
     messages: &mut Vec<crate::provider::Message>,
+    tools: Option<&serde_json::Value>,
     tool_indices: &[usize],
-    context_length: usize,
+    budget: usize,
+    thinking: bool,
 ) -> usize {
     let mut trimmed_total = 0usize;
 
     for &idx in tool_indices {
-        let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-        let estimated = total_chars / 3;
-        if estimated <= context_length {
+        let current_tokens = match provider.count_tokens(messages, tools, thinking).await {
+            Ok(count) => count,
+            Err(_) => break, // Tokenizer unreachable — stop trimming (fail-open)
+        };
+        if current_tokens <= budget {
             break;
         }
 
         let content = messages[idx].text_content();
         let content_len = content.len();
+        let overshoot = current_tokens - budget;
 
         // For older tool results (not the last one), compress
         if idx != *tool_indices.last().unwrap_or(&usize::MAX) {
@@ -92,25 +112,32 @@ fn trim_tool_messages(
             continue;
         }
 
-        // For the most recent tool result, trim with a bookmark
-        let overshoot_now = estimated - context_length;
-        let trim_chars = overshoot_now * 4 + 2000;
-        if content_len > trim_chars + 500 {
-            let keep = content_len - trim_chars;
-            let truncated = match content[..keep].rfind('\n') {
-                Some(pos) => &content[..pos],
-                None => &content[..keep],
-            };
-            let shown_lines = truncated.lines().count();
-            let total_lines = content.lines().count();
-            let new_content = format!(
-                "[Lines 1-{} of {} — trimmed to fit context window]\n{}\n\n[BOOKMARK: line {} — use file_read with start_line={} to continue]",
-                shown_lines, total_lines, truncated, shown_lines + 1, shown_lines + 1
-            );
-            trimmed_total += content_len - new_content.len();
-            messages[idx].content = serde_json::Value::String(new_content);
-            tracing::info!(idx, shown_lines, total_lines, "Trimmed latest tool result with bookmark");
-        }
+        // For the most recent tool result, trim proportionally to overshoot.
+        // overshoot is in tokens; approximate chars to remove as overshoot * 4
+        // (inverse of typical BPE ratio). The next loop iteration re-measures.
+        let trim_chars = overshoot * 4;
+        let keep = if content_len > trim_chars + 500 {
+            content_len - trim_chars
+        } else {
+            // Tool result is larger than can fit — keep only what the
+            // remaining budget can hold. budget is in tokens; * 4 converts
+            // to approximate chars.
+            let remaining_budget_chars = budget.saturating_sub(overshoot.min(budget)) * 4;
+            remaining_budget_chars.min(content_len).max(200)
+        };
+        let truncated = match content[..keep].rfind('\n') {
+            Some(pos) => &content[..pos],
+            None => &content[..keep],
+        };
+        let shown_lines = truncated.lines().count();
+        let total_lines = content.lines().count();
+        let new_content = format!(
+            "[Lines 1-{} of {} — trimmed to fit context window]\n{}\n\n[BOOKMARK: line {} — use file_read with start_line={} to continue]",
+            shown_lines, total_lines, truncated, shown_lines + 1, shown_lines + 1
+        );
+        trimmed_total += content_len - new_content.len();
+        messages[idx].content = serde_json::Value::String(new_content);
+        tracing::info!(idx, shown_lines, total_lines, "Trimmed latest tool result with bookmark");
     }
 
     trimmed_total

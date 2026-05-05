@@ -418,16 +418,12 @@ mod tests {
 
 }
 
-/// Persist an observer audit result to `data/observer_history.json`.
+/// Persist an observer audit result to `data/observer_history.jsonl`.
+/// Uses JSONL append-only format — no read/parse/serialize cycle.
 /// This wires the `introspect(action='observer_audit')` tool to real data.
 pub fn persist_audit_result(data_dir: &std::path::Path, result: &AuditResult) {
-    let path = data_dir.join("observer_history.json");
-    let mut entries: Vec<serde_json::Value> = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|c| serde_json::from_str(&c).ok())
-        .unwrap_or_default();
-
-    entries.push(serde_json::json!({
+    let path = data_dir.join("observer_history.jsonl");
+    if let Ok(line) = serde_json::to_string(&serde_json::json!({
         "approved": result.verdict.is_allowed(),
         "confidence": result.confidence,
         "category": &result.failure_category,
@@ -436,9 +432,11 @@ pub fn persist_audit_result(data_dir: &std::path::Path, result: &AuditResult) {
         "how_to_fix": &result.how_to_fix,
         "topic": &result.active_topic,
         "ts": chrono::Utc::now().to_rfc3339(),
-    }));
-
-    if let Ok(content) = serde_json::to_string_pretty(&entries) {
-        let _ = std::fs::write(&path, content);
+    })) {
+        let mut full = line;
+        full.push('\n');
+        let _ = std::fs::OpenOptions::new()
+            .create(true).append(true).open(&path)
+            .and_then(|mut f| { use std::io::Write; f.write_all(full.as_bytes()) });
     }
 }

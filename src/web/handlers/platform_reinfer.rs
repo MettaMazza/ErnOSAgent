@@ -122,11 +122,10 @@ async fn handle_empty_response(
     tracing::error!(
         total_chars,
         msg_count = messages.len(),
-        estimated_tokens = total_chars / 3 + 2000,
         context_length = state.model_spec.context_length,
         "Model returned empty response after tool execution — trimming and retrying"
     );
-    enforce_context_budget(messages, state.model_spec.context_length / 2);
+    enforce_context_budget(provider, messages, Some(tools), state.model_spec.context_length / 2, false).await;
 
     // Inject recovery prompt to escape KV cache collision.
     // Without this, the retry hits the same cached state and produces
@@ -153,16 +152,16 @@ async fn handle_empty_response(
         }
         _ => {
             let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-            let est_tokens = total_chars / 3 + 2000;
+            let est_tokens = provider.count_tokens(messages, Some(tools), false).await.unwrap_or(0);
             tracing::error!(
                 total_chars, est_tokens,
                 context_length = state.model_spec.context_length,
                 "Context exhausted — both initial and retry inferences returned empty"
             );
             let reply = format!(
-                "Context window exhausted after tool execution ({} chars ≈ {} tokens vs {} token limit). \
+                "Context window exhausted after tool execution ({} tokens used vs {} token limit). \
                  The tool results have been preserved. Please continue in a new message.",
-                total_chars, est_tokens, state.model_spec.context_length,
+                est_tokens, state.model_spec.context_length,
             );
             LoopAction::Error(reply)
         }

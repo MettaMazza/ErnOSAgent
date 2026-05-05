@@ -266,7 +266,9 @@ pub trait Provider: Send + Sync {
     /// Count tokens for a set of messages using the provider's tokenizer.
     /// Returns the exact token count as reported by the backend.
     /// This MUST query the actual tokenizer — no heuristics (§2.1).
-    async fn count_tokens(&self, messages: &[Message], tools: Option<&serde_json::Value>) -> Result<usize>;
+    /// `thinking` MUST match the value passed to the subsequent `chat()` call
+    /// so the Jinja template produces identical token sequences for KV cache reuse.
+    async fn count_tokens(&self, messages: &[Message], tools: Option<&serde_json::Value>, thinking: bool) -> Result<usize>;
 }
 
 /// Factory function — create the active provider from config.

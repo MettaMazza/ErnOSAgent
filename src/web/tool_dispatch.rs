@@ -10,6 +10,33 @@ pub async fn execute_tool_with_state(
     state: &AppState,
     tc: &schema::ToolCall,
 ) -> schema::ToolResult {
+    // Validate arguments are parseable JSON before dispatching.
+    // Defense-in-depth: the stream parser should strip control tokens and
+    // skip corrupt calls, but if one still gets through, reject here with
+    // a structured error so the model can re-emit with valid arguments.
+    if !tc.arguments.trim().is_empty()
+        && serde_json::from_str::<serde_json::Value>(&tc.arguments).is_err()
+    {
+        tracing::error!(
+            tool = %tc.name, id = %tc.id,
+            args_preview = %tc.arguments.chars().take(200).collect::<String>(),
+            "Malformed tool call arguments — returning structured error"
+        );
+        return schema::ToolResult {
+            tool_call_id: tc.id.clone(),
+            name: tc.name.clone(),
+            output: format!(
+                "ERROR: Your tool call arguments were malformed JSON. \
+                 Re-emit this tool call with valid JSON arguments. \
+                 Parse error: {}",
+                serde_json::from_str::<serde_json::Value>(&tc.arguments)
+                    .unwrap_err()
+            ),
+            success: false,
+            images: vec![],
+        };
+    }
+
     let args = tc.args();
     let start = std::time::Instant::now();
     tracing::info!(
@@ -83,34 +110,24 @@ fn format_tool_result(
     format_tool_result_with_images(id, name, result, elapsed, Vec::new())
 }
 
-/// Append a tool execution event to `data/agent_activity.json`.
+/// Append a tool execution event to `data/agent_activity.jsonl`.
+/// Uses JSONL append-only format — no read/parse/serialize cycle on the hot path.
 /// Wires the `introspect(action='agent_activity')` tool to real data.
 fn log_agent_activity(
     data_dir: &std::path::Path, tool_name: &str, success: bool, elapsed: std::time::Duration,
 ) {
-    let path = data_dir.join("agent_activity.json");
-    let mut data: serde_json::Value = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|c| serde_json::from_str(&c).ok())
-        .unwrap_or_else(|| serde_json::json!({"entries": []}));
-
-    let entries = data["entries"].as_array_mut();
-    if let Some(arr) = entries {
-        arr.push(serde_json::json!({
-            "tool": tool_name,
-            "success": success,
-            "elapsed_ms": elapsed.as_millis() as u64,
-            "ts": chrono::Utc::now().to_rfc3339(),
-        }));
-        // Keep last 200 entries to prevent unbounded growth
-        if arr.len() > 200 {
-            let drain = arr.len() - 200;
-            arr.drain(..drain);
-        }
-    }
-
-    if let Ok(content) = serde_json::to_string_pretty(&data) {
-        let _ = std::fs::write(&path, content);
+    let path = data_dir.join("agent_activity.jsonl");
+    if let Ok(line) = serde_json::to_string(&serde_json::json!({
+        "tool": tool_name,
+        "success": success,
+        "elapsed_ms": elapsed.as_millis() as u64,
+        "ts": chrono::Utc::now().to_rfc3339(),
+    })) {
+        let mut full = line;
+        full.push('\n');
+        let _ = std::fs::OpenOptions::new()
+            .create(true).append(true).open(&path)
+            .and_then(|mut f| { use std::io::Write; f.write_all(full.as_bytes()) });
     }
 }
 

@@ -81,11 +81,12 @@ pub async fn run_platform_tool_chain(
     first_tc: crate::tools::schema::ToolCall,
     sse_tx: Option<&tokio::sync::mpsc::Sender<Result<axum::response::sse::Event, std::convert::Infallible>>>,
 ) -> (String, Vec<ToolEvent>, Option<AuditSummary>) {
-    let max_iterations = 50;
+
     let mut current_tc = first_tc;
     let mut tool_events: Vec<ToolEvent> = Vec::new();
 
-    for iteration in 0..max_iterations {
+    loop {
+        let iteration = tool_events.len();
         tracing::info!(tool = %current_tc.name, iteration, "Platform L1 tool execution");
 
         // Emit tool_start live
@@ -120,33 +121,33 @@ pub async fn run_platform_tool_chain(
             msg_count = messages.len(),
             tool_msgs = tool_msg_count,
             total_chars,
-            estimated_tokens = total_chars / 3 + 2000,
             context_length = state.model_spec.context_length,
             "Tool chain: context state before budget enforcement"
         );
-        enforce_context_budget(messages, state.model_spec.context_length);
+        enforce_context_budget(provider, messages, Some(tools), state.model_spec.context_length, false).await;
 
-        // Pre-infer budget check — uses chars/3 estimation (consistent with enforce_context_budget)
-        let post_trim_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-        let post_trim_tokens = post_trim_chars / 3 + 2000;
-        let budget_ratio = post_trim_tokens as f64 / state.model_spec.context_length as f64;
-        if budget_ratio > 0.90 {
-            tracing::warn!(
-                post_trim_tokens,
-                context_length = state.model_spec.context_length,
-                budget_ratio = format!("{:.1}%", budget_ratio * 100.0),
-                "Context at {:.0}% of window after trimming — stopping tool chain",
-                budget_ratio * 100.0,
-            );
-            let reply = format!(
-                "Context is at {:.0}% capacity ({} tokens used of {} available) after {} tool calls. \
-                 Please continue in a new message — bookmarks are preserved for continuation.",
-                budget_ratio * 100.0,
-                post_trim_tokens,
-                state.model_spec.context_length,
-                tool_events.len(),
-            );
-            return (reply, tool_events, None);
+        // Pre-infer budget check — uses real tokenizer to validate post-trim state.
+        // Per §2.4: if tokenizer is unreachable, skip this check (fail-open to off).
+        if let Ok(post_trim_tokens) = provider.count_tokens(messages, Some(tools), false).await {
+            let budget_ratio = post_trim_tokens as f64 / state.model_spec.context_length as f64;
+            if budget_ratio > 0.90 {
+                tracing::warn!(
+                    post_trim_tokens,
+                    context_length = state.model_spec.context_length,
+                    budget_ratio = format!("{:.1}%", budget_ratio * 100.0),
+                    "Context at {:.0}% of window after trimming — stopping tool chain",
+                    budget_ratio * 100.0,
+                );
+                let reply = format!(
+                    "Context is at {:.0}% capacity ({} tokens used of {} available) after {} tool calls. \
+                     Please continue in a new message — bookmarks are preserved for continuation.",
+                    budget_ratio * 100.0,
+                    post_trim_tokens,
+                    state.model_spec.context_length,
+                    tool_events.len(),
+                );
+                return (reply, tool_events, None);
+            }
         }
 
         match reinfer_and_dispatch(state, provider, messages, tools, user_query, session_id).await {
@@ -188,8 +189,6 @@ pub async fn run_platform_tool_chain(
             LoopAction::Error(msg) => return (msg, tool_events, None),
         }
     }
-
-    ("Tool chain reached maximum iterations.".to_string(), tool_events, None)
 }
 
 /// Run L2 ReAct loop. Returns (reply, tool_events, audit_summary).
@@ -206,6 +205,12 @@ pub async fn run_platform_react(
     let tools = crate::tools::schema::layer2_tools();
     let mut tool_events: Vec<ToolEvent> = Vec::new();
     inject_react_instruction(&mut messages, objective, plan);
+
+    // Pre-warm KV cache for ReAct thinking mode.
+    // L1 used thinking=false, so the cache has the wrong template tokens.
+    // This call processes the full prompt with thinking=true, warming the
+    // cache so the first chat(true) below gets a near-full hit.
+    let _ = provider.count_tokens(&messages, Some(&tools), true).await;
 
     for turn in 0..50 {
         let rx = match provider.chat(&messages, Some(&tools), true).await {
@@ -226,6 +231,21 @@ pub async fn run_platform_react(
                     ).await;
                     return (audited, tool_events, Some(audit));
                 }
+            }
+            ConsumeResult::Reply { ref text, .. } if text.trim().is_empty() => {
+                // Model produced only reasoning_content (thinking) with no
+                // text and no tool call. This is not a valid ReAct action.
+                // Re-infer with a nudge. Per §2.4: the ReAct loop exits
+                // ONLY via reply_request tool call.
+                tracing::warn!(
+                    turn,
+                    "ReAct inference produced only thinking (no text, no tool call) — re-inferring"
+                );
+                messages.push(crate::provider::Message::text("system",
+                    "[SYSTEM] Your previous response contained only reasoning with no action. \
+                     You must call a tool or use reply_request to deliver your response. \
+                     Continue with the task."
+                ));
             }
             ConsumeResult::Reply { text, .. } => {
                 let (audited, audit) = audit_and_capture(
@@ -309,6 +329,6 @@ async fn handle_react_tool(
 
     tool_events.push(event);
     append_tool_messages(messages, tc, &result);
-    enforce_context_budget(messages, state.model_spec.context_length);
+    enforce_context_budget(provider, messages, Some(tools), state.model_spec.context_length, true).await;
     None
 }

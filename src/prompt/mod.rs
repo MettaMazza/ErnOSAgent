@@ -114,7 +114,7 @@ pub fn assemble(
         sections.push(hud.to_string());
     }
 
-    sections.join("\n\n---\n\n")
+    sections.join("\n\n")
 }
 
 #[cfg(test)]
@@ -166,7 +166,6 @@ mod tests {
         assert!(result.contains("identity"));
         assert!(result.contains("memory"));
         assert!(result.contains("hud"));
-        assert!(result.contains("---"));
     }
 
     #[test]

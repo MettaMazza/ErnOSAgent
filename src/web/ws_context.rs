@@ -216,7 +216,7 @@ async fn consolidate_if_needed(
     temp_messages.push(Message::text("system", system_prompt));
     temp_messages.push(Message::text("user", content));
     let tools_json = crate::tools::schema::layer1_tools();
-    let estimated_tokens = match state.provider.count_tokens(&temp_messages, Some(&tools_json)).await {
+    let estimated_tokens = match state.provider.count_tokens(&temp_messages, Some(&tools_json), state.config.prompt.thinking_enabled).await {
         Ok(t) => t,
         Err(e) => {
             // §2.7: fail to OFF — consolidation disabled for this turn

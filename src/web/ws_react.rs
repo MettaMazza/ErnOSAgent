@@ -79,10 +79,10 @@ pub async fn run_react_loop(
                 handle_extend_turns(&mut ctx, &mut ls, additional, &progress, &remaining_work, sender).await;
             }
             Ok(IterationResult::ToolCall(tc)) => {
-                handle_single_tool(&mut ctx, &mut ls, state, &tc, sender).await;
+                handle_single_tool(&mut ctx, &mut ls, state, provider, &tc, sender).await;
             }
             Ok(IterationResult::ToolCalls(tcs)) => {
-                handle_parallel_tools(&mut ctx, &mut ls, state, &tcs, sender).await;
+                handle_parallel_tools(&mut ctx, &mut ls, state, provider, &tcs, sender).await;
             }
             Ok(IterationResult::ImplicitReply(text, thinking)) => {
                 if handle_implicit_reply(&mut ctx, &mut ls, state, &text, &thinking, user_query, session_id, sender).await {
@@ -290,6 +290,7 @@ async fn handle_single_tool(
     ctx: &mut ReactContext,
     ls: &mut LoopState,
     state: &AppState,
+    provider: &dyn crate::provider::Provider,
     tc: &schema::ToolCall,
     sender: &mut futures_util::stream::SplitSink<WebSocket, WsMessage>,
 ) {
@@ -306,8 +307,8 @@ async fn handle_single_tool(
     track_spiral(ls, &tc.name, &result);
     ctx.add_tool_result(tc, result);
     crate::web::handlers::platform_context::enforce_context_budget(
-        &mut ctx.messages, state.model_spec.context_length,
-    );
+        provider, &mut ctx.messages, None, state.model_spec.context_length, true,
+    ).await;
     emit_auto_verify_hint(ctx, &tc.name);
     ls.remaining_turns = ls.remaining_turns.saturating_sub(1);
     ls.total_iterations += 1;
@@ -331,6 +332,7 @@ async fn handle_parallel_tools(
     ctx: &mut ReactContext,
     ls: &mut LoopState,
     state: &AppState,
+    provider: &dyn crate::provider::Provider,
     tcs: &[schema::ToolCall],
     sender: &mut futures_util::stream::SplitSink<WebSocket, WsMessage>,
 ) {
@@ -360,8 +362,8 @@ async fn handle_parallel_tools(
     let pairs: Vec<_> = tcs.iter().zip(results.into_iter()).collect();
     ctx.add_tool_results(pairs);
     crate::web::handlers::platform_context::enforce_context_budget(
-        &mut ctx.messages, state.model_spec.context_length,
-    );
+        provider, &mut ctx.messages, None, state.model_spec.context_length, true,
+    ).await;
     ls.remaining_turns = ls.remaining_turns.saturating_sub(1);
     ls.total_iterations += 1;
 }

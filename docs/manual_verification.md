@@ -629,7 +629,7 @@ The verification runs in **three phases**. Here's exactly what you'll see:
 > **Instructions:** Copy everything inside the code block below and paste it into a fresh Ern-OS chat session. The agent will handle the rest autonomously.
 
 ```
-I need you to run a COMPLETE system capabilities verification. Execute every single tool, every action variant, and every argument in the exact order listed below. Do NOT loop, retry, or skip. Call each tool exactly as specified, collect every result, then deliver a single comprehensive report at the end.
+I need you to run a COMPLETE system capabilities verification. Execute every single tool, every action variant, and every argument in the exact order listed below. Do NOT loop, retry, or skip. Call each tool exactly as specified, collect every result, then deliver a single comprehensive report at the end. DO NOT END THE TURN WITHOUT COMPLETING ALL TOOL CALLS. YOU MUST COMPLETE BOTH L1 AND L2 TOOLS. DO NOT END UNTIL BOTH PHASES ARE COMPLETED. UNDERSTOOD? GOOD! NOW GO!
 
 ============================================================================
   PHASE 1: L1 Tools (executed BEFORE escalation to the ReAct loop)

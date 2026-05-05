@@ -74,35 +74,36 @@ fn format_reasoning_entry(line: &str) -> String {
         ts, result, text_len, thinking_len, excerpt)
 }
 
-/// Read agent activity feed.
+/// Read agent activity feed (JSONL format).
 fn get_agent_activity(data_dir: &Path, args: &serde_json::Value) -> Result<String> {
-    let path = data_dir.join("agent_activity.json");
+    let path = data_dir.join("agent_activity.jsonl");
 
     if !path.exists() {
         return Ok("No agent activity recorded yet.".to_string());
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let data: serde_json::Value = serde_json::from_str(&content).unwrap_or_default();
-    let entries = data["entries"].as_array();
-
-    match entries {
-        Some(arr) => {
-            let total = arr.len();
-            let page = args["page"].as_u64().unwrap_or(1).max(1) as usize;
-            let per_page = args["per_page"].as_u64().unwrap_or(20).clamp(1, 100) as usize;
-            let total_pages = (total + per_page - 1).max(1) / per_page.max(1);
-            let page = page.min(total_pages);
-            let start = (page - 1) * per_page;
-            let end = (start + per_page).min(total);
-            let items: Vec<String> = arr[start..end].iter()
-                .map(|e| serde_json::to_string(e).unwrap_or_default())
-                .collect();
-            Ok(format!("Agent activity:\n{}\n--- Page {}/{} ({} total) ---",
-                items.join("\n"), page, total_pages, total))
-        }
-        None => Ok("No agent activity entries.".to_string()),
+    let entries: Vec<serde_json::Value> = content.lines()
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect();
+    let total = entries.len();
+    if total == 0 {
+        return Ok("No agent activity entries.".to_string());
     }
+
+    let page = args["page"].as_u64().unwrap_or(1).max(1) as usize;
+    let per_page = args["per_page"].as_u64().unwrap_or(20).clamp(1, 100) as usize;
+    let total_pages = (total + per_page - 1).max(1) / per_page.max(1);
+    let page = page.min(total_pages);
+    // Reverse to show most recent first
+    let reversed: Vec<&serde_json::Value> = entries.iter().rev().collect();
+    let start = (page - 1) * per_page;
+    let end = (start + per_page).min(total);
+    let items: Vec<String> = reversed[start..end].iter()
+        .map(|e| serde_json::to_string(e).unwrap_or_default())
+        .collect();
+    Ok(format!("Agent activity:\n{}\n--- Page {}/{} ({} total) ---",
+        items.join("\n"), page, total_pages, total))
 }
 
 /// Read scheduler status via JobStore.
@@ -126,41 +127,40 @@ async fn get_scheduler_status(state: &AppState) -> Result<String> {
     ))
 }
 
-/// Read observer audit history.
+/// Read observer audit history (JSONL format).
 fn get_observer_audit(data_dir: &Path, args: &serde_json::Value) -> Result<String> {
-    let path = data_dir.join("observer_history.json");
+    let path = data_dir.join("observer_history.jsonl");
 
     if !path.exists() {
         return Ok("No observer audit history found.".to_string());
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let data: serde_json::Value = serde_json::from_str(&content).unwrap_or_default();
-    let entries = data.as_array();
-
-    match entries {
-        Some(arr) => {
-            let total = arr.len();
-            let page = args["page"].as_u64().unwrap_or(1).max(1) as usize;
-            let per_page = args["per_page"].as_u64().unwrap_or(10).clamp(1, 100) as usize;
-            let total_pages = (total + per_page - 1).max(1) / per_page.max(1);
-            let page = page.min(total_pages);
-            // Reverse to show most recent first
-            let reversed: Vec<&serde_json::Value> = arr.iter().rev().collect();
-            let start = (page - 1) * per_page;
-            let end = (start + per_page).min(total);
-            let items: Vec<String> = reversed[start..end].iter().map(|e| {
-                format!("  {} | conf:{} | {} | {}",
-                    if e["approved"].as_bool().unwrap_or(true) { "✅" } else { "❌" },
-                    e["confidence"].as_f64().unwrap_or(0.0),
-                    e["category"].as_str().unwrap_or(""),
-                    e["reason"].as_str().unwrap_or(""))
-            }).collect();
-            Ok(format!("Observer audit:\n{}\n--- Page {}/{} ({} total) ---",
-                items.join("\n"), page, total_pages, total))
-        }
-        None => Ok("No observer audit entries.".to_string()),
+    let entries: Vec<serde_json::Value> = content.lines()
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect();
+    let total = entries.len();
+    if total == 0 {
+        return Ok("No observer audit entries.".to_string());
     }
+
+    let page = args["page"].as_u64().unwrap_or(1).max(1) as usize;
+    let per_page = args["per_page"].as_u64().unwrap_or(10).clamp(1, 100) as usize;
+    let total_pages = (total + per_page - 1).max(1) / per_page.max(1);
+    let page = page.min(total_pages);
+    // Reverse to show most recent first
+    let reversed: Vec<&serde_json::Value> = entries.iter().rev().collect();
+    let start = (page - 1) * per_page;
+    let end = (start + per_page).min(total);
+    let items: Vec<String> = reversed[start..end].iter().map(|e| {
+        format!("  {} | conf:{} | {} | {}",
+            if e["approved"].as_bool().unwrap_or(true) { "✅" } else { "❌" },
+            e["confidence"].as_f64().unwrap_or(0.0),
+            e["category"].as_str().unwrap_or(""),
+            e["reason"].as_str().unwrap_or(""))
+    }).collect();
+    Ok(format!("Observer audit:\n{}\n--- Page {}/{} ({} total) ---",
+        items.join("\n"), page, total_pages, total))
 }
 
 /// Get system status — model, memory, provider health.

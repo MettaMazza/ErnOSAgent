@@ -114,8 +114,8 @@ pub async fn run_l1_tool_chain(
             messages.push(Message::tool_result_multipart(&current_tc.id, &result.output, result.images));
         }
         crate::web::handlers::platform_context::enforce_context_budget(
-            messages, state.model_spec.context_length,
-        );
+            provider, messages, Some(tools), state.model_spec.context_length, false,
+        ).await;
 
         // thinking=false: the model already reasoned during initial inference.
         // Re-enabling thinking for tool result processing causes Gemma 4 to emit
