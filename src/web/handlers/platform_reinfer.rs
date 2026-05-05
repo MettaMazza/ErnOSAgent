@@ -122,7 +122,7 @@ async fn handle_empty_response(
     tracing::error!(
         total_chars,
         msg_count = messages.len(),
-        estimated_tokens = total_chars / 2 + 2000,
+        estimated_tokens = total_chars / 3 + 2000,
         context_length = state.model_spec.context_length,
         "Model returned empty response after tool execution — trimming and retrying"
     );
@@ -153,7 +153,7 @@ async fn handle_empty_response(
         }
         _ => {
             let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-            let est_tokens = total_chars / 2 + 2000;
+            let est_tokens = total_chars / 3 + 2000;
             tracing::error!(
                 total_chars, est_tokens,
                 context_length = state.model_spec.context_length,

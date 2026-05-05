@@ -19,16 +19,16 @@ pub fn append_tool_messages(
 /// Trims tool result messages oldest-first until the total fits.
 /// Old tool results are dead weight — the model already processed them.
 ///
-/// Uses a 60% safety margin: the `chars / 2` heuristic can underestimate
-/// by 1.5x for short-line content (directory listings, line-per-entry output).
-/// Trimming to 60% of context_length guarantees actual tokens stay within
-/// budget even with worst-case estimation error.
+/// Uses chars/3 estimation: the old chars/2 heuristic underestimated by ~2x
+/// for structured content (JSON tool results, code). Combined with a 60%
+/// safety margin, this prevents context overflow even with tool schema
+/// overhead (~13K chars) not counted in message chars.
 pub fn enforce_context_budget(
     messages: &mut Vec<crate::provider::Message>,
     context_length: usize,
 ) {
     let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-    let estimated_tokens = total_chars / 2;
+    let estimated_tokens = total_chars / 3;
     let budget = (context_length as f64 * 0.60) as usize;
 
     if estimated_tokens <= budget {
@@ -49,7 +49,7 @@ pub fn enforce_context_budget(
     let final_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
     tracing::warn!(
         trimmed_total,
-        final_estimated_tokens = final_chars / 2 + 2000,
+        final_estimated_tokens = final_chars / 3 + 2000,
         budget,
         context_length,
         "Context budget enforcement complete"
@@ -74,7 +74,7 @@ fn trim_tool_messages(
 
     for &idx in tool_indices {
         let total_chars: usize = messages.iter().map(|m| m.text_content().len()).sum();
-        let estimated = total_chars / 2;
+        let estimated = total_chars / 3;
         if estimated <= context_length {
             break;
         }
