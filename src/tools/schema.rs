@@ -185,6 +185,7 @@ pub fn layer1_tools() -> serde_json::Value {
         browser_tool_schema(),
         memory_tool_schema(),
         scratchpad_tool_schema(),
+        synaptic_tool_schema(),
         timeline_tool_schema(),
         lessons_tool_schema(),
         create_artifact_tool_schema(),
@@ -279,7 +280,7 @@ mod tests {
     fn test_layer1_tools() {
         let tools = layer1_tools();
         let arr = tools.as_array().unwrap();
-        assert_eq!(arr.len(), 22, "L1 should have 22 tools");
+        assert_eq!(arr.len(), 23, "L1 should have 23 tools");
         assert!(arr.iter().any(|t| t["function"]["name"] == "start_react_system"));
         assert!(arr.iter().any(|t| t["function"]["name"] == "memory"));
         assert!(arr.iter().any(|t| t["function"]["name"] == "scratchpad"));
