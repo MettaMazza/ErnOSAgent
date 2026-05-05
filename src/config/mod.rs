@@ -49,7 +49,16 @@ pub struct GeneralConfig {
     /// Port for local Whisper STT server (used by voice calls)
     #[serde(default)]
     pub whisper_port: Option<u16>,
+    /// Maximum 1-second retries when waiting for the inference provider to
+    /// become healthy at startup. Default 60 (matches legacy hardcoded value).
+    /// Bump for setups where model load is genuinely slower than 60s — e.g.
+    /// >20B models on a single GPU, or any model split across multiple
+    /// backends via llama.cpp RPC where layer transfer takes time.
+    #[serde(default = "default_provider_health_check_retries")]
+    pub provider_health_check_retries: u32,
 }
+
+fn default_provider_health_check_retries() -> u32 { 60 }
 
 impl Default for GeneralConfig {
     fn default() -> Self {
@@ -59,6 +68,7 @@ impl Default for GeneralConfig {
             kokoro_port: Some(8880),
             flux_port: Some(8890),
             whisper_port: Some(8891),
+            provider_health_check_retries: 60,
         }
     }
 }
@@ -373,5 +383,37 @@ mod tests {
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: AppConfig = toml::from_str(&serialized).unwrap();
         assert_eq!(deserialized.general.active_provider, "llamacpp");
+    }
+
+    #[test]
+    fn test_provider_health_check_retries_default_is_legacy_60() {
+        // Default must match the value previously hardcoded in main.rs so
+        // that existing tomls without this field deserialize to identical
+        // pre-patch behavior.
+        let config = AppConfig::default();
+        assert_eq!(config.general.provider_health_check_retries, 60);
+    }
+
+    #[test]
+    fn test_provider_health_check_retries_missing_field_deserializes_to_60() {
+        // A toml file written before this field existed must still parse,
+        // and the field must default to the legacy hardcoded value.
+        let toml_without_field = r#"
+            active_provider = "llamacpp"
+            data_dir = "data"
+        "#;
+        let general: GeneralConfig = toml::from_str(toml_without_field).unwrap();
+        assert_eq!(general.provider_health_check_retries, 60);
+    }
+
+    #[test]
+    fn test_provider_health_check_retries_explicit_value_honored() {
+        let toml_with_field = r#"
+            active_provider = "llamacpp"
+            data_dir = "data"
+            provider_health_check_retries = 480
+        "#;
+        let general: GeneralConfig = toml::from_str(toml_with_field).unwrap();
+        assert_eq!(general.provider_health_check_retries, 480);
     }
 }

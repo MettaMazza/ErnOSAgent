@@ -272,16 +272,20 @@ async fn create_and_verify_provider(
             .context("Failed to create provider")?
     );
 
-    tracing::info!("Waiting for provider health check...");
-    let mut retries = 0;
+    let max_retries = config.general.provider_health_check_retries;
+    tracing::info!(max_retries, "Waiting for provider health check...");
+    let mut retries: u32 = 0;
     while !provider.health().await {
         retries += 1;
-        if retries > 60 {
-            anyhow::bail!("Provider failed health check after 60 attempts. Is the server running?");
+        if retries > max_retries {
+            anyhow::bail!(
+                "Provider failed health check after {} attempts. Is the server running?",
+                max_retries
+            );
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         if retries % 10 == 0 {
-            tracing::info!(retries, "Still waiting for provider...");
+            tracing::info!(retries, max_retries, "Still waiting for provider...");
         }
     }
     tracing::info!("Provider healthy");
