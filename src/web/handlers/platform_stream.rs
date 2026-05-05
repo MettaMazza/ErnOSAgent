@@ -8,6 +8,7 @@ use crate::web::state::AppState;
 use axum::extract::State;
 use axum::response::sse::{Event, Sse};
 use futures_util::stream::Stream;
+use futures_util::FutureExt;
 use std::convert::Infallible;
 use std::pin::Pin;
 
@@ -18,8 +19,29 @@ pub async fn platform_ingest_stream(
 ) -> Sse<Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>> {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(64);
 
+    let error_tx = tx.clone();
     tokio::spawn(async move {
-        run_streaming_pipeline(state, msg, tx).await;
+        let result = std::panic::AssertUnwindSafe(
+            run_streaming_pipeline(state, msg, tx)
+        )
+        .catch_unwind()
+        .await;
+
+        if let Err(panic) = result {
+            let panic_msg = panic.downcast_ref::<String>()
+                .map(|s| s.as_str())
+                .or_else(|| panic.downcast_ref::<&str>().copied())
+                .unwrap_or("unknown panic");
+            tracing::error!(
+                panic = %panic_msg,
+                "SSE streaming pipeline PANICKED — this message will fail"
+            );
+            let _ = error_tx.send(Ok(
+                Event::default()
+                    .event("error")
+                    .data(format!("{{\"error\": \"Pipeline panic: {}\"}}", panic_msg))
+            )).await;
+        }
     });
 
     let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
@@ -32,12 +54,21 @@ async fn run_streaming_pipeline(
     msg: crate::platform::adapter::PlatformMessage,
     tx: tokio::sync::mpsc::Sender<Result<Event, Infallible>>,
 ) {
+    tracing::info!(
+        platform = %msg.platform, user = %msg.user_name,
+        content_len = msg.content.len(),
+        "SSE pipeline: starting"
+    );
+
     // Bug fix: session ID must match platform_ingest.rs (3-part format)
     let session_id = format!("{}_{}_{}", msg.platform, msg.user_id, msg.channel_id);
 
+    tracing::info!(session = %session_id, "SSE pipeline: ensuring session");
     // Bug fix: create/load session — was completely missing from streaming path
     super::platform_ingest::ensure_session(&state, &session_id, &msg).await;
+    tracing::info!(session = %session_id, "SSE pipeline: session ready");
 
+    tracing::info!(session = %session_id, "SSE pipeline: processing attachments");
     // Process platform attachments (security-scoped: admin=disk, non-admin=memory)
     let processed = crate::web::attachment_ingest::process_attachments(
         &msg.attachments, msg.is_admin,
@@ -87,6 +118,7 @@ async fn run_streaming_pipeline(
     let tools = super::platform_ingest::select_tools(msg.is_admin);
     let tools_chars = tools.to_string().len();
 
+    tracing::info!(session = %session_id, tools_chars, "SSE pipeline: building context");
     let ctx = crate::web::ws_context::build_chat_context(
         &state, &content_with_attachments, &session_id, None, images, &msg.platform, tools_chars,
     ).await;
