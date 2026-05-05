@@ -362,6 +362,30 @@ async fn handle_chat_message(
             let tc = schema::ToolCall { id, name, arguments };
             run_l1_tool_chain(state, provider, sink.sender, &mut messages, &tools, content, session_id, tc, pending_chain, stop_flag).await;
         }
+        ConsumeResult::ToolCalls(calls) => {
+            // Model emitted multiple tool calls in this turn. Dispatch all
+            // but the last inline (sending UI events + appending messages),
+            // then enter the L1 chain on the last call. The chain's first
+            // re-prompt will see the full set of leading tool results in
+            // message history. Mirrors the platform_ingest.rs pattern.
+            let count = calls.len();
+            crate::tools::introspect_tool::log_reasoning_event(
+                &state.config.general.data_dir, session_id,
+                &serde_json::json!({"type":"inference","result":"tool_calls","count": count}),
+                None);
+            tracing::info!(count, "L1 result: ToolCalls (multi-call dispatch)");
+            match dispatch_leading_tool_calls(state, sink.sender, &mut messages, calls).await {
+                Some(last_tc) => {
+                    run_l1_tool_chain(state, provider, sink.sender, &mut messages, &tools, content, session_id, last_tc, pending_chain, stop_flag).await;
+                }
+                None => {
+                    // ToolCalls with empty Vec — stream_consumer invariant violation.
+                    // Surface explicitly rather than silently dropping the turn.
+                    tracing::error!("L1 result: ToolCalls(empty) — stream_consumer invariant violated");
+                    send_ws(sink.sender, "error", &serde_json::json!({"message": "Internal error: empty tool call set"})).await;
+                }
+            }
+        }
         ConsumeResult::Error(e) => {
             tracing::error!(error = %e, "L1 result: Error");
             send_ws(sink.sender, "error", &serde_json::json!({"message": e})).await;
@@ -541,7 +565,7 @@ async fn handle_plan_decision(
 }
 
 // L1 tool chain handler extracted to ws_l1.rs for governance compliance.
-use crate::web::ws_l1::{deliver_reply, run_l1_tool_chain};
+use crate::web::ws_l1::{deliver_reply, dispatch_leading_tool_calls, run_l1_tool_chain};
 
 
 // ReAct loop execution is in crate::web::ws_react.
