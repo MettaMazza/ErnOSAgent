@@ -67,6 +67,26 @@ impl LlamaCppProvider {
             args.push(lora.clone());
         }
 
+        // RPC backends — when set, llama-server distributes layers across
+        // this node's GPU AND the listed remote rpc-server endpoints.
+        // Empty-string treated as None to avoid emitting `--rpc ` with no
+        // value (which llama-server rejects).
+        if let Some(ref rpc) = self.config.rpc_servers {
+            if !rpc.is_empty() {
+                // §13.4: surface the security posture of llama.cpp's
+                // rpc-server (unauthenticated, unencrypted) at runtime so
+                // operators see it in logs even if they never read the
+                // toml field's doc comment. Loud warn at server startup.
+                tracing::warn!(
+                    rpc_servers = %rpc,
+                    "RPC mesh enabled — llama.cpp rpc-server is UNAUTHENTICATED and UNENCRYPTED. \
+                     Only use on trusted private networks (e.g. Tailscale, WireGuard)."
+                );
+                args.push("--rpc".to_string());
+                args.push(rpc.clone());
+            }
+        }
+
         args
     }
 
@@ -553,5 +573,39 @@ mod tests {
         let provider = LlamaCppProvider::new(&config);
         let args = provider.build_server_args();
         assert_eq!(ctx_arg(&args), "32768");
+    }
+
+    #[test]
+    fn test_build_server_args_no_rpc_when_unset() {
+        // Default config has rpc_servers = None — args must not contain --rpc.
+        let config = LlamaCppConfig::default();
+        let provider = LlamaCppProvider::new(&config);
+        let args = provider.build_server_args();
+        assert!(!args.iter().any(|a| a == "--rpc"),
+            "build_server_args must not emit --rpc when rpc_servers is None");
+    }
+
+    #[test]
+    fn test_build_server_args_no_rpc_when_empty_string() {
+        // Treating Some("") as off avoids emitting `--rpc ` with no value
+        // (which llama-server rejects with a confusing parse error).
+        let mut config = LlamaCppConfig::default();
+        config.rpc_servers = Some(String::new());
+        let provider = LlamaCppProvider::new(&config);
+        let args = provider.build_server_args();
+        assert!(!args.iter().any(|a| a == "--rpc"),
+            "build_server_args must treat Some(\"\") as off, not emit empty --rpc");
+    }
+
+    #[test]
+    fn test_build_server_args_emits_rpc_when_set() {
+        // Setting a non-empty rpc_servers must produce `--rpc <value>`.
+        let mut config = LlamaCppConfig::default();
+        config.rpc_servers = Some("10.0.0.5:50052,10.0.0.6:50052".to_string());
+        let provider = LlamaCppProvider::new(&config);
+        let args = provider.build_server_args();
+        let rpc_pos = args.iter().position(|a| a == "--rpc")
+            .expect("build_server_args must emit --rpc when rpc_servers set");
+        assert_eq!(args[rpc_pos + 1], "10.0.0.5:50052,10.0.0.6:50052");
     }
 }

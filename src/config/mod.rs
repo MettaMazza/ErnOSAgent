@@ -107,6 +107,14 @@ pub struct LlamaCppConfig {
     /// VRAM-limited hardware.
     #[serde(default)]
     pub context_length: u32,
+    /// Optional comma-separated list of llama.cpp RPC backends
+    /// (`host:port,host:port,...`). When set, llama-server distributes
+    /// model layers across this node's GPU AND the listed remote backends'
+    /// GPUs/CPUs. Requires `rpc-server` running on each remote node.
+    /// Only run over a private network — llama.cpp's rpc-server is
+    /// unauthenticated and unencrypted.
+    #[serde(default)]
+    pub rpc_servers: Option<String>,
 }
 
 impl Default for LlamaCppConfig {
@@ -125,6 +133,7 @@ impl Default for LlamaCppConfig {
             visual_token_budget: 560,
             lora_adapter: None,
             context_length: 0,
+            rpc_servers: None,
         }
     }
 }
