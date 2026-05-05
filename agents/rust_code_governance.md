@@ -24,7 +24,7 @@ These are the **mandatory** structural limits for all Rust source files in this 
 
 #### Exception: Operational Kernel (`src/prompt/core.rs`)
 
-The operational kernel is a single `const` string literal containing the full-depth system prompt. It is exempt from the 300-line ideal because it is **prompt text, not code logic** — splitting it across files would fragment the kernel's coherence with no structural benefit. The file remains under 500 lines.
+The operational kernel is a single `const` string literal containing the full-depth system prompt. It is exempt from the 300-line ideal because it is **prompt text, not code logic** — splitting it across files would fragment the kernel's coherence with no structural benefit.
 
 #### How to Split a File Over 500 Lines
 
