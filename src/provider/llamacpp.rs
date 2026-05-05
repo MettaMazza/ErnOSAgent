@@ -29,6 +29,18 @@ impl LlamaCppProvider {
 
     /// Build the llama-server command-line arguments.
     pub fn build_server_args(&self) -> Vec<String> {
+        let ctx = if self.config.context_length > 0 {
+            // §2.7: behavior changes are never silent. When the operator
+            // sets a non-zero context_length, the auto-derived GGUF value
+            // is overridden — log it loudly at server-startup time.
+            tracing::info!(
+                context_length = self.config.context_length,
+                "Operator-configured context_length overrides GGUF default"
+            );
+            self.config.context_length.to_string()
+        } else {
+            "0".to_string() // 0 = auto-detect from GGUF (legacy default)
+        };
         let mut args = vec![
             "--model".to_string(),
             self.config.model_path.clone(),
@@ -36,7 +48,7 @@ impl LlamaCppProvider {
             self.config.port.to_string(),
             "--jinja".to_string(), // Use model's built-in Jinja chat template for tool calling
             "-c".to_string(),
-            "0".to_string(), // Auto-detect context from GGUF
+            ctx,
             "-np".to_string(),
             "1".to_string(), // Single slot — prevents unused slots wasting KV cache
             "-ngl".to_string(),
@@ -514,5 +526,32 @@ mod tests {
             assert!(msg.contains("connection closed") || msg.contains("connection reset"),
                 "Error classification must match: {}", msg);
         }
+    }
+
+    /// Helper: extract the value passed to the `-c` flag from build_server_args.
+    fn ctx_arg(args: &[String]) -> &str {
+        let pos = args.iter().position(|a| a == "-c")
+            .expect("build_server_args must always emit -c");
+        &args[pos + 1]
+    }
+
+    #[test]
+    fn test_build_server_args_default_context_passes_zero() {
+        // Default config has context_length = 0, which must produce `-c 0`
+        // (legacy behavior — llama-server interprets 0 as auto-detect from GGUF).
+        let config = LlamaCppConfig::default();
+        let provider = LlamaCppProvider::new(&config);
+        let args = provider.build_server_args();
+        assert_eq!(ctx_arg(&args), "0");
+    }
+
+    #[test]
+    fn test_build_server_args_explicit_context_overrides() {
+        // Setting context_length must produce `-c <value>` instead of `-c 0`.
+        let mut config = LlamaCppConfig::default();
+        config.context_length = 32768;
+        let provider = LlamaCppProvider::new(&config);
+        let args = provider.build_server_args();
+        assert_eq!(ctx_arg(&args), "32768");
     }
 }

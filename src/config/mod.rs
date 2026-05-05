@@ -100,6 +100,13 @@ pub struct LlamaCppConfig {
     pub visual_token_budget: usize,
     /// Optional LoRA adapter to load at inference time
     pub lora_adapter: Option<String>,
+    /// Context length passed to llama-server `-c`. 0 = auto-detect from GGUF
+    /// (legacy behavior — stalls on long-default-context models like
+    /// Qwen3.5/3.6 which advertise 256K). Set explicitly (e.g. 32768) to
+    /// bound KV cache allocation and pass health-check timeouts on
+    /// VRAM-limited hardware.
+    #[serde(default)]
+    pub context_length: u32,
 }
 
 impl Default for LlamaCppConfig {
@@ -117,6 +124,7 @@ impl Default for LlamaCppConfig {
             sae_embed_port: 8082,
             visual_token_budget: 560,
             lora_adapter: None,
+            context_length: 0,
         }
     }
 }
